@@ -1,0 +1,795 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Silvermoat Insurance - One-shot deployable MVP (CloudFormation only).
+  S3 Website-hosted UI (NO CloudFront), API Gateway REST -> single Lambda (AWS_PROXY),
+  DynamoDB tables, S3 docs, EventBridge, SNS, and a Custom Resource that seeds demo data + cleans up on delete.
+
+Parameters:
+  AppName:
+    Type: String
+    Default: silvermoat
+    Description: "Short app name used in resource naming."
+
+  StageName:
+    Type: String
+    Default: demo
+    AllowedPattern: "^[a-zA-Z0-9_-]+$"
+    Description: "API Gateway stage name."
+
+  ApiDeploymentToken:
+    Type: String
+    Default: "v1"
+    Description: >
+      Change this value to force a new API Gateway deployment on updates
+      (e.g., v2, v3...). Helps avoid 'API didn't update' confusion.
+
+Resources:
+
+  # ----------------------------
+  # S3 Buckets (UI Website + Docs)
+  # ----------------------------
+  UiBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # Public website hosting requires public access.
+      # Keep this ONLY for demo environments.
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      VersioningConfiguration:
+        Status: Suspended
+
+  UiBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: UiBucket
+    Properties:
+      Bucket: !Ref UiBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: PublicReadForWebsite
+            Effect: Allow
+            Principal: "*"
+            Action: "s3:GetObject"
+            Resource: !Sub "${UiBucket.Arn}/*"
+
+  DocsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # Docs/media should remain private (Lambda only)
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Suspended
+
+  # ----------------------------
+  # DynamoDB Tables (PAY_PER_REQUEST)
+  # ----------------------------
+  QuotesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  PoliciesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  ClaimsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  PaymentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  CasesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  # ----------------------------
+  # SNS Topic (Demo notifications)
+  # ----------------------------
+  DemoNotificationsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "${AppName}-${StageName}-demo-notifications"
+
+  # ----------------------------
+  # IAM Role for MVP Lambda
+  # ----------------------------
+  MvpLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: !Sub "${AppName}-${StageName}-mvp-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Logs
+                Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "*"
+
+              - Sid: DynamoRW
+                Effect: Allow
+                Action:
+                  - "dynamodb:GetItem"
+                  - "dynamodb:PutItem"
+                  - "dynamodb:UpdateItem"
+                  - "dynamodb:DeleteItem"
+                  - "dynamodb:Scan"
+                Resource:
+                  - !GetAtt QuotesTable.Arn
+                  - !GetAtt PoliciesTable.Arn
+                  - !GetAtt ClaimsTable.Arn
+                  - !GetAtt PaymentsTable.Arn
+                  - !GetAtt CasesTable.Arn
+
+              - Sid: S3DocsList
+                Effect: Allow
+                Action: "s3:ListBucket"
+                Resource: !GetAtt DocsBucket.Arn
+
+              - Sid: S3DocsObjRW
+                Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:PutObject"
+                  - "s3:DeleteObject"
+                Resource: !Sub "${DocsBucket.Arn}/*"
+
+              - Sid: PutEvents
+                Effect: Allow
+                Action: "events:PutEvents"
+                Resource: "*"
+
+              - Sid: PublishSNS
+                Effect: Allow
+                Action: "sns:Publish"
+                Resource: !Ref DemoNotificationsTopic
+
+  # ----------------------------
+  # MVP Service Lambda (single function; routes by path)
+  # ----------------------------
+  MvpServiceFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt MvpLambdaRole.Arn
+      Timeout: 10
+      MemorySize: 256
+      Environment:
+        Variables:
+          QUOTES_TABLE: !Ref QuotesTable
+          POLICIES_TABLE: !Ref PoliciesTable
+          CLAIMS_TABLE: !Ref ClaimsTable
+          PAYMENTS_TABLE: !Ref PaymentsTable
+          CASES_TABLE: !Ref CasesTable
+          DOCS_BUCKET: !Ref DocsBucket
+          SNS_TOPIC_ARN: !Ref DemoNotificationsTopic
+      Code:
+        ZipFile: |
+          import os, json, uuid, time
+          import boto3
+
+          ddb = boto3.resource("dynamodb")
+          s3 = boto3.client("s3")
+          eb = boto3.client("events")
+          sns = boto3.client("sns")
+
+          T = {
+            "quote": ddb.Table(os.environ["QUOTES_TABLE"]),
+            "policy": ddb.Table(os.environ["POLICIES_TABLE"]),
+            "claim": ddb.Table(os.environ["CLAIMS_TABLE"]),
+            "payment": ddb.Table(os.environ["PAYMENTS_TABLE"]),
+            "case": ddb.Table(os.environ["CASES_TABLE"]),
+          }
+          DOCS_BUCKET = os.environ["DOCS_BUCKET"]
+          TOPIC = os.environ["SNS_TOPIC_ARN"]
+
+          def _resp(code, body):
+            return {
+              "statusCode": code,
+              "headers": {
+                "content-type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type"
+              },
+              "body": json.dumps(body),
+            }
+
+          def _emit(detail_type, detail):
+            # Best-effort: events + demo notifications
+            try:
+              eb.put_events(Entries=[{
+                "Source": "silvermoat.mvp",
+                "DetailType": detail_type,
+                "Detail": json.dumps(detail)
+              }])
+            except Exception:
+              pass
+            try:
+              sns.publish(TopicArn=TOPIC, Subject=detail_type, Message=json.dumps(detail))
+            except Exception:
+              pass
+
+          def handler(event, context):
+            path = (event.get("path") or "/").strip("/")
+            method = (event.get("httpMethod") or "GET").upper()
+            
+            # Handle CORS preflight
+            if method == "OPTIONS":
+              return _resp(200, {"message": "CORS preflight"})
+            
+            parts = [p for p in path.split("/") if p]
+
+            if not parts:
+              return _resp(200, {
+                "name": "Silvermoat MVP",
+                "endpoints": ["/quote", "/policy", "/claim", "/payment", "/case"]
+              })
+
+            domain = parts[0]
+            if domain not in T:
+              return _resp(404, {"error": "unknown_domain", "domain": domain})
+
+            table = T[domain]
+            body = {}
+            if event.get("body"):
+              try:
+                body = json.loads(event["body"])
+              except Exception:
+                body = {"raw": event["body"]}
+
+            # POST /{domain} -> create
+            if method == "POST" and len(parts) == 1:
+              _id = str(uuid.uuid4())
+              item = {"id": _id, "createdAt": int(time.time()), "data": body}
+              table.put_item(Item=item)
+              _emit(f"{domain}.created", {"id": _id, "data": body})
+              return _resp(201, {"id": _id, "item": item})
+
+            # GET /{domain}/{id} -> read
+            if method == "GET" and len(parts) == 2:
+              _id = parts[1]
+              r = table.get_item(Key={"id": _id})
+              if "Item" not in r:
+                return _resp(404, {"error": "not_found", "id": _id})
+              return _resp(200, r["Item"])
+
+            # POST /claim/{id}/status -> simple state update demo
+            if domain == "claim" and method == "POST" and len(parts) == 3 and parts[2] == "status":
+              _id = parts[1]
+              new_status = (body.get("status") or "REVIEW").upper()
+              table.update_item(
+                Key={"id": _id},
+                UpdateExpression="SET #s = :s, updatedAt = :u",
+                ExpressionAttributeNames={"#s": "status"},
+                ExpressionAttributeValues={":s": new_status, ":u": int(time.time())},
+              )
+              _emit("claim.status_changed", {"id": _id, "status": new_status})
+              return _resp(200, {"id": _id, "status": new_status})
+
+            # POST /claim/{id}/doc -> attach a tiny doc to S3 (demo)
+            if domain == "claim" and method == "POST" and len(parts) == 3 and parts[2] == "doc":
+              _id = parts[1]
+              key = f"claims/{_id}/note.txt"
+              content = (body.get("text") or "Demo claim note").encode("utf-8")
+              s3.put_object(
+                Bucket=DOCS_BUCKET,
+                Key=key,
+                Body=content,
+                ContentType="text/plain"
+              )
+              _emit("claim.document_added", {"id": _id, "s3Key": key})
+              return _resp(200, {"id": _id, "s3Key": key})
+
+            return _resp(400, {"error": "unsupported_operation", "path": event.get("path"), "method": method})
+
+  # ----------------------------
+  # API Gateway (REST proxy to Lambda)
+  # ----------------------------
+  Api:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "${AppName}-${StageName}-api"
+      EndpointConfiguration:
+        Types: [REGIONAL]
+
+  ApiRootMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !GetAtt Api.RootResourceId
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MvpServiceFunction.Arn}/invocations"
+
+  ApiProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref Api
+      ParentId: !GetAtt Api.RootResourceId
+      PathPart: "{proxy+}"
+
+  ApiProxyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref ApiProxyResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.proxy: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MvpServiceFunction.Arn}/invocations"
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiRootMethod
+      - ApiProxyMethod
+    Properties:
+      RestApiId: !Ref Api
+      Description: !Sub "Deployment token: ${ApiDeploymentToken}"
+
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref Api
+      DeploymentId: !Ref ApiDeployment
+      StageName: !Ref StageName
+
+  ApiInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !Ref MvpServiceFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/*/*"
+
+  # ----------------------------
+  # Seeder Lambda (Custom Resource): seeds UI + demo data; cleans on delete
+  # ----------------------------
+  SeederLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: !Sub "${AppName}-${StageName}-seeder-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Logs
+                Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "*"
+
+              - Sid: S3ListBuckets
+                Effect: Allow
+                Action:
+                  - "s3:ListBucket"
+                  - "s3:ListBucketVersions"
+                Resource:
+                  - !GetAtt UiBucket.Arn
+                  - !GetAtt DocsBucket.Arn
+
+              - Sid: S3Objects
+                Effect: Allow
+                Action:
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                  - "s3:DeleteObject"
+                  - "s3:DeleteObjectVersion"
+                Resource:
+                  - !Sub "${UiBucket.Arn}/*"
+                  - !Sub "${DocsBucket.Arn}/*"
+
+              - Sid: DynamoSeedAndCleanup
+                Effect: Allow
+                Action:
+                  - "dynamodb:PutItem"
+                  - "dynamodb:Scan"
+                  - "dynamodb:DeleteItem"
+                Resource:
+                  - !GetAtt QuotesTable.Arn
+                  - !GetAtt PoliciesTable.Arn
+                  - !GetAtt ClaimsTable.Arn
+                  - !GetAtt PaymentsTable.Arn
+                  - !GetAtt CasesTable.Arn
+
+  SeederFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt SeederLambdaRole.Arn
+      Timeout: 120
+      MemorySize: 256
+      Environment:
+        Variables:
+          UI_BUCKET: !Ref UiBucket
+          DOCS_BUCKET: !Ref DocsBucket
+          QUOTES_TABLE: !Ref QuotesTable
+          POLICIES_TABLE: !Ref PoliciesTable
+          CLAIMS_TABLE: !Ref ClaimsTable
+          PAYMENTS_TABLE: !Ref PaymentsTable
+          CASES_TABLE: !Ref CasesTable
+          API_BASE: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
+          WEB_BASE: !GetAtt UiBucket.WebsiteURL
+      Code:
+        ZipFile: |
+          import os, json, boto3, urllib.request, urllib.error
+
+          s3 = boto3.client("s3")
+          ddb = boto3.resource("dynamodb")
+
+          def send(event, status, data, phys_id, reason=None):
+            if reason is None:
+              reason = "See CloudWatch logs for details"
+
+            response_body = {
+              "Status": status,
+              "Reason": reason,
+              "PhysicalResourceId": phys_id,
+              "StackId": event["StackId"],
+              "RequestId": event["RequestId"],
+              "LogicalResourceId": event["LogicalResourceId"],
+              "Data": data,
+            }
+
+            body = json.dumps(response_body).encode("utf-8")
+            response_url = event.get("ResponseURL")
+
+            if not response_url:
+              raise ValueError("ResponseURL is missing from event")
+
+            print(f"Sending {status} response to CloudFormation")
+            print(f"ResponseURL: {response_url[:100]}...")  # Log partial URL for security
+
+            req = urllib.request.Request(
+              response_url,
+              data=body,
+              method="PUT",
+              headers={
+                "content-type": "",
+                "content-length": str(len(body)),
+              },
+            )
+
+            try:
+              with urllib.request.urlopen(req, timeout=30) as response:
+                response_code = response.getcode()
+                print(f"Response sent successfully. HTTP {response_code}")
+                if response_code != 200:
+                  print(f"Warning: Expected 200, got {response_code}")
+            except urllib.error.HTTPError as e:
+              error_msg = f"HTTP error sending response: {e.code} {e.reason}"
+              print(error_msg)
+              try:
+                error_body = e.read().decode("utf-8")
+                print(f"Error response body: {error_body}")
+              except Exception:
+                pass
+              raise Exception(f"Could not send response to CloudFormation: {error_msg}")
+            except Exception as e:
+              error_msg = f"Failed to send response: {type(e).__name__}: {str(e)}"
+              print(error_msg)
+              print(f"Body length: {len(body)}")
+              print(f"Response body preview: {body[:200]}")
+              raise Exception(f"Could not send response to CloudFormation: {error_msg}")
+
+          def empty_bucket(bucket):
+            # Delete all object versions + delete markers (works for versioned and non-versioned buckets)
+            try:
+              paginator = s3.get_paginator("list_object_versions")
+              for page in paginator.paginate(Bucket=bucket):
+                to_delete = []
+
+                for v in page.get("Versions", []):
+                  to_delete.append({"Key": v["Key"], "VersionId": v["VersionId"]})
+
+                for m in page.get("DeleteMarkers", []):
+                  to_delete.append({"Key": m["Key"], "VersionId": m["VersionId"]})
+
+                for i in range(0, len(to_delete), 1000):
+                  s3.delete_objects(Bucket=bucket, Delete={"Objects": to_delete[i : i + 1000]})
+            except Exception as e:
+              # If bucket is not versioned or API is restricted, fall back to non-versioned deletion
+              print(f"list_object_versions failed or not applicable for {bucket}: {type(e).__name__}: {e}")
+
+            # Delete current objects (covers non-versioned and any remaining current keys)
+            token = None
+            while True:
+              kwargs = {"Bucket": bucket}
+              if token:
+                kwargs["ContinuationToken"] = token
+              r = s3.list_objects_v2(**kwargs)
+              objs = [{"Key": o["Key"]} for o in r.get("Contents", [])]
+              if objs:
+                for i in range(0, len(objs), 1000):
+                  s3.delete_objects(Bucket=bucket, Delete={"Objects": objs[i : i + 1000]})
+              if r.get("IsTruncated"):
+                token = r.get("NextContinuationToken")
+              else:
+                break
+
+          def wipe_table(name):
+            t = ddb.Table(name)
+            start_key = None
+            while True:
+              kwargs = {"ProjectionExpression": "id"}
+              if start_key:
+                kwargs["ExclusiveStartKey"] = start_key
+              r = t.scan(**kwargs)
+              for it in r.get("Items", []):
+                t.delete_item(Key={"id": it["id"]})
+              start_key = r.get("LastEvaluatedKey")
+              if not start_key:
+                break
+
+          def handler(event, context):
+            print(f"Custom Resource Handler invoked. RequestType: {event.get('RequestType')}")
+            print(f"Event keys: {list(event.keys())}")
+
+            props = event.get("ResourceProperties", {})
+            mode = props.get("Mode", "seed")
+            request_type = event.get("RequestType", "Create")
+
+            print(f"Mode: {mode}")
+            print(f"Processing RequestType: {request_type}, Mode: {mode}")
+
+            phys_id = f"silvermoat-{mode}-{event.get('StackId','').split('/')[-1]}"
+
+            try:
+              ui_bucket = os.environ["UI_BUCKET"]
+              docs_bucket = os.environ["DOCS_BUCKET"]
+              tables = [
+                os.environ["QUOTES_TABLE"],
+                os.environ["POLICIES_TABLE"],
+                os.environ["CLAIMS_TABLE"],
+                os.environ["PAYMENTS_TABLE"],
+                os.environ["CASES_TABLE"],
+              ]
+              api = os.environ.get("API_BASE", "")
+              web = os.environ.get("WEB_BASE", "")
+
+              print(f"UI_BUCKET: {ui_bucket}")
+              print(f"DOCS_BUCKET: {docs_bucket}")
+              print(f"API_BASE: {api}")
+              print(f"WEB_BASE: {web}")
+
+              # -------------------------
+              # Cleanup mode
+              # -------------------------
+              if mode == "cleanup":
+                if request_type == "Delete":
+                  print("Starting cleanup...")
+                  for tn in tables:
+                    print(f"Wiping table: {tn}")
+                    wipe_table(tn)
+
+                  print(f"Emptying bucket: {ui_bucket}")
+                  empty_bucket(ui_bucket)
+
+                  print(f"Emptying bucket: {docs_bucket}")
+                  empty_bucket(docs_bucket)
+
+                  send(event, "SUCCESS", {"message": "cleaned"}, phys_id, "Cleanup completed successfully")
+                else:
+                  # Create/Update: no-op
+                  print("Cleanup mode: Create/Update - no action needed")
+                  send(event, "SUCCESS", {"message": "cleanup resource ready"}, phys_id, "Cleanup resource initialized")
+                return
+
+              # -------------------------
+              # Seed mode
+              # -------------------------
+              if mode == "seed":
+                if request_type == "Delete":
+                  # Delete: no-op (cleanup is handled by CleanupCustomResource)
+                  print("Seed mode: Delete - no action needed")
+                  send(event, "SUCCESS", {"message": "seed resource deleted"}, phys_id, "Seed resource deleted")
+                  return
+
+                if request_type in ["Create", "Update"]:
+                  print("Starting seeding process...")
+
+                  # Seed UI
+                  print(f"Uploading index.html to {ui_bucket}")
+                  html = f"""<!doctype html>
+                <html><head><meta charset=\"utf-8\"><title>Silvermoat Insurance Demo</title></head>
+                <body style=\"font-family:Arial;padding:24px\">
+                  <h1>Silvermoat Insurance</h1>
+                  <p>One-shot CloudFormation MVP (S3 Website Hosting)</p>
+                  <ul>
+                    <li>API Base: <code>{api}</code></li>
+                    <li>Web Base: <code>{web}</code></li>
+                  </ul>
+                  <button id=\"btn\">Create Quote</button>
+                  <pre id=\"out\" style=\"margin-top:16px;background:#f7f7f7;padding:12px;border-radius:8px;\"></pre>
+                  <script>
+                    const out = document.getElementById(\"out\");
+                    document.getElementById(\"btn\").onclick = async () => {{
+                      const r = await fetch(\"{api}/quote\", {{
+                        method:\"POST\",
+                        headers:{{\"content-type\":\"application/json\"}},
+                        body: JSON.stringify({{\"name\":\"Jane Doe\",\"zip\":\"33431\"}})
+                      }});
+                      out.textContent = await r.text();
+                    }};
+                  </script>
+                </body></html>"""
+
+                  s3.put_object(
+                    Bucket=ui_bucket,
+                    Key="index.html",
+                    Body=html.encode("utf-8"),
+                    ContentType="text/html",
+                  )
+                  print("index.html uploaded successfully")
+
+                  # Seed DynamoDB
+                  print("Seeding DynamoDB tables...")
+
+                  def put(table, item):
+                    ddb.Table(table).put_item(Item=item)
+
+                  put(tables[0], {"id": "q-001", "createdAt": 1, "data": {"name": "Jane Doe", "premium_cents": 12550}})
+                  print(f"Seeded {tables[0]}")
+                  put(tables[1], {"id": "p-001", "createdAt": 1, "data": {"quoteId": "q-001", "status": "BOUND"}})
+                  print(f"Seeded {tables[1]}")
+                  put(tables[2], {"id": "c-001", "createdAt": 1, "status": "INTAKE", "data": {"policyId": "p-001", "loss": "Windshield"}})
+                  print(f"Seeded {tables[2]}")
+                  put(tables[3], {"id": "pay-001", "createdAt": 1, "data": {"policyId": "p-001", "amount_cents": 12550}})
+                  print(f"Seeded {tables[3]}")
+                  put(tables[4], {"id": "case-001", "createdAt": 1, "data": {"topic": "Address change", "status": "OPEN"}})
+                  print(f"Seeded {tables[4]}")
+
+                  # Seed one doc
+                  print(f"Uploading sample doc to {docs_bucket}")
+                  s3.put_object(
+                    Bucket=docs_bucket,
+                    Key="docs/sample.txt",
+                    Body=b"Silvermoat demo document",
+                    ContentType="text/plain",
+                  )
+                  print("Sample doc uploaded successfully")
+
+                  print("Seeding completed successfully")
+                  send(event, "SUCCESS", {"web": web, "api": api}, phys_id, "Seeding completed successfully")
+                  return
+
+                raise ValueError(f"Unknown RequestType in seed mode: {request_type}")
+
+              raise ValueError(f"Unknown Mode: {mode}")
+
+            except Exception as e:
+              error_msg = f"Error in Custom Resource handler: {str(e)}"
+              print(error_msg)
+              import traceback
+              print(traceback.format_exc())
+              try:
+                send(event, "FAILED", {"error": str(e)}, phys_id, error_msg)
+              except Exception as send_error:
+                print(f"CRITICAL: Failed to send FAILED response: {send_error}")
+                raise
+
+  SeedCustomResource:
+    Type: AWS::CloudFormation::CustomResource
+    DependsOn:
+      - ApiStage
+      - UiBucket
+      - DocsBucket
+      - UiBucketPolicy
+    Properties:
+      ServiceToken: !GetAtt SeederFunction.Arn
+      Mode: seed
+
+  CleanupCustomResource:
+    Type: AWS::CloudFormation::CustomResource
+    DependsOn:
+      - UiBucket
+      - DocsBucket
+      - SeederFunction
+    Properties:
+      ServiceToken: !GetAtt SeederFunction.Arn
+      Mode: cleanup
+
+Outputs:
+  WebUrl:
+    Description: "S3 Website URL for the demo UI (HTTP)"
+    Value: !GetAtt UiBucket.WebsiteURL
+
+  ApiBaseUrl:
+    Description: "API base URL (HTTPS)"
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
+
+  UiBucketName:
+    Value: !Ref UiBucket
+
+  DocsBucketName:
+    Value: !Ref DocsBucket
+
+  QuotesTableName:
+    Value: !Ref QuotesTable
+  PoliciesTableName:
+    Value: !Ref PoliciesTable
+  ClaimsTableName:
+    Value: !Ref ClaimsTable
+  PaymentsTableName:
+    Value: !Ref PaymentsTable
+  CasesTableName:
+    Value: !Ref CasesTable
+
+  DemoNotificationsTopicArn:
+    Value: !Ref DemoNotificationsTopic
