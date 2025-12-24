@@ -1,0 +1,53 @@
+.quote-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  font-weight: 600;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.form-group input {
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.submit-button {
+  padding: 0.75rem 1.5rem;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-top: 0.5rem;
+}
+
+.submit-button:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+
+.submit-button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+

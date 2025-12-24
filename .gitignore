@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+ui/node_modules/
+
+# Build outputs
+ui/dist/
+ui/build/
+*.log
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# AWS
+.aws-sam/
+samconfig.toml
+.aws-profile
+*.pem
+*.key
+
+# CloudFormation
+packaged-template.yaml
+packaged-template.yml
+

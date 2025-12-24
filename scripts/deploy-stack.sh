@@ -1,0 +1,67 @@
+#!/bin/bash
+# Deploy CloudFormation stack for Silvermoat MVP
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Load AWS CLI check utility
+source "$SCRIPT_DIR/lib/check-aws.sh"
+
+STACK_NAME="${STACK_NAME:-silvermoat}"
+TEMPLATE_FILE="$PROJECT_ROOT/infra/silvermoat-mvp-s3-website.yaml"
+
+# AWS Profile support
+AWS_PROFILE="${AWS_PROFILE:-}"
+AWS_CMD="aws"
+if [ -n "$AWS_PROFILE" ]; then
+  AWS_CMD="aws --profile $AWS_PROFILE"
+  echo "Using AWS profile: $AWS_PROFILE"
+fi
+
+# Check AWS CLI and credentials
+check_aws_configured
+
+# Default parameters
+APP_NAME="${APP_NAME:-silvermoat}"
+STAGE_NAME="${STAGE_NAME:-demo}"
+API_DEPLOYMENT_TOKEN="${API_DEPLOYMENT_TOKEN:-v1}"
+UI_SEEDING_MODE="${UI_SEEDING_MODE:-external}"
+
+echo "Deploying CloudFormation stack: $STACK_NAME"
+echo "Template: $TEMPLATE_FILE"
+echo "Parameters:"
+echo "  AppName: $APP_NAME"
+echo "  StageName: $STAGE_NAME"
+echo "  ApiDeploymentToken: $API_DEPLOYMENT_TOKEN"
+echo "  UiSeedingMode: $UI_SEEDING_MODE"
+echo ""
+
+# Check if template file exists
+if [ ! -f "$TEMPLATE_FILE" ]; then
+  echo "Error: Template file not found: $TEMPLATE_FILE"
+  exit 1
+fi
+
+# Deploy stack
+$AWS_CMD cloudformation deploy \
+  --stack-name "$STACK_NAME" \
+  --template-file "$TEMPLATE_FILE" \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides \
+    AppName="$APP_NAME" \
+    StageName="$STAGE_NAME" \
+    ApiDeploymentToken="$API_DEPLOYMENT_TOKEN" \
+    UiSeedingMode="$UI_SEEDING_MODE" \
+  --no-fail-on-empty-changeset
+
+echo ""
+echo "Stack deployment complete!"
+echo ""
+echo "To get stack outputs, run:"
+echo "  ./scripts/get-outputs.sh"
+echo ""
+echo "To deploy the UI, run:"
+echo "  ./scripts/deploy-ui.sh"
+
