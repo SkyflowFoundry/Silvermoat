@@ -108,6 +108,142 @@ export const formatRelativeTime = (date) => {
   return dayjs(date).fromNow();
 };
 
+/**
+ * Format coverage type
+ * @param {string} type - Coverage type (AUTO, HOME, LIFE, HEALTH)
+ * @returns {string} Formatted coverage type
+ */
+export const formatCoverageType = (type) => {
+  if (!type) return '-';
+  const types = {
+    AUTO: 'Auto Insurance',
+    HOME: 'Home Insurance',
+    LIFE: 'Life Insurance',
+    HEALTH: 'Health Insurance',
+  };
+  return types[type] || type;
+};
+
+/**
+ * Format payment method
+ * @param {string} method - Payment method
+ * @returns {string} Formatted payment method
+ */
+export const formatPaymentMethod = (method) => {
+  if (!method) return '-';
+  const methods = {
+    CREDIT_CARD: 'Credit Card',
+    ACH: 'ACH Transfer',
+    CHECK: 'Check',
+    WIRE: 'Wire Transfer',
+  };
+  return methods[method] || method;
+};
+
+/**
+ * Format payment type
+ * @param {string} type - Payment type
+ * @returns {string} Formatted payment type
+ */
+export const formatPaymentType = (type) => {
+  if (!type) return '-';
+  const types = {
+    PREMIUM: 'Premium Payment',
+    CLAIM: 'Claim Payment',
+    REFUND: 'Refund',
+  };
+  return types[type] || type;
+};
+
+/**
+ * Format priority level
+ * @param {string} priority - Priority level
+ * @returns {string} Formatted priority
+ */
+export const formatPriority = (priority) => {
+  if (!priority) return '-';
+  const priorities = {
+    LOW: 'Low',
+    MEDIUM: 'Medium',
+    HIGH: 'High',
+    URGENT: 'Urgent',
+  };
+  return priorities[priority] || priority;
+};
+
+/**
+ * Format loss type
+ * @param {string} type - Loss type
+ * @returns {string} Formatted loss type
+ */
+export const formatLossType = (type) => {
+  if (!type) return '-';
+  return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+};
+
+/**
+ * Format payment schedule
+ * @param {string} schedule - Payment schedule
+ * @returns {string} Formatted schedule
+ */
+export const formatPaymentSchedule = (schedule) => {
+  if (!schedule) return '-';
+  const schedules = {
+    MONTHLY: 'Monthly',
+    QUARTERLY: 'Quarterly',
+    ANNUAL: 'Annual',
+  };
+  return schedules[schedule] || schedule;
+};
+
+/**
+ * Format status with color class
+ * @param {string} status - Status value
+ * @param {string} entityType - Entity type (quote, policy, claim, payment, case)
+ * @returns {object} Object with label and color
+ */
+export const formatStatus = (status, entityType) => {
+  if (!status) return { label: '-', color: 'default' };
+
+  const statusMap = {
+    quote: {
+      PENDING: { label: 'Pending', color: 'blue' },
+      ACCEPTED: { label: 'Accepted', color: 'green' },
+      DECLINED: { label: 'Declined', color: 'red' },
+      EXPIRED: { label: 'Expired', color: 'default' },
+    },
+    policy: {
+      ACTIVE: { label: 'Active', color: 'green' },
+      EXPIRED: { label: 'Expired', color: 'default' },
+      CANCELLED: { label: 'Cancelled', color: 'red' },
+      SUSPENDED: { label: 'Suspended', color: 'orange' },
+    },
+    claim: {
+      INTAKE: { label: 'Intake', color: 'blue' },
+      PENDING: { label: 'Pending', color: 'orange' },
+      REVIEW: { label: 'Review', color: 'cyan' },
+      APPROVED: { label: 'Approved', color: 'green' },
+      DENIED: { label: 'Denied', color: 'red' },
+      CLOSED: { label: 'Closed', color: 'default' },
+    },
+    payment: {
+      PENDING: { label: 'Pending', color: 'orange' },
+      COMPLETED: { label: 'Completed', color: 'green' },
+      FAILED: { label: 'Failed', color: 'red' },
+      REFUNDED: { label: 'Refunded', color: 'blue' },
+    },
+    case: {
+      OPEN: { label: 'Open', color: 'blue' },
+      IN_PROGRESS: { label: 'In Progress', color: 'cyan' },
+      RESOLVED: { label: 'Resolved', color: 'green' },
+      CLOSED: { label: 'Closed', color: 'default' },
+    },
+  };
+
+  const map = statusMap[entityType] || {};
+  return map[status] || { label: status, color: 'default' };
+};
+
 export default {
   formatDate,
   formatTimestamp,
@@ -117,4 +253,11 @@ export default {
   formatZip,
   truncate,
   formatRelativeTime,
+  formatCoverageType,
+  formatPaymentMethod,
+  formatPaymentType,
+  formatPriority,
+  formatLossType,
+  formatPaymentSchedule,
+  formatStatus,
 };

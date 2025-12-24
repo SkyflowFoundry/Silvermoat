@@ -103,7 +103,7 @@ const ClaimDetail = () => {
           </Descriptions.Item>
 
           <Descriptions.Item label="Status">
-            <StatusTag type="claim" value={claim.data?.status} />
+            <StatusTag type="claim" value={claim.status} />
           </Descriptions.Item>
 
           <Descriptions.Item label="Claimant Name">

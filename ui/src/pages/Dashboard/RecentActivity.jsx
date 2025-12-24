@@ -3,17 +3,45 @@
  * Displays a table of recently created entities across all types
  */
 
-import { Table, Tag, Button } from 'antd';
+import { Table, Tag, Button, Spin } from 'antd';
 import { EyeOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { formatTimestamp } from '../../utils/formatters';
+import { formatTimestamp, formatCurrencyFromCents, formatCoverageType } from '../../utils/formatters';
 import { ENTITY_LABELS } from '../../config/constants';
+import { useQuotes } from '../../hooks/queries/useQuotes';
+import { usePolicies } from '../../hooks/queries/usePolicies';
+import { useClaims } from '../../hooks/queries/useClaims';
+import { usePayments } from '../../hooks/queries/usePayments';
+import { useCases } from '../../hooks/queries/useCases';
+import { useMemo } from 'react';
 
 const RecentActivity = () => {
   const navigate = useNavigate();
 
-  // Placeholder data - in a real app, this would come from API or aggregated from context
-  const recentItems = [];
+  // Fetch all entity types
+  const { data: quotes, isLoading: quotesLoading } = useQuotes();
+  const { data: policies, isLoading: policiesLoading } = usePolicies();
+  const { data: claims, isLoading: claimsLoading } = useClaims();
+  const { data: payments, isLoading: paymentsLoading } = usePayments();
+  const { data: cases, isLoading: casesLoading } = useCases();
+
+  // Combine and sort all items by creation time
+  const recentItems = useMemo(() => {
+    const allItems = [
+      ...(quotes?.items || []).map(q => ({ type: 'quote', ...q })),
+      ...(policies?.items || []).map(p => ({ type: 'policy', ...p })),
+      ...(claims?.items || []).map(c => ({ type: 'claim', ...c })),
+      ...(payments?.items || []).map(p => ({ type: 'payment', ...p })),
+      ...(cases?.items || []).map(c => ({ type: 'case', ...c }))
+    ];
+
+    // Sort by createdAt descending and take top 20
+    return allItems
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .slice(0, 20);
+  }, [quotes, policies, claims, payments, cases]);
+
+  const isLoading = quotesLoading || policiesLoading || claimsLoading || paymentsLoading || casesLoading;
 
   const columns = [
     {
@@ -56,15 +84,23 @@ const RecentActivity = () => {
       render: (_, record) => {
         // Generate a description based on the entity type and data
         if (record.type === 'quote') {
-          return `Quote for ${record.data?.name || 'N/A'}`;
+          const coverage = record.data?.coverageType ? formatCoverageType(record.data.coverageType) : '';
+          const premium = record.data?.premium_cents ? formatCurrencyFromCents(record.data.premium_cents) : '';
+          return `${record.data?.quoteNumber || 'Quote'} - ${record.data?.name || 'N/A'} ${coverage} ${premium}`.trim();
         } else if (record.type === 'policy') {
-          return `Policy #${record.data?.policyNumber || 'N/A'} - ${record.data?.holderName || 'N/A'}`;
+          const coverage = record.data?.coverageType ? formatCoverageType(record.data.coverageType) : '';
+          return `${record.data?.policyNumber || 'Policy'} - ${record.data?.holderName || 'N/A'} (${coverage})`;
         } else if (record.type === 'claim') {
-          return `Claim #${record.data?.claimNumber || 'N/A'} - ${record.data?.claimantName || 'N/A'}`;
+          const amount = record.data?.estimatedAmount_cents ? formatCurrencyFromCents(record.data.estimatedAmount_cents) : '';
+          const lossType = record.data?.lossType || '';
+          return `${record.data?.claimNumber || 'Claim'} - ${lossType.replace(/_/g, ' ')} ${amount}`.trim();
         } else if (record.type === 'payment') {
-          return `Payment of $${record.data?.amount || '0'} via ${record.data?.method || 'N/A'}`;
+          const amount = record.data?.amount_cents ? formatCurrencyFromCents(record.data.amount_cents) : '$0';
+          const method = record.data?.paymentMethod || 'N/A';
+          return `${amount} via ${method}`;
         } else if (record.type === 'case') {
-          return record.data?.title || 'N/A';
+          const priority = record.data?.priority ? `[${record.data.priority}]` : '';
+          return `${priority} ${record.data?.title || 'N/A'}`.trim();
         }
         return '-';
       },
@@ -95,6 +131,14 @@ const RecentActivity = () => {
       ),
     },
   ];
+
+  if (isLoading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '40px 0' }}>
+        <Spin size="large" tip="Loading recent activity..." />
+      </div>
+    );
+  }
 
   return (
     <Table

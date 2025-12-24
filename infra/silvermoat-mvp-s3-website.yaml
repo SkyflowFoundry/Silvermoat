@@ -1039,21 +1039,277 @@ Resources:
                     print(f"UiSeedingMode is '{ui_seeding_mode}' - skipping index.html upload (UI should be deployed externally)")
 
                   # Seed DynamoDB
-                  print("Seeding DynamoDB tables...")
+                  print("Seeding DynamoDB tables with rich demo data...")
+
+                  import time
+                  from random import choice, randint, random
 
                   def put(table, item):
                     ddb.Table(table).put_item(Item=item)
 
-                  put(tables[0], {"id": "q-001", "createdAt": 1, "data": {"name": "Jane Doe", "premium_cents": 12550}})
-                  print(f"Seeded {tables[0]}")
-                  put(tables[1], {"id": "p-001", "createdAt": 1, "data": {"quoteId": "q-001", "status": "BOUND"}})
-                  print(f"Seeded {tables[1]}")
-                  put(tables[2], {"id": "c-001", "createdAt": 1, "status": "INTAKE", "data": {"policyId": "p-001", "loss": "Windshield"}})
-                  print(f"Seeded {tables[2]}")
-                  put(tables[3], {"id": "pay-001", "createdAt": 1, "data": {"policyId": "p-001", "amount_cents": 12550}})
-                  print(f"Seeded {tables[3]}")
-                  put(tables[4], {"id": "case-001", "createdAt": 1, "data": {"topic": "Address change", "status": "OPEN"}})
-                  print(f"Seeded {tables[4]}")
+                  # Helper functions for generating realistic data
+                  def random_name():
+                    firsts = ["John", "Jane", "Michael", "Sarah", "David", "Emily", "Robert", "Jessica", "William", "Jennifer", "James", "Linda", "Richard", "Patricia", "Joseph", "Mary", "Thomas", "Barbara", "Charles", "Elizabeth"]
+                    lasts = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin"]
+                    return f"{choice(firsts)} {choice(lasts)}"
+
+                  def random_email(name):
+                    domains = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com"]
+                    safe_name = name.lower().replace(" ", ".")
+                    return f"{safe_name}{randint(1,999)}@{choice(domains)}"
+
+                  def random_phone():
+                    return f"{randint(200,999)}{randint(200,999)}{randint(1000,9999)}"
+
+                  def random_address():
+                    streets = ["Main St", "Oak Ave", "Maple Dr", "Park Blvd", "Lake Rd", "Hill Ct", "Pine St", "Cedar Ln", "Elm Dr", "Washington St"]
+                    return f"{randint(100,9999)} {choice(streets)}"
+
+                  def random_city_state():
+                    cities = [
+                      ("Miami", "FL"), ("Tampa", "FL"), ("Orlando", "FL"), ("Atlanta", "GA"), ("Charlotte", "NC"),
+                      ("New York", "NY"), ("Los Angeles", "CA"), ("Chicago", "IL"), ("Houston", "TX"), ("Phoenix", "AZ"),
+                      ("Philadelphia", "PA"), ("San Antonio", "TX"), ("San Diego", "CA"), ("Dallas", "TX"), ("Austin", "TX")
+                    ]
+                    return choice(cities)
+
+                  def random_zip():
+                    return f"{randint(10000,99999)}"
+
+                  def random_dob():
+                    year = randint(1950, 2000)
+                    month = randint(1, 12)
+                    day = randint(1, 28)
+                    return f"{year}-{month:02d}-{day:02d}"
+
+                  def random_date_recent(days_ago):
+                    now = int(time.time())
+                    return now - randint(0, days_ago * 86400)
+
+                  def random_date_string(days_ago):
+                    ts = random_date_recent(days_ago)
+                    import datetime
+                    dt = datetime.datetime.fromtimestamp(ts)
+                    return dt.strftime("%Y-%m-%d")
+
+                  def random_date_future(days_ahead):
+                    now = int(time.time())
+                    return now + randint(0, days_ahead * 86400)
+
+                  def random_date_string_future(days_ahead):
+                    ts = random_date_future(days_ahead)
+                    import datetime
+                    dt = datetime.datetime.fromtimestamp(ts)
+                    return dt.strftime("%Y-%m-%d")
+
+                  def random_currency(min_cents, max_cents):
+                    return randint(min_cents, max_cents)
+
+                  def random_vin():
+                    chars = "ABCDEFGHJKLMNPRSTUVWXYZ0123456789"
+                    return "".join(choice(chars) for _ in range(17))
+
+                  # Generate 80 quotes
+                  print("Generating 80 quotes...")
+                  coverage_types = ["AUTO", "HOME", "LIFE", "HEALTH"]
+                  quote_statuses = ["PENDING", "ACCEPTED", "DECLINED", "EXPIRED"]
+
+                  for i in range(1, 81):
+                    name = random_name()
+                    coverage = choice(coverage_types) if random() < 0.4 else choice(coverage_types[1:]) if random() < 0.5 else choice(coverage_types[2:]) if random() < 0.67 else coverage_types[3]
+                    city, state = random_city_state()
+                    created = random_date_recent(90)
+
+                    quote = {
+                      "id": f"q-{i:04d}",
+                      "createdAt": created,
+                      "data": {
+                        "name": name,
+                        "email": random_email(name),
+                        "phone": random_phone(),
+                        "address": random_address(),
+                        "city": city,
+                        "state": state,
+                        "zip": random_zip(),
+                        "dateOfBirth": random_dob(),
+                        "premium_cents": random_currency(50000, 300000),
+                        "coverageType": coverage,
+                        "coverageLimit_cents": random_currency(10000000, 100000000),
+                        "deductible_cents": choice([50000, 100000, 250000, 500000]),
+                        "quoteNumber": f"Q-2024-{i:06d}",
+                        "status": choice(quote_statuses) if random() < 0.25 else "PENDING",
+                        "expiresAt": created + (10 * 86400)
+                      }
+                    }
+
+                    if coverage == "AUTO":
+                      makes = ["Honda", "Toyota", "Ford", "Chevrolet", "Nissan", "BMW", "Mercedes", "Audi", "Lexus", "Mazda"]
+                      models = ["Civic", "Accord", "Camry", "Corolla", "F-150", "Silverado", "Altima", "Maxima", "3 Series", "C-Class"]
+                      quote["data"]["vehicleInfo"] = {
+                        "year": randint(2015, 2024),
+                        "make": choice(makes),
+                        "model": choice(models),
+                        "vin": random_vin()
+                      }
+
+                    put(tables[0], quote)
+
+                  print(f"Seeded {tables[0]} with 80 quotes")
+
+                  # Generate 60 policies (75% of quotes accepted)
+                  print("Generating 60 policies...")
+                  policy_statuses = ["ACTIVE", "EXPIRED", "CANCELLED", "SUSPENDED"]
+                  payment_schedules = ["MONTHLY", "QUARTERLY", "ANNUAL"]
+
+                  policy_ids = []
+                  for i in range(1, 61):
+                    quote_id = f"q-{i:04d}"
+                    created = random_date_recent(60)
+                    policy_id = f"p-{i:04d}"
+                    policy_ids.append(policy_id)
+
+                    policy = {
+                      "id": policy_id,
+                      "createdAt": created,
+                      "data": {
+                        "quoteId": quote_id,
+                        "policyNumber": f"POL-2024-{i:06d}",
+                        "status": choice(policy_statuses) if random() < 0.2 else "ACTIVE",
+                        "holderName": random_name(),
+                        "effectiveDate": random_date_string(60),
+                        "expiryDate": random_date_string_future(300),
+                        "renewalDate": random_date_string_future(15),
+                        "premium_cents": random_currency(100000, 400000),
+                        "paymentSchedule": choice(payment_schedules),
+                        "coverageLimit_cents": random_currency(25000000, 100000000),
+                        "deductible_cents": choice([50000, 100000, 250000, 500000]),
+                        "coverageType": choice(coverage_types),
+                        "coverageDetails": {
+                          "liability": random_currency(10000000, 50000000),
+                          "collision": random_currency(25000000, 100000000),
+                          "comprehensive": random_currency(25000000, 100000000)
+                        }
+                      }
+                    }
+                    put(tables[1], policy)
+
+                  print(f"Seeded {tables[1]} with 60 policies")
+
+                  # Generate 40 claims (67% of policies have claims)
+                  print("Generating 40 claims...")
+                  claim_statuses = ["INTAKE", "PENDING", "REVIEW", "APPROVED", "DENIED", "CLOSED"]
+                  loss_types = ["AUTO_COLLISION", "AUTO_GLASS", "AUTO_THEFT", "PROPERTY_DAMAGE", "WATER_DAMAGE", "FIRE", "THEFT", "VANDALISM"]
+                  adjuster_names = ["Bob Smith", "Alice Johnson", "Charlie Brown", "Diana Prince", "Eve Adams"]
+
+                  for i in range(1, 41):
+                    policy_id = choice(policy_ids)
+                    created = random_date_recent(30)
+                    status_dist = random()
+                    if status_dist < 0.3:
+                      status = "INTAKE"
+                    elif status_dist < 0.55:
+                      status = "PENDING"
+                    elif status_dist < 0.75:
+                      status = "APPROVED"
+                    elif status_dist < 0.9:
+                      status = "REVIEW"
+                    else:
+                      status = "DENIED"
+
+                    estimated = random_currency(10000, 5000000)
+                    approved = int(estimated * (0.8 + random() * 0.2)) if status in ["APPROVED", "CLOSED"] else None
+
+                    claim = {
+                      "id": f"c-{i:04d}",
+                      "createdAt": created,
+                      "status": status,
+                      "updatedAt": created + randint(3600, 86400 * 5),
+                      "data": {
+                        "policyId": policy_id,
+                        "claimNumber": f"CLM-2024-{i:06d}",
+                        "claimantName": random_name(),
+                        "loss": f"{choice(loss_types).replace('_', ' ').title()} incident",
+                        "lossType": choice(loss_types),
+                        "incidentDate": random_date_string(30),
+                        "reportedDate": random_date_string(28),
+                        "estimatedAmount_cents": estimated,
+                        "approvedAmount_cents": approved,
+                        "deductible_cents": choice([0, 50000, 100000, 250000]),
+                        "paidAmount_cents": approved if status == "CLOSED" and approved else None,
+                        "description": f"Claim for {choice(loss_types).replace('_', ' ').lower()} with estimated damage",
+                        "location": choice(["I-95 northbound", "I-75 southbound", "US-1", "Downtown", "Residential area", "Parking lot"]),
+                        "adjusterName": choice(adjuster_names),
+                        "adjusterNotes": "Under review" if status in ["PENDING", "REVIEW"] else "Claim processed"
+                      }
+                    }
+                    put(tables[2], claim)
+
+                  print(f"Seeded {tables[2]} with 40 claims")
+
+                  # Generate 180 payments (~3 per policy)
+                  print("Generating 180 payments...")
+                  payment_statuses = ["PENDING", "COMPLETED", "FAILED", "REFUNDED"]
+                  payment_methods = ["CREDIT_CARD", "ACH", "CHECK", "WIRE"]
+                  payment_types = ["PREMIUM", "CLAIM", "REFUND"]
+
+                  for i in range(1, 181):
+                    policy_id = choice(policy_ids)
+                    created = random_date_recent(90)
+
+                    payment = {
+                      "id": f"pay-{i:04d}",
+                      "createdAt": created,
+                      "data": {
+                        "policyId": policy_id,
+                        "paymentNumber": f"PAY-2024-{i:06d}",
+                        "amount_cents": random_currency(5000, 50000),
+                        "status": choice(payment_statuses) if random() < 0.15 else "COMPLETED",
+                        "paymentMethod": choice(payment_methods),
+                        "paymentType": choice(payment_types) if random() < 0.1 else "PREMIUM",
+                        "transactionId": f"txn_{randint(100000,999999)}",
+                        "dueDate": random_date_string(30),
+                        "paidDate": random_date_string(28) if random() < 0.85 else None,
+                        "description": f"Payment for policy {policy_id}",
+                        "lastFourDigits": f"{randint(1000,9999)}"
+                      }
+                    }
+                    put(tables[3], payment)
+
+                  print(f"Seeded {tables[3]} with 180 payments")
+
+                  # Generate 50 cases
+                  print("Generating 50 cases...")
+                  case_topics = ["POLICY_CHANGE", "CLAIM_INQUIRY", "BILLING", "COMPLAINT", "COVERAGE_QUESTION", "CANCELLATION"]
+                  case_statuses = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]
+                  priorities = ["LOW", "MEDIUM", "HIGH", "URGENT"]
+                  assignees = ["Alice Johnson", "Bob Smith", "Charlie Brown", "Diana Prince", "Eve Adams", "Frank Miller"]
+                  departments = ["CUSTOMER_SERVICE", "CLAIMS", "BILLING", "UNDERWRITING"]
+
+                  for i in range(1, 51):
+                    created = random_date_recent(60)
+
+                    case = {
+                      "id": f"case-{i:04d}",
+                      "createdAt": created,
+                      "data": {
+                        "caseNumber": f"CS-2024-{i:06d}",
+                        "title": f"{choice(case_topics).replace('_', ' ').title()} - Case {i}",
+                        "topic": choice(case_topics),
+                        "status": choice(case_statuses) if random() < 0.4 else "OPEN",
+                        "priority": choice(priorities) if random() < 0.3 else "MEDIUM",
+                        "assignee": choice(assignees),
+                        "department": choice(departments),
+                        "customerName": random_name(),
+                        "policyId": choice(policy_ids) if random() < 0.7 else None,
+                        "description": f"Customer inquiry regarding {choice(case_topics).replace('_', ' ').lower()}",
+                        "resolution": None,
+                        "dueDate": random_date_string_future(10),
+                        "resolvedDate": random_date_string(5) if random() < 0.3 else None
+                      }
+                    }
+                    put(tables[4], case)
+
+                  print(f"Seeded {tables[4]} with 50 cases")
 
                   # Seed one doc
                   print(f"Uploading sample doc to {docs_bucket}")

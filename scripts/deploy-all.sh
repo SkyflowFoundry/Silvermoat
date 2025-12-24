@@ -56,10 +56,32 @@ if [ ! -f "$TEMPLATE_FILE" ]; then
   exit 1
 fi
 
+# Get AWS account ID and region for S3 bucket name
+AWS_ACCOUNT_ID=$($AWS_CMD sts get-caller-identity --query Account --output text)
+AWS_REGION=$($AWS_CMD configure get region || echo "us-east-1")
+S3_BUCKET="${CFN_S3_BUCKET:-cf-templates-${STACK_NAME}-${AWS_ACCOUNT_ID}-${AWS_REGION}}"
+
+echo "S3 Bucket for templates: $S3_BUCKET"
+echo ""
+
+# Create S3 bucket if it doesn't exist
+if ! $AWS_CMD s3 ls "s3://$S3_BUCKET" 2>/dev/null; then
+  echo "Creating S3 bucket: $S3_BUCKET"
+  if [ "$AWS_REGION" = "us-east-1" ]; then
+    $AWS_CMD s3 mb "s3://$S3_BUCKET"
+  else
+    $AWS_CMD s3 mb "s3://$S3_BUCKET" --region "$AWS_REGION"
+  fi
+  echo "S3 bucket created"
+else
+  echo "S3 bucket already exists"
+fi
+
 # Deploy stack
 $AWS_CMD cloudformation deploy \
   --stack-name "$STACK_NAME" \
   --template-file "$TEMPLATE_FILE" \
+  --s3-bucket "$S3_BUCKET" \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
     AppName="$APP_NAME" \

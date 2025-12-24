@@ -16,6 +16,7 @@ import { usePolicies } from '../../hooks/queries/usePolicies';
 import { useClaims } from '../../hooks/queries/useClaims';
 import { usePayments } from '../../hooks/queries/usePayments';
 import { useCases } from '../../hooks/queries/useCases';
+import { formatCurrencyFromCents } from '../../utils/formatters';
 
 const { Text } = Typography;
 
@@ -36,6 +37,16 @@ const DashboardStats = () => {
   const payments = paymentsData?.items || [];
   const cases = casesData?.items || [];
 
+  // Calculate financial metrics
+  const totalPremiums = policies.reduce((sum, p) => sum + (p.data?.premium_cents || 0), 0);
+  const totalClaimsPaid = claims
+    .filter(c => c.status === 'APPROVED')
+    .reduce((sum, c) => sum + (c.data?.paidAmount_cents || c.data?.approvedAmount_cents || 0), 0);
+  const avgClaimAmount = claims.length > 0
+    ? claims.reduce((sum, c) => sum + (c.data?.estimatedAmount_cents || 0), 0) / claims.length
+    : 0;
+  const lossRatio = totalPremiums > 0 ? (totalClaimsPaid / totalPremiums) * 100 : 0;
+
   const stats = {
     quotes: {
       total: quotes.length,
@@ -48,10 +59,10 @@ const DashboardStats = () => {
     },
     claims: {
       total: claims.length,
-      pending: claims.filter(c => c.data?.status === 'PENDING').length,
-      review: claims.filter(c => c.data?.status === 'REVIEW').length,
-      approved: claims.filter(c => c.data?.status === 'APPROVED').length,
-      denied: claims.filter(c => c.data?.status === 'DENIED').length,
+      pending: claims.filter(c => c.status === 'PENDING').length,
+      review: claims.filter(c => c.status === 'REVIEW').length,
+      approved: claims.filter(c => c.status === 'APPROVED').length,
+      denied: claims.filter(c => c.status === 'DENIED').length,
     },
     payments: {
       total: payments.length,
@@ -65,6 +76,12 @@ const DashboardStats = () => {
       inProgress: cases.filter(c => c.data?.status === 'IN_PROGRESS').length,
       resolved: cases.filter(c => c.data?.status === 'RESOLVED').length,
       closed: cases.filter(c => c.data?.status === 'CLOSED').length,
+    },
+    financials: {
+      totalPremiums,
+      totalClaimsPaid,
+      avgClaimAmount,
+      lossRatio,
     },
   };
 
@@ -233,6 +250,114 @@ const DashboardStats = () => {
                   <span style={{ color: '#52c41a' }}>●</span> {stats.cases.resolved} Resolved
                 </Text>
               </Space>
+            </Space>
+          </Card>
+        </Col>
+
+        {/* Total Premium Revenue */}
+        <Col xs={24} sm={12} lg={8} xl={8}>
+          <Card
+            bordered={false}
+            style={{ background: '#e6f7ff', borderLeft: '4px solid #0050b3' }}
+          >
+            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+              <Space>
+                <DollarOutlined style={{ fontSize: 24, color: '#0050b3' }} />
+                <Text strong style={{ fontSize: 16 }}>
+                  Premium Revenue
+                </Text>
+              </Space>
+              <Statistic
+                value={formatCurrencyFromCents(stats.financials.totalPremiums)}
+                valueStyle={{ fontSize: 28 }}
+              />
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Total annual premiums
+              </Text>
+            </Space>
+          </Card>
+        </Col>
+
+        {/* Total Claims Paid */}
+        <Col xs={24} sm={12} lg={8} xl={8}>
+          <Card
+            bordered={false}
+            style={{ background: '#fff1f0', borderLeft: '4px solid #cf1322' }}
+          >
+            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+              <Space>
+                <ExclamationCircleOutlined style={{ fontSize: 24, color: '#cf1322' }} />
+                <Text strong style={{ fontSize: 16 }}>
+                  Claims Paid
+                </Text>
+              </Space>
+              <Statistic
+                value={formatCurrencyFromCents(stats.financials.totalClaimsPaid)}
+                valueStyle={{ fontSize: 28 }}
+              />
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Total approved claims
+              </Text>
+            </Space>
+          </Card>
+        </Col>
+
+        {/* Loss Ratio */}
+        <Col xs={24} sm={12} lg={8} xl={8}>
+          <Card
+            bordered={false}
+            style={{
+              background: stats.financials.lossRatio > 70 ? '#fff1f0' : '#f6ffed',
+              borderLeft: stats.financials.lossRatio > 70 ? '4px solid #cf1322' : '4px solid #389e0d'
+            }}
+          >
+            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+              <Space>
+                <DollarOutlined
+                  style={{
+                    fontSize: 24,
+                    color: stats.financials.lossRatio > 70 ? '#cf1322' : '#389e0d'
+                  }}
+                />
+                <Text strong style={{ fontSize: 16 }}>
+                  Loss Ratio
+                </Text>
+              </Space>
+              <Statistic
+                value={stats.financials.lossRatio.toFixed(1)}
+                suffix="%"
+                valueStyle={{
+                  fontSize: 32,
+                  color: stats.financials.lossRatio > 70 ? '#cf1322' : '#389e0d'
+                }}
+              />
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Claims / Premiums
+              </Text>
+            </Space>
+          </Card>
+        </Col>
+
+        {/* Average Claim Amount */}
+        <Col xs={24} sm={12} lg={8} xl={8}>
+          <Card
+            bordered={false}
+            style={{ background: '#fcffe6', borderLeft: '4px solid #d4b106' }}
+          >
+            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+              <Space>
+                <DollarOutlined style={{ fontSize: 24, color: '#d4b106' }} />
+                <Text strong style={{ fontSize: 16 }}>
+                  Avg Claim Amount
+                </Text>
+              </Space>
+              <Statistic
+                value={formatCurrencyFromCents(stats.financials.avgClaimAmount)}
+                valueStyle={{ fontSize: 28 }}
+              />
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Average estimated claim
+              </Text>
             </Space>
           </Card>
         </Col>

@@ -16,6 +16,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import DashboardStats from './DashboardStats';
+import DashboardCharts from './DashboardCharts';
 import RecentActivity from './RecentActivity';
 import { seedDemoData, getSeedDataSummary } from '../../utils/seedData';
 
@@ -142,6 +143,16 @@ const Dashboard = () => {
         bordered={false}
       >
         <DashboardStats />
+      </Card>
+
+      {/* Trend Charts */}
+      <Card
+        title="Trends & Analytics"
+        size="small"
+        style={{ marginBottom: 24 }}
+        bordered={false}
+      >
+        <DashboardCharts />
       </Card>
 
       {/* Recent Activity */}

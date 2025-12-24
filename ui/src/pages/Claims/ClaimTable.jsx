@@ -126,7 +126,7 @@ const ClaimTable = ({ claims = [], loading = false }) => {
                   <Text type="secondary" style={{ fontSize: 12 }}>Claim Number</Text>
                   <div><Text strong style={{ fontSize: 14 }}>{claim.data?.claimNumber || '-'}</Text></div>
                 </div>
-                <StatusTag type="claim" value={claim.data?.status} />
+                <StatusTag type="claim" value={claim.status} />
               </div>
               <div>
                 <Text type="secondary" style={{ fontSize: 12 }}>Claimant</Text>
