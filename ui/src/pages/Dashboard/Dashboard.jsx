@@ -13,12 +13,13 @@ import {
   DollarOutlined,
   CustomerServiceOutlined,
   ThunderboltOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import DashboardStats from './DashboardStats';
 import DashboardCharts from './DashboardCharts';
 import RecentActivity from './RecentActivity';
-import { seedDemoData, getSeedDataSummary } from '../../utils/seedData';
+import { seedDemoData, getSeedDataSummary, clearAllData } from '../../utils/seedData';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -27,6 +28,9 @@ const Dashboard = () => {
   const [seedModalVisible, setSeedModalVisible] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [seedProgress, setSeedProgress] = useState({ message: '', current: 0, total: 0 });
+  const [clearModalVisible, setClearModalVisible] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [clearProgress, setClearProgress] = useState({ message: '', current: 0, total: 0 });
 
   const handleSeedData = async () => {
     setSeeding(true);
@@ -54,6 +58,35 @@ const Dashboard = () => {
       message.error(`Failed to seed demo data: ${error.message}`);
     } finally {
       setSeeding(false);
+    }
+  };
+
+  const handleClearData = async () => {
+    setClearing(true);
+    setClearProgress({ message: 'Starting...', current: 0, total: 0 });
+
+    try {
+      const results = await clearAllData((msg, current, total) => {
+        setClearProgress({ message: msg, current, total });
+      });
+
+      const total = Object.values(results).reduce((sum, count) => sum + count, 0);
+      message.success(
+        `Successfully cleared ${total} records! ` +
+        `(${results.quotes} quotes, ${results.policies} policies, ` +
+        `${results.claims} claims, ${results.payments} payments, ${results.cases} cases)`
+      );
+
+      setClearModalVisible(false);
+
+      // Refresh the page after a short delay to show cleared data
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (error) {
+      message.error(`Failed to clear data: ${error.message}`);
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -131,6 +164,14 @@ const Dashboard = () => {
             style={{ borderColor: '#722ed1', color: '#722ed1' }}
           >
             Seed Demo Data
+          </Button>
+          <Button
+            type="dashed"
+            icon={<DeleteOutlined />}
+            onClick={() => setClearModalVisible(true)}
+            danger
+          >
+            Clear All Data
           </Button>
         </Space>
       </Card>
@@ -235,6 +276,61 @@ const Dashboard = () => {
                 status="active"
               />
               <Text type="secondary">{seedProgress.message}</Text>
+            </Space>
+          )}
+        </Space>
+      </Modal>
+
+      {/* Clear All Data Modal */}
+      <Modal
+        title="Clear All Data"
+        open={clearModalVisible}
+        onCancel={() => !clearing && setClearModalVisible(false)}
+        footer={[
+          <Button
+            key="cancel"
+            onClick={() => setClearModalVisible(false)}
+            disabled={clearing}
+          >
+            Cancel
+          </Button>,
+          <Button
+            key="clear"
+            type="primary"
+            danger
+            onClick={handleClearData}
+            loading={clearing}
+            icon={<DeleteOutlined />}
+          >
+            {clearing ? 'Clearing...' : 'Clear All Data'}
+          </Button>,
+        ]}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <Text strong style={{ color: '#ff4d4f' }}>
+            Warning: This action cannot be undone!
+          </Text>
+          <Text>
+            This will permanently delete all data from all entity types:
+          </Text>
+          <ul style={{ paddingLeft: 20 }}>
+            <li>All Quotes</li>
+            <li>All Policies</li>
+            <li>All Claims</li>
+            <li>All Payments</li>
+            <li>All Cases</li>
+          </ul>
+          <Text type="secondary">
+            The data will be permanently removed from the database. You can seed new demo data afterwards.
+          </Text>
+
+          {clearing && (
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Progress
+                percent={Math.round((clearProgress.current / clearProgress.total) * 100)}
+                status="active"
+              />
+              <Text type="secondary">{clearProgress.message}</Text>
             </Space>
           )}
         </Space>

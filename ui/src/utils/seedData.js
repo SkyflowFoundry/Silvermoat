@@ -8,6 +8,7 @@ import { createPolicy } from '../services/policies';
 import { createClaim } from '../services/claims';
 import { createPayment } from '../services/payments';
 import { createCase } from '../services/cases';
+import { deleteAllEntities } from '../services/api';
 
 // Demo data templates
 const DEMO_QUOTES = [
@@ -117,7 +118,7 @@ export const seedDemoData = async (onProgress) => {
     // Step 2: Create Policies (linked to quotes)
     onProgress?.('Creating demo policies...', step, totalSteps);
     for (let i = 0; i < 5; i++) {
-      const effectiveDate = randomDateWithinDays(180);
+      const effectiveDate = randomDateWithinDays(3650);
       const expirationDate = futureDateWithinDays(effectiveDate, 365);
 
       const policyData = {
@@ -143,7 +144,7 @@ export const seedDemoData = async (onProgress) => {
         policyId: results.policies[i]?.id,
         claimNumber: `CLM-${2000 + i}`,
         claimantName: CLAIMANT_NAMES[i],
-        incidentDate: randomDateWithinDays(90),
+        incidentDate: randomDateWithinDays(3650),
         description: CLAIM_DESCRIPTIONS[i],
         amount: randomNumber(1000, 25000),
         status: randomItem(['PENDING', 'REVIEW', 'APPROVED', 'DENIED']),
@@ -160,7 +161,7 @@ export const seedDemoData = async (onProgress) => {
     for (let i = 0; i < 5; i++) {
       const paymentData = {
         policyId: results.policies[i]?.id,
-        paymentDate: randomDateWithinDays(60),
+        paymentDate: randomDateWithinDays(3650),
         amount: randomNumber(100, 500),
         method: randomItem(['CARD', 'ACH', 'CHECK']),
         status: randomItem(['PENDING', 'COMPLETED', 'COMPLETED', 'COMPLETED', 'FAILED']), // 60% completed
@@ -224,4 +225,43 @@ export const getSeedDataSummary = (results) => {
     payments: results.payments.length,
     cases: results.cases.length,
   };
+};
+
+/**
+ * Clears all data from all entity types
+ * @param {Function} onProgress - Callback for progress updates (message, current, total)
+ * @returns {Promise<Object>} Object containing deletion counts
+ */
+export const clearAllData = async (onProgress) => {
+  const domains = ['quote', 'policy', 'claim', 'payment', 'case'];
+  const results = {
+    quotes: 0,
+    policies: 0,
+    claims: 0,
+    payments: 0,
+    cases: 0,
+  };
+
+  let step = 0;
+  const totalSteps = domains.length;
+
+  try {
+    for (const domain of domains) {
+      onProgress?.(`Clearing ${domain}s...`, step, totalSteps);
+      const result = await deleteAllEntities(domain);
+
+      // Map domain to result key
+      const key = domain === 'case' ? 'cases' : `${domain}s`;
+      results[key] = result.deleted || 0;
+
+      step++;
+      onProgress?.(`Cleared ${result.deleted || 0} ${domain}s`, step, totalSteps);
+    }
+
+    onProgress?.('All data cleared!', totalSteps, totalSteps);
+    return results;
+  } catch (error) {
+    console.error('Error clearing data:', error);
+    throw error;
+  }
 };

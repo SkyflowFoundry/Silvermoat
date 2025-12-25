@@ -113,6 +113,63 @@ export const listEntities = async (domain) => {
 };
 
 /**
+ * Generic function to delete an entity by ID
+ * @param {string} domain - Entity domain (quote, policy, claim, payment, case)
+ * @param {string} id - Entity ID
+ * @returns {Promise<object>} Deletion confirmation
+ */
+export const deleteEntity = async (domain, id) => {
+  const apiBase = getApiBaseUrl();
+  const url = `${apiBase}/${domain}/${id}`;
+
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new ApiError(
+      `Failed to delete ${domain}: ${response.statusText}`,
+      response.status,
+      errorText
+    );
+  }
+
+  return response.json();
+};
+
+/**
+ * Generic function to delete all entities of a type (bulk delete)
+ * @param {string} domain - Entity domain
+ * @returns {Promise<object>} Object with deleted count
+ */
+export const deleteAllEntities = async (domain) => {
+  const apiBase = getApiBaseUrl();
+  const url = `${apiBase}/${domain}`;
+
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new ApiError(
+      `Failed to delete all ${domain}: ${response.statusText}`,
+      response.status,
+      errorText
+    );
+  }
+
+  return response.json();
+};
+
+/**
  * Update claim status (special endpoint for claims)
  * @param {string} claimId - Claim ID
  * @param {string} status - New status (PENDING, REVIEW, APPROVED, DENIED)
@@ -182,6 +239,8 @@ export default {
   createEntity,
   getEntity,
   listEntities,
+  deleteEntity,
+  deleteAllEntities,
   updateClaimStatus,
   uploadClaimDocument,
   createQuote,

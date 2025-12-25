@@ -733,6 +733,24 @@ Resources:
               _emit("claim.document_added", {"id": _id, "s3Key": key})
               return _resp(200, {"id": _id, "s3Key": key})
 
+            # DELETE /{domain}/{id} -> delete single item
+            if method == "DELETE" and len(parts) == 2:
+              _id = parts[1]
+              table.delete_item(Key={"id": _id})
+              _emit(f"{domain}.deleted", {"id": _id})
+              return _resp(200, {"id": _id, "deleted": True})
+
+            # DELETE /{domain} -> delete all items in domain (bulk clear)
+            if method == "DELETE" and len(parts) == 1:
+              response = table.scan()
+              items = response.get("Items", [])
+              deleted_count = 0
+              for item in items:
+                table.delete_item(Key={"id": item["id"]})
+                deleted_count += 1
+              _emit(f"{domain}.bulk_deleted", {"count": deleted_count})
+              return _resp(200, {"deleted": deleted_count, "domain": domain})
+
             return _resp(400, {"error": "unsupported_operation", "path": event.get("path"), "method": method})
 
   # ----------------------------
@@ -1209,7 +1227,7 @@ Resources:
                     name = random_name()
                     coverage = choice(coverage_types) if random() < 0.4 else choice(coverage_types[1:]) if random() < 0.5 else choice(coverage_types[2:]) if random() < 0.67 else coverage_types[3]
                     city, state = random_city_state()
-                    created = random_date_recent(90)
+                    created = random_date_recent(3650)
 
                     quote = {
                       "id": f"q-{i:04d}",
@@ -1255,7 +1273,7 @@ Resources:
                   policy_ids = []
                   for i in range(1, 61):
                     quote_id = f"q-{i:04d}"
-                    created = random_date_recent(60)
+                    created = random_date_recent(3650)
                     policy_id = f"p-{i:04d}"
                     policy_ids.append(policy_id)
 
@@ -1267,7 +1285,7 @@ Resources:
                         "policyNumber": f"POL-2024-{i:06d}",
                         "status": choice(policy_statuses) if random() < 0.2 else "ACTIVE",
                         "holderName": random_name(),
-                        "effectiveDate": random_date_string(60),
+                        "effectiveDate": random_date_string(3650),
                         "expiryDate": random_date_string_future(300),
                         "renewalDate": random_date_string_future(15),
                         "premium_cents": random_currency(100000, 400000),
@@ -1294,7 +1312,7 @@ Resources:
 
                   for i in range(1, 41):
                     policy_id = choice(policy_ids)
-                    created = random_date_recent(30)
+                    created = random_date_recent(3650)
                     status_dist = random()
                     if status_dist < 0.3:
                       status = "INTAKE"
@@ -1321,8 +1339,8 @@ Resources:
                         "claimantName": random_name(),
                         "loss": f"{choice(loss_types).replace('_', ' ').title()} incident",
                         "lossType": choice(loss_types),
-                        "incidentDate": random_date_string(30),
-                        "reportedDate": random_date_string(28),
+                        "incidentDate": random_date_string(3650),
+                        "reportedDate": random_date_string(3650),
                         "estimatedAmount_cents": estimated,
                         "approvedAmount_cents": approved,
                         "deductible_cents": choice([0, 50000, 100000, 250000]),
@@ -1345,7 +1363,7 @@ Resources:
 
                   for i in range(1, 181):
                     policy_id = choice(policy_ids)
-                    created = random_date_recent(90)
+                    created = random_date_recent(3650)
 
                     payment = {
                       "id": f"pay-{i:04d}",
@@ -1358,8 +1376,8 @@ Resources:
                         "paymentMethod": choice(payment_methods),
                         "paymentType": choice(payment_types) if random() < 0.1 else "PREMIUM",
                         "transactionId": f"txn_{randint(100000,999999)}",
-                        "dueDate": random_date_string(30),
-                        "paidDate": random_date_string(28) if random() < 0.85 else None,
+                        "dueDate": random_date_string(3650),
+                        "paidDate": random_date_string(3650) if random() < 0.85 else None,
                         "description": f"Payment for policy {policy_id}",
                         "lastFourDigits": f"{randint(1000,9999)}"
                       }
@@ -1377,7 +1395,7 @@ Resources:
                   departments = ["CUSTOMER_SERVICE", "CLAIMS", "BILLING", "UNDERWRITING"]
 
                   for i in range(1, 51):
-                    created = random_date_recent(60)
+                    created = random_date_recent(3650)
 
                     case = {
                       "id": f"case-{i:04d}",
@@ -1395,7 +1413,7 @@ Resources:
                         "description": f"Customer inquiry regarding {choice(case_topics).replace('_', ' ').lower()}",
                         "resolution": None,
                         "dueDate": random_date_string_future(10),
-                        "resolvedDate": random_date_string(5) if random() < 0.3 else None
+                        "resolvedDate": random_date_string(3650) if random() < 0.3 else None
                       }
                     }
                     put(tables[4], case)
