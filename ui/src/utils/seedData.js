@@ -128,16 +128,20 @@ export const seedDemoData = async (onProgress, count = 25) => {
     // Step 2: Create Policies
     onProgress?.('Creating demo policies...', step, totalSteps);
     for (let i = 0; i < count; i++) {
-      const effectiveDate = randomDateWithinDays(3650);
+      // Use recent dates (last 365 days) for better chart visualization
+      const effectiveDate = randomDateWithinDays(365);
+      const premium = randomNumber(100000, 400000);
       const policyData = {
         quoteId: results.quotes[i]?.id,
         policyNumber: `POL-2024-${(1000 + i).toString().padStart(6, '0')}`,
         status: Math.random() < 0.8 ? 'ACTIVE' : randomItem(POLICY_STATUSES),
         holderName: randomName(),
         effectiveDate,
+        expirationDate: futureDateWithinDays(effectiveDate, 365),
         expiryDate: futureDateWithinDays(effectiveDate, 365),
         renewalDate: futureDateWithinDays(effectiveDate, 15),
-        premium_cents: randomNumber(100000, 400000),
+        premium,
+        premium_cents: premium,
         paymentSchedule: randomItem(PAYMENT_SCHEDULES),
         coverageLimit_cents: randomNumber(25000000, 100000000),
         deductible_cents: randomItem([50000, 100000, 250000, 500000]),
@@ -173,18 +177,22 @@ export const seedDemoData = async (onProgress, count = 25) => {
       // For APPROVED claims, set paidAmount equal to approved amount (for dashboard stats)
       const paid = status === 'APPROVED' && approved ? approved : (status === 'CLOSED' && approved ? approved : null);
 
+      // Use recent dates (last 365 days) for better chart visualization
+      const incidentDate = randomDateWithinDays(365);
       const claimData = {
         policyId: results.policies[i % results.policies.length]?.id,
         claimNumber: `CLM-2024-${(1000 + i).toString().padStart(6, '0')}`,
         claimantName: randomName(),
         loss: `${randomItem(LOSS_TYPES).replace('_', ' ')} incident`,
         lossType: randomItem(LOSS_TYPES),
-        incidentDate: randomDateWithinDays(3650),
-        reportedDate: randomDateWithinDays(3650),
+        incidentDate,
+        reportedDate: incidentDate,
+        amount: estimated,
         estimatedAmount_cents: estimated,
         approvedAmount_cents: approved,
         deductible_cents: randomItem([0, 50000, 100000, 250000]),
         paidAmount_cents: paid,
+        status,
         description: `Claim for ${randomItem(LOSS_TYPES).replace('_', ' ').toLowerCase()} with estimated damage`,
         location: randomItem(['I-95 northbound', 'I-75 southbound', 'US-1', 'Downtown', 'Residential area', 'Parking lot']),
         adjusterName: randomItem(ASSIGNEES),
@@ -204,16 +212,22 @@ export const seedDemoData = async (onProgress, count = 25) => {
     // Step 4: Create Payments
     onProgress?.('Creating demo payments...', step, totalSteps);
     for (let i = 0; i < count; i++) {
+      const amount = randomNumber(5000, 50000);
+      // Use recent dates (last 365 days) for better chart visualization
+      const paidDate = Math.random() < 0.85 ? randomDateWithinDays(365) : null;
       const paymentData = {
         policyId: results.policies[i % results.policies.length]?.id,
         paymentNumber: `PAY-2024-${(1000 + i).toString().padStart(6, '0')}`,
-        amount_cents: randomNumber(5000, 50000),
+        amount,
+        amount_cents: amount,
         status: Math.random() < 0.85 ? 'COMPLETED' : randomItem(PAYMENT_STATUSES),
+        method: randomItem(PAYMENT_METHODS),
         paymentMethod: randomItem(PAYMENT_METHODS),
+        paymentDate: paidDate,
         paymentType: Math.random() < 0.9 ? 'PREMIUM' : randomItem(PAYMENT_TYPES),
         transactionId: `txn_${randomNumber(100000, 999999)}`,
-        dueDate: randomDateWithinDays(3650),
-        paidDate: Math.random() < 0.85 ? randomDateWithinDays(3650) : null,
+        dueDate: randomDateWithinDays(365),
+        paidDate,
         description: `Payment for policy ${i + 1}`,
         lastFourDigits: `${randomNumber(1000, 9999)}`
       };
@@ -228,6 +242,8 @@ export const seedDemoData = async (onProgress, count = 25) => {
     onProgress?.('Creating demo cases...', step, totalSteps);
     for (let i = 0; i < count; i++) {
       const topic = randomItem(CASE_TOPICS);
+      const hasRelatedEntity = Math.random() < 0.7;
+      const relatedType = hasRelatedEntity ? randomItem(['policy', 'claim', 'quote']) : null;
       const caseData = {
         caseNumber: `CS-2024-${(1000 + i).toString().padStart(6, '0')}`,
         title: `${topic.replace('_', ' ')} - Case ${i + 1}`,
@@ -238,10 +254,12 @@ export const seedDemoData = async (onProgress, count = 25) => {
         department: randomItem(DEPARTMENTS),
         customerName: randomName(),
         policyId: Math.random() < 0.7 ? results.policies[i % results.policies.length]?.id : null,
+        relatedEntityType: relatedType,
         description: `Customer inquiry regarding ${topic.replace('_', ' ').toLowerCase()}`,
         resolution: null,
         dueDate: futureDateWithinDays(new Date().toISOString().split('T')[0], 10),
-        resolvedDate: Math.random() < 0.3 ? randomDateWithinDays(3650) : null
+        // Use recent dates (last 180 days) for consistency
+        resolvedDate: Math.random() < 0.3 ? randomDateWithinDays(180) : null
       };
 
       const result = await createCase(caseData);

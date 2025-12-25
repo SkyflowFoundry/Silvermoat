@@ -3,10 +3,10 @@
  * Main page for managing cases
  */
 
-import { useState } from 'react';
-import { Typography, Row, Col, Space, Button } from 'antd';
+import { useState, useEffect } from 'react';
+import { Typography, Space, Button, Modal } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useCases } from '../../hooks/queries/useCases';
 import CaseForm from './CaseForm';
 import CaseTable from './CaseTable';
@@ -16,22 +16,43 @@ const { Title } = Typography;
 
 const CaseList = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const isNewRoute = location.pathname.includes('/new');
 
   // Fetch cases from API
   const { data, isLoading, refetch } = useCases();
   const cases = data?.items || [];
 
-  const [showForm, setShowForm] = useState(isNewRoute);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (isNewRoute) {
+      setModalOpen(true);
+    }
+  }, [isNewRoute]);
 
   const handleCaseCreated = () => {
-    // Refetch to get the updated list
     refetch();
-    setShowForm(false);
+    setModalOpen(false);
+    if (isNewRoute) {
+      navigate('/cases');
+    }
   };
 
   const handleRefresh = () => {
     refetch();
+  };
+
+  const handleModalOpen = () => {
+    setModalOpen(true);
+    navigate('/cases/new');
+  };
+
+  const handleModalClose = () => {
+    setModalOpen(false);
+    if (isNewRoute) {
+      navigate('/cases');
+    }
   };
 
   return (
@@ -53,9 +74,9 @@ const CaseList = () => {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={handleModalOpen}
           >
-            {showForm ? 'Hide Form' : 'New Case'}
+            New Case
           </Button>
         </Space>
       </Space>
@@ -65,16 +86,7 @@ const CaseList = () => {
         <CasesStats />
       </div>
 
-      <Row gutter={[16, 16]}>
-        {showForm && (
-          <Col xs={24} md={24} lg={8}>
-            <CaseForm onSuccess={handleCaseCreated} />
-          </Col>
-        )}
-        <Col xs={24} md={24} lg={showForm ? 16 : 24}>
-          <CaseTable cases={cases} loading={isLoading} />
-        </Col>
-      </Row>
+      <CaseTable cases={cases} loading={isLoading} />
 
       {!isLoading && cases.length === 0 && (
         <div
@@ -87,6 +99,18 @@ const CaseList = () => {
           <p>No cases created yet. Click "New Case" to create one.</p>
         </div>
       )}
+
+      {/* New Case Modal */}
+      <Modal
+        title="New Case"
+        open={modalOpen}
+        onCancel={handleModalClose}
+        footer={null}
+        width={800}
+        destroyOnClose
+      >
+        <CaseForm onSuccess={handleCaseCreated} />
+      </Modal>
     </div>
   );
 };

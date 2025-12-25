@@ -5,7 +5,6 @@
 
 import { Layout, Menu, Button, Space, Typography } from 'antd';
 import {
-  MenuFoldOutlined,
   MenuUnfoldOutlined,
   DashboardOutlined,
   FileTextOutlined,
@@ -24,7 +23,7 @@ const { Text } = Typography;
 const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { sidebarCollapsed, toggleSidebar, isMobile, toggleMobileDrawer, toggleChatDrawer } = useAppContext();
+  const { isMobile, toggleMobileDrawer, toggleChatDrawer } = useAppContext();
 
   // Determine active menu item based on current path
   const getSelectedKey = () => {
@@ -93,17 +92,19 @@ const Header = () => {
       }}
     >
       <Space align="center" size={isMobile ? 'small' : 'large'}>
-        <Button
-          type="text"
-          icon={<MenuUnfoldOutlined />}
-          onClick={isMobile ? toggleMobileDrawer : toggleSidebar}
-          style={{
-            fontSize: '18px',
-            width: isMobile ? 40 : 48,
-            height: isMobile ? 40 : 48,
-            color: '#ffffff',
-          }}
-        />
+        {isMobile && (
+          <Button
+            type="text"
+            icon={<MenuUnfoldOutlined />}
+            onClick={toggleMobileDrawer}
+            style={{
+              fontSize: '18px',
+              width: 40,
+              height: 40,
+              color: '#ffffff',
+            }}
+          />
+        )}
         <div
           style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
           onClick={() => navigate('/')}

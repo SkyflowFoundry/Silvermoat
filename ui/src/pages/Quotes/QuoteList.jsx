@@ -3,10 +3,10 @@
  * Main page for managing quotes with form and table
  */
 
-import { useState } from 'react';
-import { Typography, Row, Col, Space, Button } from 'antd';
+import { useState, useEffect } from 'react';
+import { Typography, Space, Button, Modal } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuotes } from '../../hooks/queries/useQuotes';
 import QuoteForm from './QuoteForm';
 import QuoteTable from './QuoteTable';
@@ -16,23 +16,47 @@ const { Title } = Typography;
 
 const QuoteList = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const isNewRoute = location.pathname.includes('/new');
 
   // Fetch quotes from API
   const { data, isLoading, refetch } = useQuotes();
   const quotes = data?.items || [];
 
-  const [showForm, setShowForm] = useState(isNewRoute);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  // Open modal if /new route is accessed
+  useEffect(() => {
+    if (isNewRoute) {
+      setModalOpen(true);
+    }
+  }, [isNewRoute]);
 
   const handleQuoteCreated = () => {
     // Refetch to get the updated list
     refetch();
-    // Hide form after successful creation
-    setShowForm(false);
+    // Close modal after successful creation
+    setModalOpen(false);
+    // Navigate back to list route
+    if (isNewRoute) {
+      navigate('/quotes');
+    }
   };
 
   const handleRefresh = () => {
     refetch();
+  };
+
+  const handleModalOpen = () => {
+    setModalOpen(true);
+    navigate('/quotes/new');
+  };
+
+  const handleModalClose = () => {
+    setModalOpen(false);
+    if (isNewRoute) {
+      navigate('/quotes');
+    }
   };
 
   return (
@@ -57,9 +81,9 @@ const QuoteList = () => {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={handleModalOpen}
           >
-            {showForm ? 'Hide Form' : 'New Quote'}
+            New Quote
           </Button>
         </Space>
       </Space>
@@ -69,16 +93,7 @@ const QuoteList = () => {
         <QuotesStats />
       </div>
 
-      <Row gutter={[24, 24]}>
-        {showForm && (
-          <Col xs={24} lg={8}>
-            <QuoteForm onSuccess={handleQuoteCreated} />
-          </Col>
-        )}
-        <Col xs={24} lg={showForm ? 16 : 24}>
-          <QuoteTable quotes={quotes} loading={isLoading} />
-        </Col>
-      </Row>
+      <QuoteTable quotes={quotes} loading={isLoading} />
 
       {!isLoading && quotes.length === 0 && (
         <div
@@ -91,6 +106,18 @@ const QuoteList = () => {
           <p>No quotes created yet. Click "New Quote" to create one.</p>
         </div>
       )}
+
+      {/* New Quote Modal */}
+      <Modal
+        title="New Quote"
+        open={modalOpen}
+        onCancel={handleModalClose}
+        footer={null}
+        width={800}
+        destroyOnClose
+      >
+        <QuoteForm onSuccess={handleQuoteCreated} />
+      </Modal>
     </div>
   );
 };

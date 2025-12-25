@@ -24,7 +24,7 @@ const { Content } = Layout;
 const AppLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { sidebarCollapsed, isMobile, mobileDrawerOpen, closeMobileDrawer, chatDrawerOpen, closeChatDrawer } = useAppContext();
+  const { isMobile, mobileDrawerOpen, closeMobileDrawer, chatDrawerOpen, closeChatDrawer } = useAppContext();
 
   // Determine active menu item based on current path
   const getSelectedKey = () => {
@@ -100,7 +100,7 @@ const AppLayout = () => {
     <Layout style={{ minHeight: '100vh' }}>
       <Header />
       <Layout>
-        {!isMobile && <Sidebar collapsed={sidebarCollapsed} />}
+        {!isMobile && <Sidebar />}
         <Layout style={{ padding: isMobile ? '0 12px 12px' : '0 24px 24px' }}>
           <Breadcrumbs style={{ margin: '16px 0' }} />
           <Content
@@ -148,10 +148,8 @@ const AppLayout = () => {
         width={isMobile ? '100%' : 450}
         closable={false}
         styles={{
-          body: { padding: 0, height: '100%' },
-        }}
-        style={{
-          height: '100vh',
+          body: { padding: 0, height: '100%', display: 'flex', flexDirection: 'column' },
+          header: { display: 'none' },
         }}
       >
         <ChatInterface />

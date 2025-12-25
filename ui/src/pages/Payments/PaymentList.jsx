@@ -2,10 +2,10 @@
  * Payment List Page
  */
 
-import { useState } from 'react';
-import { Typography, Row, Col, Space, Button } from 'antd';
+import { useState, useEffect } from 'react';
+import { Typography, Space, Button, Modal } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { usePayments } from '../../hooks/queries/usePayments';
 import PaymentForm from './PaymentForm';
 import PaymentTable from './PaymentTable';
@@ -15,22 +15,43 @@ const { Title } = Typography;
 
 const PaymentList = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const isNewRoute = location.pathname.includes('/new');
 
   // Fetch payments from API
   const { data, isLoading, refetch } = usePayments();
   const payments = data?.items || [];
 
-  const [showForm, setShowForm] = useState(isNewRoute);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (isNewRoute) {
+      setModalOpen(true);
+    }
+  }, [isNewRoute]);
 
   const handlePaymentCreated = () => {
-    // Refetch to get the updated list
     refetch();
-    setShowForm(false);
+    setModalOpen(false);
+    if (isNewRoute) {
+      navigate('/payments');
+    }
   };
 
   const handleRefresh = () => {
     refetch();
+  };
+
+  const handleModalOpen = () => {
+    setModalOpen(true);
+    navigate('/payments/new');
+  };
+
+  const handleModalClose = () => {
+    setModalOpen(false);
+    if (isNewRoute) {
+      navigate('/payments');
+    }
   };
 
   return (
@@ -52,9 +73,9 @@ const PaymentList = () => {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={handleModalOpen}
           >
-            {showForm ? 'Hide Form' : 'New Payment'}
+            New Payment
           </Button>
         </Space>
       </Space>
@@ -64,16 +85,7 @@ const PaymentList = () => {
         <PaymentsStats />
       </div>
 
-      <Row gutter={[16, 16]}>
-        {showForm && (
-          <Col xs={24} md={24} lg={8}>
-            <PaymentForm onSuccess={handlePaymentCreated} />
-          </Col>
-        )}
-        <Col xs={24} md={24} lg={showForm ? 16 : 24}>
-          <PaymentTable payments={payments} loading={isLoading} />
-        </Col>
-      </Row>
+      <PaymentTable payments={payments} loading={isLoading} />
 
       {!isLoading && payments.length === 0 && (
         <div
@@ -86,6 +98,18 @@ const PaymentList = () => {
           <p>No payments recorded yet. Click "New Payment" to record one.</p>
         </div>
       )}
+
+      {/* New Payment Modal */}
+      <Modal
+        title="New Payment"
+        open={modalOpen}
+        onCancel={handleModalClose}
+        footer={null}
+        width={800}
+        destroyOnClose
+      >
+        <PaymentForm onSuccess={handlePaymentCreated} />
+      </Modal>
     </div>
   );
 };

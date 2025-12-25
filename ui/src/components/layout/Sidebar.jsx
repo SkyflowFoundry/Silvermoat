@@ -12,7 +12,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 
 const { Sider } = Layout;
 
-const Sidebar = ({ collapsed }) => {
+const Sidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -64,9 +64,6 @@ const Sidebar = ({ collapsed }) => {
   return (
     <Sider
       width={220}
-      collapsible
-      collapsed={collapsed}
-      trigger={null}
       style={{
         background: '#ffffff',
         borderRight: '1px solid #f0f0f0',

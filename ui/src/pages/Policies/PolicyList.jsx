@@ -3,10 +3,10 @@
  * Main page for managing policies
  */
 
-import { useState } from 'react';
-import { Typography, Row, Col, Space, Button } from 'antd';
+import { useState, useEffect } from 'react';
+import { Typography, Space, Button, Modal } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { usePolicies } from '../../hooks/queries/usePolicies';
 import PolicyForm from './PolicyForm';
 import PolicyTable from './PolicyTable';
@@ -16,22 +16,43 @@ const { Title } = Typography;
 
 const PolicyList = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const isNewRoute = location.pathname.includes('/new');
 
   // Fetch policies from API
   const { data, isLoading, refetch } = usePolicies();
   const policies = data?.items || [];
 
-  const [showForm, setShowForm] = useState(isNewRoute);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (isNewRoute) {
+      setModalOpen(true);
+    }
+  }, [isNewRoute]);
 
   const handlePolicyCreated = () => {
-    // Refetch to get the updated list
     refetch();
-    setShowForm(false);
+    setModalOpen(false);
+    if (isNewRoute) {
+      navigate('/policies');
+    }
   };
 
   const handleRefresh = () => {
     refetch();
+  };
+
+  const handleModalOpen = () => {
+    setModalOpen(true);
+    navigate('/policies/new');
+  };
+
+  const handleModalClose = () => {
+    setModalOpen(false);
+    if (isNewRoute) {
+      navigate('/policies');
+    }
   };
 
   return (
@@ -53,9 +74,9 @@ const PolicyList = () => {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={handleModalOpen}
           >
-            {showForm ? 'Hide Form' : 'New Policy'}
+            New Policy
           </Button>
         </Space>
       </Space>
@@ -65,16 +86,7 @@ const PolicyList = () => {
         <PoliciesStats />
       </div>
 
-      <Row gutter={[16, 16]}>
-        {showForm && (
-          <Col xs={24} md={24} lg={8}>
-            <PolicyForm onSuccess={handlePolicyCreated} />
-          </Col>
-        )}
-        <Col xs={24} md={24} lg={showForm ? 16 : 24}>
-          <PolicyTable policies={policies} loading={isLoading} />
-        </Col>
-      </Row>
+      <PolicyTable policies={policies} loading={isLoading} />
 
       {!isLoading && policies.length === 0 && (
         <div
@@ -87,6 +99,18 @@ const PolicyList = () => {
           <p>No policies created yet. Click "New Policy" to create one.</p>
         </div>
       )}
+
+      {/* New Policy Modal */}
+      <Modal
+        title="New Policy"
+        open={modalOpen}
+        onCancel={handleModalClose}
+        footer={null}
+        width={800}
+        destroyOnClose
+      >
+        <PolicyForm onSuccess={handlePolicyCreated} />
+      </Modal>
     </div>
   );
 };

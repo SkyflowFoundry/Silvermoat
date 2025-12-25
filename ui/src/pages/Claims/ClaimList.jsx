@@ -3,10 +3,10 @@
  * Main page for managing claims
  */
 
-import { useState } from 'react';
-import { Typography, Row, Col, Space, Button } from 'antd';
+import { useState, useEffect } from 'react';
+import { Typography, Space, Button, Modal } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useClaims } from '../../hooks/queries/useClaims';
 import ClaimForm from './ClaimForm';
 import ClaimTable from './ClaimTable';
@@ -16,22 +16,43 @@ const { Title } = Typography;
 
 const ClaimList = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const isNewRoute = location.pathname.includes('/new');
 
   // Fetch claims from API
   const { data, isLoading, refetch } = useClaims();
   const claims = data?.items || [];
 
-  const [showForm, setShowForm] = useState(isNewRoute);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (isNewRoute) {
+      setModalOpen(true);
+    }
+  }, [isNewRoute]);
 
   const handleClaimCreated = () => {
-    // Refetch to get the updated list
     refetch();
-    setShowForm(false);
+    setModalOpen(false);
+    if (isNewRoute) {
+      navigate('/claims');
+    }
   };
 
   const handleRefresh = () => {
     refetch();
+  };
+
+  const handleModalOpen = () => {
+    setModalOpen(true);
+    navigate('/claims/new');
+  };
+
+  const handleModalClose = () => {
+    setModalOpen(false);
+    if (isNewRoute) {
+      navigate('/claims');
+    }
   };
 
   return (
@@ -53,9 +74,9 @@ const ClaimList = () => {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={handleModalOpen}
           >
-            {showForm ? 'Hide Form' : 'New Claim'}
+            New Claim
           </Button>
         </Space>
       </Space>
@@ -65,16 +86,7 @@ const ClaimList = () => {
         <ClaimsStats />
       </div>
 
-      <Row gutter={[16, 16]}>
-        {showForm && (
-          <Col xs={24} md={24} lg={8}>
-            <ClaimForm onSuccess={handleClaimCreated} />
-          </Col>
-        )}
-        <Col xs={24} md={24} lg={showForm ? 16 : 24}>
-          <ClaimTable claims={claims} loading={isLoading} />
-        </Col>
-      </Row>
+      <ClaimTable claims={claims} loading={isLoading} />
 
       {!isLoading && claims.length === 0 && (
         <div
@@ -87,6 +99,18 @@ const ClaimList = () => {
           <p>No claims created yet. Click "New Claim" to create one.</p>
         </div>
       )}
+
+      {/* New Claim Modal */}
+      <Modal
+        title="New Claim"
+        open={modalOpen}
+        onCancel={handleModalClose}
+        footer={null}
+        width={800}
+        destroyOnClose
+      >
+        <ClaimForm onSuccess={handleClaimCreated} />
+      </Modal>
     </div>
   );
 };
