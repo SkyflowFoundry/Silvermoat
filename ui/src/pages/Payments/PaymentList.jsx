@@ -9,6 +9,7 @@ import { useLocation } from 'react-router-dom';
 import { usePayments } from '../../hooks/queries/usePayments';
 import PaymentForm from './PaymentForm';
 import PaymentTable from './PaymentTable';
+import PaymentsStats from './PaymentsStats';
 
 const { Title } = Typography;
 
@@ -57,6 +58,11 @@ const PaymentList = () => {
           </Button>
         </Space>
       </Space>
+
+      {/* Mini Dashboard */}
+      <div style={{ marginBottom: 24 }}>
+        <PaymentsStats />
+      </div>
 
       <Row gutter={[16, 16]}>
         {showForm && (

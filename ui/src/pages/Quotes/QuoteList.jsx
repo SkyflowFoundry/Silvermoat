@@ -10,6 +10,7 @@ import { useLocation } from 'react-router-dom';
 import { useQuotes } from '../../hooks/queries/useQuotes';
 import QuoteForm from './QuoteForm';
 import QuoteTable from './QuoteTable';
+import QuotesStats from './QuotesStats';
 
 const { Title } = Typography;
 
@@ -62,6 +63,11 @@ const QuoteList = () => {
           </Button>
         </Space>
       </Space>
+
+      {/* Mini Dashboard */}
+      <div style={{ marginBottom: 24 }}>
+        <QuotesStats />
+      </div>
 
       <Row gutter={[24, 24]}>
         {showForm && (

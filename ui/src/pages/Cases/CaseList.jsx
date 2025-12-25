@@ -10,6 +10,7 @@ import { useLocation } from 'react-router-dom';
 import { useCases } from '../../hooks/queries/useCases';
 import CaseForm from './CaseForm';
 import CaseTable from './CaseTable';
+import CasesStats from './CasesStats';
 
 const { Title } = Typography;
 
@@ -58,6 +59,11 @@ const CaseList = () => {
           </Button>
         </Space>
       </Space>
+
+      {/* Mini Dashboard */}
+      <div style={{ marginBottom: 24 }}>
+        <CasesStats />
+      </div>
 
       <Row gutter={[16, 16]}>
         {showForm && (

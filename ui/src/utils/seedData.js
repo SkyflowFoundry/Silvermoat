@@ -72,9 +72,10 @@ const futureDateWithinDays = (startDate, days) => {
 /**
  * Seeds demo data across all entities
  * @param {Function} onProgress - Callback for progress updates (message, current, total)
+ * @param {number} count - Number of records to create per entity type (default: 25, max: 1000)
  * @returns {Promise<Object>} Object containing created entities
  */
-export const seedDemoData = async (onProgress) => {
+export const seedDemoData = async (onProgress, count = 25) => {
   const results = {
     quotes: [],
     policies: [],
@@ -84,12 +85,12 @@ export const seedDemoData = async (onProgress) => {
   };
 
   let step = 0;
-  const totalSteps = 125; // 25 quotes + 25 policies + 25 claims + 25 payments + 25 cases
+  const totalSteps = count * 5; // count * (quotes + policies + claims + payments + cases)
 
   try {
-    // Step 1: Create 25 Quotes with rich data
+    // Step 1: Create Quotes with rich data
     onProgress?.('Creating demo quotes...', step, totalSteps);
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < count; i++) {
       const name = randomName();
       const coverage = randomItem(COVERAGE_TYPES);
       const quoteData = {
@@ -121,12 +122,12 @@ export const seedDemoData = async (onProgress) => {
       const result = await createQuote(quoteData);
       results.quotes.push(result.item);
       step++;
-      onProgress?.(`Created quote ${i + 1}/25`, step, totalSteps);
+      onProgress?.(`Created quote ${i + 1}/${count}`, step, totalSteps);
     }
 
-    // Step 2: Create 25 Policies
+    // Step 2: Create Policies
     onProgress?.('Creating demo policies...', step, totalSteps);
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < count; i++) {
       const effectiveDate = randomDateWithinDays(3650);
       const policyData = {
         quoteId: results.quotes[i]?.id,
@@ -151,12 +152,12 @@ export const seedDemoData = async (onProgress) => {
       const result = await createPolicy(policyData);
       results.policies.push(result.item);
       step++;
-      onProgress?.(`Created policy ${i + 1}/25`, step, totalSteps);
+      onProgress?.(`Created policy ${i + 1}/${count}`, step, totalSteps);
     }
 
-    // Step 3: Create 25 Claims
+    // Step 3: Create Claims
     onProgress?.('Creating demo claims...', step, totalSteps);
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < count; i++) {
       const statusDist = Math.random();
       let status;
       if (statusDist < 0.3) status = 'INTAKE';
@@ -197,12 +198,12 @@ export const seedDemoData = async (onProgress) => {
 
       results.claims.push(result.item);
       step++;
-      onProgress?.(`Created claim ${i + 1}/25`, step, totalSteps);
+      onProgress?.(`Created claim ${i + 1}/${count}`, step, totalSteps);
     }
 
-    // Step 4: Create 25 Payments
+    // Step 4: Create Payments
     onProgress?.('Creating demo payments...', step, totalSteps);
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < count; i++) {
       const paymentData = {
         policyId: results.policies[i % results.policies.length]?.id,
         paymentNumber: `PAY-2024-${(1000 + i).toString().padStart(6, '0')}`,
@@ -220,12 +221,12 @@ export const seedDemoData = async (onProgress) => {
       const result = await createPayment(paymentData);
       results.payments.push(result.item);
       step++;
-      onProgress?.(`Created payment ${i + 1}/25`, step, totalSteps);
+      onProgress?.(`Created payment ${i + 1}/${count}`, step, totalSteps);
     }
 
-    // Step 5: Create 25 Cases
+    // Step 5: Create Cases
     onProgress?.('Creating demo cases...', step, totalSteps);
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < count; i++) {
       const topic = randomItem(CASE_TOPICS);
       const caseData = {
         caseNumber: `CS-2024-${(1000 + i).toString().padStart(6, '0')}`,
@@ -246,7 +247,7 @@ export const seedDemoData = async (onProgress) => {
       const result = await createCase(caseData);
       results.cases.push(result.item);
       step++;
-      onProgress?.(`Created case ${i + 1}/25`, step, totalSteps);
+      onProgress?.(`Created case ${i + 1}/${count}`, step, totalSteps);
     }
 
     onProgress?.('Demo data seeding complete!', totalSteps, totalSteps);

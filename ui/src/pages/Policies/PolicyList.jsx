@@ -10,6 +10,7 @@ import { useLocation } from 'react-router-dom';
 import { usePolicies } from '../../hooks/queries/usePolicies';
 import PolicyForm from './PolicyForm';
 import PolicyTable from './PolicyTable';
+import PoliciesStats from './PoliciesStats';
 
 const { Title } = Typography;
 
@@ -58,6 +59,11 @@ const PolicyList = () => {
           </Button>
         </Space>
       </Space>
+
+      {/* Mini Dashboard */}
+      <div style={{ marginBottom: 24 }}>
+        <PoliciesStats />
+      </div>
 
       <Row gutter={[16, 16]}>
         {showForm && (

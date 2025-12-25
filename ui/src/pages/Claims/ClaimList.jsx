@@ -10,6 +10,7 @@ import { useLocation } from 'react-router-dom';
 import { useClaims } from '../../hooks/queries/useClaims';
 import ClaimForm from './ClaimForm';
 import ClaimTable from './ClaimTable';
+import ClaimsStats from './ClaimsStats';
 
 const { Title } = Typography;
 
@@ -58,6 +59,11 @@ const ClaimList = () => {
           </Button>
         </Space>
       </Space>
+
+      {/* Mini Dashboard */}
+      <div style={{ marginBottom: 24 }}>
+        <ClaimsStats />
+      </div>
 
       <Row gutter={[16, 16]}>
         {showForm && (

@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react';
-import { Typography, Card, Space, Button, Modal, Progress, message } from 'antd';
+import { Typography, Card, Space, Button, Modal, Progress, message, InputNumber } from 'antd';
 import {
   PlusOutlined,
   FileTextOutlined,
@@ -28,6 +28,7 @@ const Dashboard = () => {
   const [seedModalVisible, setSeedModalVisible] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [seedProgress, setSeedProgress] = useState({ message: '', current: 0, total: 0 });
+  const [recordCount, setRecordCount] = useState(25);
   const [clearModalVisible, setClearModalVisible] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [clearProgress, setClearProgress] = useState({ message: '', current: 0, total: 0 });
@@ -39,7 +40,7 @@ const Dashboard = () => {
     try {
       const results = await seedDemoData((msg, current, total) => {
         setSeedProgress({ message: msg, current, total });
-      });
+      }, recordCount);
 
       const summary = getSeedDataSummary(results);
       message.success(
@@ -255,15 +256,32 @@ const Dashboard = () => {
         ]}
       >
         <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <div>
+            <Text strong>Number of records per entity type:</Text>
+            <div style={{ marginTop: 8 }}>
+              <InputNumber
+                min={1}
+                max={1000}
+                value={recordCount}
+                onChange={(value) => setRecordCount(value || 1)}
+                disabled={seeding}
+                style={{ width: 120 }}
+              />
+              <Text type="secondary" style={{ marginLeft: 12 }}>
+                (1-1000 max)
+              </Text>
+            </div>
+          </div>
+
           <Text>
             This will create realistic demo data across all entity types:
           </Text>
           <ul style={{ paddingLeft: 20 }}>
-            <li>25 Quotes with full customer details</li>
-            <li>25 Policies linked to quotes with premium data</li>
-            <li>25 Claims linked to policies with estimated/approved amounts</li>
-            <li>25 Payments linked to policies with transaction details</li>
-            <li>25 Cases linked to various entities</li>
+            <li>{recordCount} Quotes with full customer details</li>
+            <li>{recordCount} Policies linked to quotes with premium data</li>
+            <li>{recordCount} Claims linked to policies with estimated/approved amounts</li>
+            <li>{recordCount} Payments linked to policies with transaction details</li>
+            <li>{recordCount} Cases linked to various entities</li>
           </ul>
           <Text type="secondary">
             All records will have realistic data with proper relationships and 10-year date spread for trend charts.
