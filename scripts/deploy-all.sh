@@ -174,7 +174,46 @@ echo "=========================================="
 echo "Deployment Complete!"
 echo "=========================================="
 echo ""
-echo "Website URL:"
+echo "CloudFront URL (HTTPS - Recommended):"
+CF_URL=$($AWS_CMD cloudformation describe-stacks \
+  --stack-name "$STACK_NAME" \
+  --query "Stacks[0].Outputs[?OutputKey=='CloudFrontUrl'].OutputValue" \
+  --output text 2>/dev/null || echo "")
+
+if [ -n "$CF_URL" ]; then
+  echo "  $CF_URL"
+else
+  echo "  (Get from: ./scripts/get-outputs.sh)"
+fi
+
+echo ""
+echo "Custom Domain URL:"
+CUSTOM_URL=$($AWS_CMD cloudformation describe-stacks \
+  --stack-name "$STACK_NAME" \
+  --query "Stacks[0].Outputs[?OutputKey=='CustomDomainUrl'].OutputValue" \
+  --output text 2>/dev/null || echo "")
+
+if [ -n "$CUSTOM_URL" ]; then
+  echo "  $CUSTOM_URL"
+  echo ""
+  echo "  Note: Ensure DNS CNAME is configured in Cloudflare:"
+  echo "    Type: CNAME"
+  echo "    Name: your-subdomain (e.g., silvermoat or app)"
+  CF_DOMAIN=$($AWS_CMD cloudformation describe-stacks \
+    --stack-name "$STACK_NAME" \
+    --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDomain'].OutputValue" \
+    --output text 2>/dev/null || echo "")
+  if [ -n "$CF_DOMAIN" ]; then
+    echo "    Target: $CF_DOMAIN"
+  fi
+else
+  echo "  (Not configured - domain may be disabled or cert validation pending)"
+  echo "  Default domain is silvermoat.net"
+  echo "  To disable: DOMAIN_NAME=\"\" ./scripts/deploy-stack.sh"
+fi
+
+echo ""
+echo "S3 Website URL (HTTP, legacy):"
 WEB_URL=$($AWS_CMD cloudformation describe-stacks \
   --stack-name "$STACK_NAME" \
   --query "Stacks[0].Outputs[?OutputKey=='WebUrl'].OutputValue" \

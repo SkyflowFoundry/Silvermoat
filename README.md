@@ -625,6 +625,148 @@ The template accepts these parameters:
 - `StageName`: API Gateway stage name (must match `^[a-zA-Z0-9_-]+$`)
 - `ApiDeploymentToken`: Change to force API Gateway redeployment
 - `UiSeedingMode`: `seeded` (Lambda uploads HTML) or `external` (deploy separately)
+- `DomainName`: Optional custom domain for CloudFront (e.g., `silvermoat.net`)
+
+## Custom Domain Setup with Cloudflare
+
+The stack includes CloudFront distribution with custom domain enabled by default (`silvermoat.net`).
+
+### Quick Start (With Default Domain)
+
+Deploy the stack normally - it will create ACM certificate for `silvermoat.net`:
+
+```bash
+./scripts/deploy-all.sh
+```
+
+**Important**: The stack will wait for ACM certificate validation. You must add the validation CNAME to Cloudflare (see Step 2 below) or the deployment will fail after ~30 minutes.
+
+### Enable Custom Domain
+
+#### Step 1: Deploy Stack
+
+```bash
+./scripts/deploy-all.sh
+```
+
+The stack uses `silvermoat.net` by default. To use a different domain:
+
+```bash
+DOMAIN_NAME=app.silvermoat.net ./scripts/deploy-stack.sh
+```
+
+To disable custom domain (CloudFront default only):
+
+```bash
+DOMAIN_NAME="" ./scripts/deploy-stack.sh
+```
+
+#### Step 2: Get DNS Validation Record
+
+Stack creates ACM certificate and waits for DNS validation. Get the validation record:
+
+```bash
+aws acm describe-certificate \
+  --certificate-arn $(aws cloudformation describe-stacks \
+    --stack-name silvermoat \
+    --query "Stacks[0].Outputs[?OutputKey=='CertificateArn'].OutputValue" \
+    --output text) \
+  --query "Certificate.DomainValidationOptions[0].ResourceRecord" \
+  --output table
+```
+
+Or check ACM console: https://console.aws.amazon.com/acm/
+
+You'll see a CNAME record like:
+- **Name**: `_abc123def456.silvermoat.net`
+- **Value**: `_xyz789.acm-validations.aws.`
+
+#### Step 3: Add DNS Validation Record in Cloudflare
+
+1. Log in to Cloudflare dashboard
+2. Select your domain (`silvermoat.net`)
+3. Go to **DNS** → **Records**
+4. Click **Add record**
+5. Configure:
+   - **Type**: `CNAME`
+   - **Name**: `_abc123def456` (the validation subdomain from Step 2)
+   - **Target**: `_xyz789.acm-validations.aws.` (the validation target from Step 2)
+   - **Proxy status**: **DNS only** (gray cloud icon, NOT orange)
+   - **TTL**: Auto
+
+**Wait 5-15 minutes** for validation to complete. The CloudFormation stack will proceed once validated.
+
+#### Step 4: Add CloudFront Alias Record in Cloudflare
+
+Once stack deployment completes, get the CloudFront domain:
+
+```bash
+./scripts/get-outputs.sh
+# Look for "CloudFrontDomain" output
+```
+
+Add the alias CNAME in Cloudflare:
+
+1. Go to **DNS** → **Records**
+2. Click **Add record**
+3. Configure:
+   - **Type**: `CNAME`
+   - **Name**: `@` (for apex domain) or subdomain like `app`
+   - **Target**: `xyz123.cloudfront.net` (CloudFront domain from outputs)
+   - **Proxy status**: **DNS only** (gray cloud icon, NOT orange)
+   - **TTL**: Auto
+
+**Important**: Cloudflare proxy must be **disabled** (DNS only, gray cloud) for CloudFront to work properly.
+
+#### Step 5: Test
+
+Visit your custom domain:
+```
+https://silvermoat.net
+```
+
+Should load Silvermoat UI with valid HTTPS certificate.
+
+### DNS Records Summary
+
+You need **2 CNAME records** in Cloudflare:
+
+1. **Certificate Validation** (one-time, temporary):
+   ```
+   _abc123def456.silvermoat.net  →  _xyz789.acm-validations.aws.
+   ```
+
+2. **Site Access** (permanent):
+   ```
+   silvermoat.net  →  xyz123.cloudfront.net
+   ```
+
+Both must have **Proxy status: DNS only** (gray cloud).
+
+### Troubleshooting
+
+**Stack stuck on certificate creation:**
+- Verify validation CNAME is correct in Cloudflare
+- Ensure "Proxy status" is DNS only (gray cloud, not orange)
+- DNS propagation can take 5-15 minutes
+- Check ACM console for validation status
+
+**Custom domain shows CloudFront error:**
+- Verify CNAME points to correct CloudFront domain (`xyz123.cloudfront.net`)
+- Ensure "Proxy status" is DNS only (gray cloud, not orange)
+- CloudFront distribution takes 10-20 minutes to fully deploy
+- Clear browser cache and retry
+
+**Certificate validation fails after 30 minutes:**
+- Stack will roll back if certificate isn't validated
+- Delete the stack: `aws cloudformation delete-stack --stack-name silvermoat`
+- Verify DNS record is correct in Cloudflare
+- Redeploy with `DOMAIN_NAME` parameter
+
+**Why disable Cloudflare proxy?**
+- Cloudflare proxy (orange cloud) adds its own SSL and caching
+- This conflicts with CloudFront's SSL and caching
+- DNS only mode lets Cloudflare route traffic without proxying
 
 ## Important Notes
 

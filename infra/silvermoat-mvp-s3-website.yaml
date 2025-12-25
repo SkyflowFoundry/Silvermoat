@@ -1,8 +1,8 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   Silvermoat Insurance - One-shot deployable MVP (CloudFormation only).
-  S3 Website-hosted UI (NO CloudFront), API Gateway REST -> single Lambda (AWS_PROXY),
-  DynamoDB tables, S3 docs, EventBridge, SNS, and a Custom Resource that seeds demo data + cleans up on delete.
+  S3 Website-hosted UI with CloudFront CDN (HTTPS), API Gateway REST -> single Lambda (AWS_PROXY),
+  DynamoDB tables, S3 docs, optional custom domain via ACM, and Custom Resources for seeding/cleanup.
 
 Parameters:
   AppName:
@@ -33,6 +33,18 @@ Parameters:
       "seeded" = Lambda uploads simple index.html (default for quick demo).
       "external" = UI is deployed separately (e.g., React SPA via deploy-ui.sh).
       When "external", skip index.html upload in seed mode.
+
+  DomainName:
+    Type: String
+    Default: "silvermoat.net"
+    Description: >
+      Custom domain for CloudFront (default: silvermoat.net).
+      Set to empty string ("") to disable custom domain and use only CloudFront default domain.
+      To use custom domain: deploy stack, add DNS validation CNAME to Cloudflare,
+      wait for cert validation, then add CloudFront alias CNAME to Cloudflare.
+
+Conditions:
+  HasDomainName: !Not [!Equals [!Ref DomainName, ""]]
 
 Resources:
 
@@ -71,6 +83,85 @@ Resources:
             Principal: "*"
             Action: "s3:GetObject"
             Resource: !Sub "${UiBucket.Arn}/*"
+
+  # ----------------------------
+  # SSL Certificate for CloudFront (only if DomainName provided)
+  # ----------------------------
+
+  UiCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Condition: HasDomainName
+    Properties:
+      DomainName: !Ref DomainName
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          ValidationDomain: !Ref DomainName
+
+  # ----------------------------
+  # CloudFront Distribution
+  # ----------------------------
+
+  UiDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        # Custom domain aliases (only if DomainName provided)
+        Aliases: !If
+          - HasDomainName
+          - - !Ref DomainName
+          - !Ref "AWS::NoValue"
+
+        # HTTPS certificate
+        ViewerCertificate: !If
+          - HasDomainName
+          - AcmCertificateArn: !Ref UiCertificate
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+
+        # Origin: S3 website endpoint (not REST API endpoint)
+        Origins:
+          - Id: S3Origin
+            DomainName: !Select [2, !Split ["/", !GetAtt UiBucket.WebsiteURL]]
+            CustomOriginConfig:
+              HTTPPort: 80
+              OriginProtocolPolicy: http-only
+
+        # Default cache behavior
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          Compress: true
+          # Use managed caching policy optimized for SPAs
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          # Use managed origin request policy for CORS
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
+
+        # SPA routing: serve index.html for 404/403 errors
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+
+        # Distribution settings
+        Enabled: true
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: PriceClass_100
+        Comment: !Sub "${AWS::StackName} UI Distribution"
+
+  # ----------------------------
+  # S3 Buckets (Docs)
+  # ----------------------------
 
   DocsBucket:
     Type: AWS::S3::Bucket
@@ -1364,8 +1455,30 @@ Resources:
 
 Outputs:
   WebUrl:
-    Description: "S3 Website URL for the demo UI (HTTP)"
+    Description: "S3 Website URL (HTTP, legacy access) - Use CloudFrontUrl for production"
     Value: !GetAtt UiBucket.WebsiteURL
+
+  CloudFrontUrl:
+    Description: "CloudFront distribution URL (HTTPS) - Primary access method"
+    Value: !Sub "https://${UiDistribution.DomainName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudFrontUrl"
+
+  CloudFrontDomain:
+    Description: "CloudFront domain name (for DNS CNAME record)"
+    Value: !GetAtt UiDistribution.DomainName
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudFrontDomain"
+
+  CustomDomainUrl:
+    Condition: HasDomainName
+    Description: "Custom domain URL (if DomainName parameter provided)"
+    Value: !Sub "https://${DomainName}"
+
+  CertificateArn:
+    Condition: HasDomainName
+    Description: "ACM certificate ARN (for reference)"
+    Value: !Ref UiCertificate
 
   ApiBaseUrl:
     Description: "API base URL (HTTPS)"

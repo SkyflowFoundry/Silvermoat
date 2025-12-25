@@ -180,12 +180,81 @@ Tables: `QuotesTable`, `PoliciesTable`, `ClaimsTable`, `PaymentsTable`, `CasesTa
 
 ### S3 Buckets
 
-1. **UiBucket**: Public website hosting (HTTP only, no HTTPS/CloudFront in MVP)
+1. **UiBucket**: Public website hosting
    - Website configuration: `IndexDocument: index.html`, `ErrorDocument: index.html`
    - Public read access via bucket policy
+   - Serves as origin for CloudFront distribution
 
 2. **DocsBucket**: Private bucket for claim documents/attachments
    - Access controlled via IAM (Lambda-only access)
+
+### CloudFront & Custom Domains
+
+The stack includes CloudFront distribution with optional custom domain support (added for production HTTPS).
+
+**Resources:**
+
+1. **UiCertificate** (conditional, if `DomainName` provided):
+   - Type: AWS::CertificateManager::Certificate
+   - Region: us-east-1 (required for CloudFront)
+   - Validation: DNS (requires CNAME in Cloudflare)
+   - Used by CloudFront for HTTPS on custom domain
+
+2. **UiDistribution** (always created):
+   - Type: AWS::CloudFront::Distribution
+   - Origin: S3 website endpoint (CustomOriginConfig, HTTP)
+   - Aliases: Custom domain (if `DomainName` parameter set)
+   - Certificate: ACM cert (if custom domain), else CloudFront default
+   - Caching: AWS managed policy (CachingOptimized)
+   - SPA routing: 404/403 → index.html with 200 status
+   - Price class: 100 (US/CA/EU, cheapest)
+
+**Key behaviors:**
+- S3 website endpoint remains accessible (HTTP)
+- CloudFront adds HTTPS layer and caching
+- Both CloudFront default domain AND custom domain work (if configured)
+- HTTP requests redirect to HTTPS
+- SPA client-side routing handled (404 errors serve index.html)
+- Compression enabled (gzip/brotli)
+
+**Custom domain setup (default: silvermoat.net):**
+1. Deploy stack (DomainName defaults to `silvermoat.net`)
+2. Stack creates ACM cert, waits for DNS validation
+3. Add ACM validation CNAME to Cloudflare (DNS only, gray cloud)
+4. Wait for cert validation (~5-15min)
+5. Stack completes, CloudFront gets custom domain alias
+6. Add CloudFront alias CNAME to Cloudflare (DNS only, gray cloud)
+7. Access via `https://silvermoat.net`
+
+**To disable custom domain:** Set `DomainName=""` parameter (CloudFront default domain only)
+**To use different domain:** Set `DomainName=app.silvermoat.net` parameter
+
+**Outputs:**
+- `CloudFrontUrl`: https://xyz123.cloudfront.net (always available)
+- `CustomDomainUrl`: https://silvermoat.net (if `DomainName` configured)
+- `CloudFrontDomain`: CloudFront domain for DNS CNAME
+- `CertificateArn`: ACM cert ARN (if custom domain)
+
+**Cloudflare DNS setup:**
+User must add 2 CNAME records:
+1. `_validation-subdomain.silvermoat.net` → `_validation-target.acm-validations.aws.` (cert validation)
+2. `silvermoat.net` → `xyz123.cloudfront.net` (site access)
+
+**Critical**: Cloudflare proxy must be **disabled** (DNS only, gray cloud) for both records. Orange cloud (proxied) conflicts with CloudFront's SSL/caching.
+
+**Architecture flow:**
+```
+Browser → CloudFront (HTTPS) → S3 Website Endpoint (HTTP)
+          https://silvermoat.net
+          OR
+          https://xyz123.cloudfront.net
+          ↓
+          CloudFront caches, compresses, serves
+          ↓
+          Origin: bucket-name.s3-website-us-east-1.amazonaws.com
+```
+
+S3 website endpoint (HTTP) still works for direct access/testing.
 
 ## Development Workflow
 
