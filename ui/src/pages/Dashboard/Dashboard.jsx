@@ -259,14 +259,14 @@ const Dashboard = () => {
             This will create realistic demo data across all entity types:
           </Text>
           <ul style={{ paddingLeft: 20 }}>
-            <li>5 Quotes with customer information</li>
-            <li>5 Policies linked to quotes</li>
-            <li>5 Claims linked to policies</li>
-            <li>5 Payments linked to policies</li>
-            <li>5 Cases linked to various entities</li>
+            <li>25 Quotes with full customer details</li>
+            <li>25 Policies linked to quotes with premium data</li>
+            <li>25 Claims linked to policies with estimated/approved amounts</li>
+            <li>25 Payments linked to policies with transaction details</li>
+            <li>25 Cases linked to various entities</li>
           </ul>
           <Text type="secondary">
-            All records will have realistic data with proper relationships between entities.
+            All records will have realistic data with proper relationships and 10-year date spread for trend charts.
           </Text>
 
           {seeding && (

@@ -29,12 +29,13 @@ const DashboardCharts = () => {
   const claims = claimsData?.items || [];
   const payments = paymentsData?.items || [];
 
-  // Group by month helper
-  const groupByMonth = (items, valueExtractor) => {
+  // Group by month helper - uses specific date field from data object
+  const groupByMonth = (items, dateExtractor, valueExtractor) => {
     const grouped = {};
     items.forEach(item => {
-      if (!item.createdAt) return;
-      const month = dayjs(item.createdAt * 1000).format('YYYY-MM');
+      const date = dateExtractor(item);
+      if (!date) return;
+      const month = dayjs(date).format('YYYY-MM');
       if (!grouped[month]) {
         grouped[month] = { month, value: 0, count: 0 };
       }
@@ -44,18 +45,29 @@ const DashboardCharts = () => {
     return Object.values(grouped).sort((a, b) => a.month.localeCompare(b.month));
   };
 
-  // Claims per month
-  const claimsPerMonth = groupByMonth(claims);
+  // Claims per month - by incident date
+  const claimsPerMonth = groupByMonth(
+    claims,
+    (c) => c.data?.incidentDate || c.data?.reportedDate || (c.createdAt ? dayjs(c.createdAt * 1000).format('YYYY-MM-DD') : null)
+  );
 
-  // Policies per month
-  const policiesPerMonth = groupByMonth(policies);
+  // Policies per month - by effective date
+  const policiesPerMonth = groupByMonth(
+    policies,
+    (p) => p.data?.effectiveDate || (p.createdAt ? dayjs(p.createdAt * 1000).format('YYYY-MM-DD') : null)
+  );
 
-  // Premium revenue per month (from policies)
-  const revenuePerMonth = groupByMonth(policies, (p) => p.data?.premium_cents || 0);
+  // Premium revenue per month (from policies) - by effective date
+  const revenuePerMonth = groupByMonth(
+    policies,
+    (p) => p.data?.effectiveDate || (p.createdAt ? dayjs(p.createdAt * 1000).format('YYYY-MM-DD') : null),
+    (p) => p.data?.premium_cents || 0
+  );
 
-  // Claims paid per month (only approved claims)
+  // Claims paid per month (only approved claims) - by incident date
   const claimsPaidPerMonth = groupByMonth(
     claims.filter(c => c.status === 'APPROVED'),
+    (c) => c.data?.incidentDate || c.data?.reportedDate || (c.createdAt ? dayjs(c.createdAt * 1000).format('YYYY-MM-DD') : null),
     (c) => c.data?.paidAmount_cents || c.data?.approvedAmount_cents || 0
   );
 
