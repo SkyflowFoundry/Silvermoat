@@ -126,19 +126,17 @@ const Dashboard = () => {
 
   return (
     <div>
-      {/* Header */}
-      <Space
-        direction="vertical"
-        size="small"
-        style={{ marginBottom: 24, width: '100%' }}
-      >
-        <Title level={2} style={{ margin: 0 }}>
-          Dashboard
-        </Title>
-        <Paragraph type="secondary" style={{ margin: 0 }}>
-          Welcome to Silvermoat Insurance Management System
-        </Paragraph>
-      </Space>
+      {/* Hero Section */}
+      <div className="dashboard-hero">
+        <div className="dashboard-hero-content">
+          <Title level={1} style={{ margin: 0, marginBottom: 12, color: 'white' }}>
+            Welcome to Silvermoat
+          </Title>
+          <Paragraph style={{ margin: 0, fontSize: '1.125rem', color: 'rgba(255, 255, 255, 0.9)' }}>
+            Your comprehensive insurance management platform. Monitor policies, process claims, and manage cases with confidence.
+          </Paragraph>
+        </div>
+      </div>
 
       {/* Quick Actions */}
       <Card

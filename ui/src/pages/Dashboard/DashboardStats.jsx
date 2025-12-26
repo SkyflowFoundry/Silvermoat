@@ -100,18 +100,19 @@ const DashboardStats = () => {
         <Col xs={24} sm={12} lg={8} xl={8}>
           <Card
             bordered={false}
+            className="kpi-card"
             style={{ background: '#f0f5ff', borderLeft: '4px solid #1890ff' }}
           >
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
               <Space>
-                <FileTextOutlined style={{ fontSize: 24, color: '#1890ff' }} />
+                <FileTextOutlined className="kpi-icon" style={{ fontSize: 24, color: '#1890ff' }} />
                 <Text strong style={{ fontSize: 16 }}>
                   Quotes
                 </Text>
               </Space>
               <Statistic
                 value={stats.quotes.total}
-                valueStyle={{ fontSize: 32 }}
+                valueStyle={{ fontSize: 32, fontWeight: 700 }}
               />
               <Text type="secondary" style={{ fontSize: 12 }}>
                 Total quotes in system
@@ -124,11 +125,13 @@ const DashboardStats = () => {
         <Col xs={24} sm={12} lg={8} xl={8}>
           <Card
             bordered={false}
+            className="kpi-card"
             style={{ background: '#f6ffed', borderLeft: '4px solid #52c41a' }}
           >
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
               <Space>
                 <SafetyCertificateOutlined
+                  className="kpi-icon"
                   style={{ fontSize: 24, color: '#52c41a' }}
                 />
                 <Text strong style={{ fontSize: 16 }}>
@@ -137,7 +140,7 @@ const DashboardStats = () => {
               </Space>
               <Statistic
                 value={stats.policies.total}
-                valueStyle={{ fontSize: 32 }}
+                valueStyle={{ fontSize: 32, fontWeight: 700 }}
               />
               <Space split="|" size="small">
                 <Text style={{ fontSize: 12 }}>
@@ -158,11 +161,13 @@ const DashboardStats = () => {
         <Col xs={24} sm={12} lg={8} xl={8}>
           <Card
             bordered={false}
+            className="kpi-card"
             style={{ background: '#fff7e6', borderLeft: '4px solid #faad14' }}
           >
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
               <Space>
                 <ExclamationCircleOutlined
+                  className="kpi-icon"
                   style={{ fontSize: 24, color: '#faad14' }}
                 />
                 <Text strong style={{ fontSize: 16 }}>
@@ -171,7 +176,7 @@ const DashboardStats = () => {
               </Space>
               <Statistic
                 value={stats.claims.total}
-                valueStyle={{ fontSize: 32 }}
+                valueStyle={{ fontSize: 32, fontWeight: 700 }}
               />
               <Space split="|" size="small">
                 <Text style={{ fontSize: 12 }}>
@@ -192,18 +197,19 @@ const DashboardStats = () => {
         <Col xs={24} sm={12} lg={8} xl={8}>
           <Card
             bordered={false}
+            className="kpi-card"
             style={{ background: '#e6fffb', borderLeft: '4px solid #13c2c2' }}
           >
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
               <Space>
-                <DollarOutlined style={{ fontSize: 24, color: '#13c2c2' }} />
+                <DollarOutlined className="kpi-icon" style={{ fontSize: 24, color: '#13c2c2' }} />
                 <Text strong style={{ fontSize: 16 }}>
                   Payments
                 </Text>
               </Space>
               <Statistic
                 value={stats.payments.total}
-                valueStyle={{ fontSize: 32 }}
+                valueStyle={{ fontSize: 32, fontWeight: 700 }}
               />
               <Space split="|" size="small">
                 <Text style={{ fontSize: 12 }}>
@@ -224,11 +230,13 @@ const DashboardStats = () => {
         <Col xs={24} sm={12} lg={8} xl={8}>
           <Card
             bordered={false}
+            className="kpi-card"
             style={{ background: '#f9f0ff', borderLeft: '4px solid #722ed1' }}
           >
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
               <Space>
                 <CustomerServiceOutlined
+                  className="kpi-icon"
                   style={{ fontSize: 24, color: '#722ed1' }}
                 />
                 <Text strong style={{ fontSize: 16 }}>
@@ -237,7 +245,7 @@ const DashboardStats = () => {
               </Space>
               <Statistic
                 value={stats.cases.total}
-                valueStyle={{ fontSize: 32 }}
+                valueStyle={{ fontSize: 32, fontWeight: 700 }}
               />
               <Space split="|" size="small">
                 <Text style={{ fontSize: 12 }}>
@@ -258,18 +266,19 @@ const DashboardStats = () => {
         <Col xs={24} sm={12} lg={8} xl={8}>
           <Card
             bordered={false}
+            className="kpi-card"
             style={{ background: '#e6f7ff', borderLeft: '4px solid #0050b3' }}
           >
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
               <Space>
-                <DollarOutlined style={{ fontSize: 24, color: '#0050b3' }} />
+                <DollarOutlined className="kpi-icon" style={{ fontSize: 24, color: '#0050b3' }} />
                 <Text strong style={{ fontSize: 16 }}>
                   Premium Revenue
                 </Text>
               </Space>
               <Statistic
                 value={formatCurrencyFromCents(stats.financials.totalPremiums)}
-                valueStyle={{ fontSize: 28 }}
+                valueStyle={{ fontSize: 28, fontWeight: 700 }}
               />
               <Text type="secondary" style={{ fontSize: 12 }}>
                 Total annual premiums
@@ -282,18 +291,19 @@ const DashboardStats = () => {
         <Col xs={24} sm={12} lg={8} xl={8}>
           <Card
             bordered={false}
+            className="kpi-card"
             style={{ background: '#fff1f0', borderLeft: '4px solid #cf1322' }}
           >
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
               <Space>
-                <ExclamationCircleOutlined style={{ fontSize: 24, color: '#cf1322' }} />
+                <ExclamationCircleOutlined className="kpi-icon" style={{ fontSize: 24, color: '#cf1322' }} />
                 <Text strong style={{ fontSize: 16 }}>
                   Claims Paid
                 </Text>
               </Space>
               <Statistic
                 value={formatCurrencyFromCents(stats.financials.totalClaimsPaid)}
-                valueStyle={{ fontSize: 28 }}
+                valueStyle={{ fontSize: 28, fontWeight: 700 }}
               />
               <Text type="secondary" style={{ fontSize: 12 }}>
                 Total approved claims
@@ -306,6 +316,7 @@ const DashboardStats = () => {
         <Col xs={24} sm={12} lg={8} xl={8}>
           <Card
             bordered={false}
+            className="kpi-card"
             style={{
               background: stats.financials.lossRatio > 70 ? '#fff1f0' : '#f6ffed',
               borderLeft: stats.financials.lossRatio > 70 ? '4px solid #cf1322' : '4px solid #389e0d'
@@ -314,6 +325,7 @@ const DashboardStats = () => {
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
               <Space>
                 <DollarOutlined
+                  className="kpi-icon"
                   style={{
                     fontSize: 24,
                     color: stats.financials.lossRatio > 70 ? '#cf1322' : '#389e0d'
@@ -328,6 +340,7 @@ const DashboardStats = () => {
                 suffix="%"
                 valueStyle={{
                   fontSize: 32,
+                  fontWeight: 700,
                   color: stats.financials.lossRatio > 70 ? '#cf1322' : '#389e0d'
                 }}
               />
@@ -342,18 +355,19 @@ const DashboardStats = () => {
         <Col xs={24} sm={12} lg={8} xl={8}>
           <Card
             bordered={false}
+            className="kpi-card"
             style={{ background: '#fcffe6', borderLeft: '4px solid #d4b106' }}
           >
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
               <Space>
-                <DollarOutlined style={{ fontSize: 24, color: '#d4b106' }} />
+                <DollarOutlined className="kpi-icon" style={{ fontSize: 24, color: '#d4b106' }} />
                 <Text strong style={{ fontSize: 16 }}>
                   Avg Claim Amount
                 </Text>
               </Space>
               <Statistic
                 value={formatCurrencyFromCents(stats.financials.avgClaimAmount)}
-                valueStyle={{ fontSize: 28 }}
+                valueStyle={{ fontSize: 28, fontWeight: 700 }}
               />
               <Text type="secondary" style={{ fontSize: 12 }}>
                 Average estimated claim

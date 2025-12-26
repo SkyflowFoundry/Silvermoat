@@ -15,11 +15,16 @@ export const theme = {
     // Typography
     fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
     fontSize: 14,
-    fontSizeHeading1: 32,
-    fontSizeHeading2: 24,
-    fontSizeHeading3: 20,
-    fontSizeHeading4: 16,
-    fontSizeHeading5: 14,
+    fontSizeHeading1: 40,
+    fontSizeHeading2: 32,
+    fontSizeHeading3: 24,
+    fontSizeHeading4: 20,
+    fontSizeHeading5: 16,
+    fontWeightStrong: 600,
+    lineHeight: 1.6,
+    lineHeightHeading1: 1.2,
+    lineHeightHeading2: 1.3,
+    lineHeightHeading3: 1.4,
 
     // Layout & Spacing
     borderRadius: 4,
@@ -116,11 +121,12 @@ export const theme = {
 
     // Card
     Card: {
-      borderRadiusLG: 8,
+      borderRadiusLG: 12,
       paddingLG: 24,
-      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
       headerBg: '#fafafa',
-      headerFontSize: 16,
+      headerFontSize: 18,
+      headerFontWeight: 600,
       headerHeight: 56,
     },
 
