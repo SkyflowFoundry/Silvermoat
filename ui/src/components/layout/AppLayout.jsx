@@ -17,6 +17,7 @@ import Header from './Header';
 import Sidebar from './Sidebar';
 import Breadcrumbs from './Breadcrumbs';
 import ChatInterface from '../chat/ChatInterface';
+import BottomNav from '../mobile/BottomNav';
 import { useAppContext } from '../../contexts/AppContext';
 
 const { Content } = Layout;
@@ -101,7 +102,7 @@ const AppLayout = () => {
       <Header />
       <Layout>
         {!isMobile && <Sidebar />}
-        <Layout style={{ padding: isMobile ? '0 12px 12px' : '0 24px 24px' }}>
+        <Layout style={{ padding: isMobile ? '0 12px 76px 12px' : '0 24px 24px' }}>
           <Breadcrumbs style={{ margin: '16px 0' }} />
           <Content
             style={{
@@ -116,6 +117,9 @@ const AppLayout = () => {
           </Content>
         </Layout>
       </Layout>
+
+      {/* Mobile Bottom Navigation */}
+      {isMobile && <BottomNav />}
 
       {/* Mobile Navigation Drawer */}
       <Drawer
