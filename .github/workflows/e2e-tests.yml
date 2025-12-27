@@ -176,36 +176,54 @@ jobs:
         if: always()
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SMOKE_OUTCOME: ${{ steps.smoke-tests.outcome }}
+          API_OUTCOME: ${{ steps.api-tests.outcome }}
+          E2E_OUTCOME: ${{ steps.e2e-tests.outcome }}
         run: |
           echo "Analyzing test results with Claude..."
 
-          # Collect test outputs
-          SMOKE_OUTPUT=$(cat smoke-tests-output.txt 2>/dev/null || echo "No output captured")
-          API_OUTPUT=$(cat api-tests-output.txt 2>/dev/null || echo "No output captured")
-          E2E_OUTPUT=$(cat e2e-tests-output.txt 2>/dev/null || echo "No output captured")
+          # Collect test outputs (escape for JSON)
+          SMOKE_OUTPUT=$(cat smoke-tests-output.txt 2>/dev/null | jq -Rs . || echo '"No output captured"')
+          API_OUTPUT=$(cat api-tests-output.txt 2>/dev/null | jq -Rs . || echo '"No output captured"')
+          E2E_OUTPUT=$(cat e2e-tests-output.txt 2>/dev/null | jq -Rs . || echo '"No output captured"')
 
-          # Create analysis request
-          cat > analysis-request.json <<EOF
-          {
-            "model": "claude-sonnet-4-20250514",
-            "max_tokens": 4096,
-            "messages": [{
-              "role": "user",
-              "content": "You are analyzing test results from an E2E test suite for the Silvermoat insurance MVP application. Review the test outputs below and generate a concise PR comment summarizing:\n\n1. Overall status (✅ passed / ⚠️ partial / ❌ failed)\n2. Key findings for each test suite\n3. Critical failures that need immediate attention\n4. Recommendations for fixes (if failures exist)\n\nFormat as GitHub-flavored markdown. Be specific about which tests failed and why. Limit to 500 words.\n\n## Test Outcomes\n- Smoke tests: ${{ steps.smoke-tests.outcome }}\n- API tests: ${{ steps.api-tests.outcome }}\n- E2E tests: ${{ steps.e2e-tests.outcome }}\n\n## Deployment Smoke Tests\n\`\`\`\n${SMOKE_OUTPUT}\n\`\`\`\n\n## API Contract Tests\n\`\`\`\n${API_OUTPUT}\n\`\`\`\n\n## E2E Smoke Tests\n\`\`\`\n${E2E_OUTPUT}\n\`\`\`"
-            }]
-          }
-          EOF
+          # Build JSON request with proper escaping
+          jq -n \
+            --arg smoke_outcome "$SMOKE_OUTCOME" \
+            --arg api_outcome "$API_OUTCOME" \
+            --arg e2e_outcome "$E2E_OUTCOME" \
+            --argjson smoke_output "$SMOKE_OUTPUT" \
+            --argjson api_output "$API_OUTPUT" \
+            --argjson e2e_output "$E2E_OUTPUT" \
+            '{
+              "model": "claude-sonnet-4-20250514",
+              "max_tokens": 4096,
+              "messages": [{
+                "role": "user",
+                "content": "You are analyzing test results from an E2E test suite for the Silvermoat insurance MVP application. Review the test outputs below and generate a concise PR comment summarizing:\n\n1. Overall status (✅ passed / ⚠️ partial / ❌ failed)\n2. Key findings for each test suite\n3. Critical failures that need immediate attention\n4. Recommendations for fixes (if failures exist)\n\nFormat as GitHub-flavored markdown. Be specific about which tests failed and why. Limit to 500 words.\n\n## Test Outcomes\n- Smoke tests: \($smoke_outcome)\n- API tests: \($api_outcome)\n- E2E tests: \($e2e_outcome)\n\n## Deployment Smoke Tests\n```\n\($smoke_output)\n```\n\n## API Contract Tests\n```\n\($api_output)\n```\n\n## E2E Smoke Tests\n```\n\($e2e_output)\n```"
+              }]
+            }' > analysis-request.json
 
           # Call Claude API
-          curl -s https://api.anthropic.com/v1/messages \
+          HTTP_CODE=$(curl -s -w "%{http_code}" -o analysis-response.json \
+            https://api.anthropic.com/v1/messages \
             -H "content-type: application/json" \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
-            -d @analysis-request.json \
-            -o analysis-response.json
+            -d @analysis-request.json)
+
+          echo "API response code: $HTTP_CODE"
+
+          # Check for errors
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "API request failed with code $HTTP_CODE"
+            cat analysis-response.json
+            echo "API analysis failed. Using fallback message." > test-analysis.md
+            exit 0
+          fi
 
           # Extract the analysis
-          ANALYSIS=$(jq -r '.content[0].text' analysis-response.json)
+          ANALYSIS=$(jq -r '.content[0].text // "Analysis extraction failed"' analysis-response.json)
 
           # Save for next step
           echo "$ANALYSIS" > test-analysis.md
