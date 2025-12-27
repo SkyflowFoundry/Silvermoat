@@ -1,0 +1,18 @@
+# Test Dependencies for Silvermoat E2E Testing
+
+# Core testing
+pytest==8.3.4
+pytest-xdist==3.6.1  # Parallel test execution
+
+# API testing
+requests==2.32.3
+
+# E2E browser testing
+selenium==4.27.1
+webdriver-manager==4.0.2
+
+# AWS integration (for CloudFormation stack outputs only)
+boto3==1.35.90
+
+# Test reporting
+pytest-html==4.1.1

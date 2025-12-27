@@ -1,0 +1,180 @@
+name: E2E Tests with Ephemeral Stack
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - 'ui/**'
+      - 'tests/**'
+      - 'scripts/**'
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number for stack naming (optional)'
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Determine test stack name
+        id: stack-name
+        run: |
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            STACK_NAME="silvermoat-test-pr-${{ github.event.pull_request.number }}"
+          elif [ -n "${{ inputs.pr_number }}" ]; then
+            STACK_NAME="silvermoat-test-pr-${{ inputs.pr_number }}"
+          else
+            STACK_NAME="silvermoat-test-${{ github.run_id }}"
+          fi
+          echo "stack_name=${STACK_NAME}" >> $GITHUB_OUTPUT
+          echo "Test stack name: ${STACK_NAME}"
+
+      - name: Deploy test stack
+        env:
+          STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
+          APP_NAME: silvermoat-test
+          STAGE_NAME: test
+          UI_SEEDING_MODE: seeded
+        run: |
+          echo "Deploying test stack: ${STACK_NAME}"
+          chmod +x scripts/deploy-stack.sh
+          ./scripts/deploy-stack.sh
+
+      - name: Wait for stack deployment
+        run: |
+          echo "Waiting for stack deployment to complete..."
+          aws cloudformation wait stack-create-complete \
+            --stack-name ${{ steps.stack-name.outputs.stack_name }} \
+            --region us-east-1 || \
+          aws cloudformation wait stack-update-complete \
+            --stack-name ${{ steps.stack-name.outputs.stack_name }} \
+            --region us-east-1
+
+      - name: Get stack outputs
+        id: stack-outputs
+        run: |
+          STACK_NAME="${{ steps.stack-name.outputs.stack_name }}"
+
+          # Get all outputs as JSON
+          OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].Outputs' \
+            --output json)
+
+          # Extract specific outputs
+          API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="ApiBaseUrl") | .OutputValue')
+          WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="WebUrl") | .OutputValue')
+
+          # Fallback to CloudFrontUrl if WebUrl not found
+          if [ -z "$WEB_URL" ] || [ "$WEB_URL" == "null" ]; then
+            WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="CloudFrontUrl") | .OutputValue')
+          fi
+
+          echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
+          echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
+
+          echo "API URL: ${API_URL}"
+          echo "Web URL: ${WEB_URL}"
+
+      - name: Install Chrome and ChromeDriver
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Run deployment smoke tests
+        env:
+          STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
+        run: |
+          echo "Running deployment smoke tests..."
+          cd tests/smoke
+          pytest -v -m smoke --tb=short
+
+      - name: Run API contract tests
+        env:
+          SILVERMOAT_API_URL: ${{ steps.stack-outputs.outputs.api_url }}
+        run: |
+          echo "Running API contract tests..."
+          cd tests/api
+          pytest -v -m api --tb=short
+
+      - name: Run E2E smoke tests
+        env:
+          SILVERMOAT_URL: ${{ steps.stack-outputs.outputs.web_url }}
+          SILVERMOAT_API_URL: ${{ steps.stack-outputs.outputs.api_url }}
+          HEADLESS: '1'
+        run: |
+          echo "Running E2E smoke tests..."
+          cd tests/e2e
+          pytest -v -m smoke --tb=short
+
+      - name: Cleanup test stack
+        if: always()
+        run: |
+          echo "Cleaning up test stack..."
+          STACK_NAME="${{ steps.stack-name.outputs.stack_name }}"
+          chmod +x scripts/delete-stack.sh
+          STACK_NAME="${STACK_NAME}" ./scripts/delete-stack.sh || echo "Stack deletion initiated"
+
+      - name: Wait for stack deletion
+        if: always()
+        run: |
+          echo "Waiting for stack deletion to complete..."
+          aws cloudformation wait stack-delete-complete \
+            --stack-name ${{ steps.stack-name.outputs.stack_name }} \
+            --region us-east-1 || echo "Stack deletion may still be in progress"
+
+      - name: Post results to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const stackName = '${{ steps.stack-name.outputs.stack_name }}';
+
+            const body = `## E2E Test Results
+
+            **Test Stack:** \`${stackName}\`
+            **Status:** ${{ job.status }}
+            **Run:** [View Details](${runUrl})
+
+            ### Tests Executed
+            - Deployment smoke tests
+            - API contract tests
+            - E2E browser tests (smoke)
+
+            Test stack has been cleaned up.
+            `;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: body
+            });
