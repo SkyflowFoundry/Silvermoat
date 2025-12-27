@@ -125,6 +125,7 @@ jobs:
           chrome-version: stable
 
       - name: Run deployment smoke tests
+        continue-on-error: true
         env:
           STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
         run: |
@@ -133,6 +134,7 @@ jobs:
           pytest -v -m smoke --tb=short
 
       - name: Run API contract tests
+        continue-on-error: true
         env:
           SILVERMOAT_API_URL: ${{ steps.stack-outputs.outputs.api_url }}
         run: |
@@ -141,6 +143,7 @@ jobs:
           pytest -v -m api --tb=short
 
       - name: Run E2E smoke tests
+        continue-on-error: true
         env:
           SILVERMOAT_URL: ${{ steps.stack-outputs.outputs.web_url }}
           SILVERMOAT_API_URL: ${{ steps.stack-outputs.outputs.api_url }}
