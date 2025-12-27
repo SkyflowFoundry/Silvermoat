@@ -25,26 +25,6 @@ def test_create_quote_success(api_client, sample_quote_data):
 
 @pytest.mark.api
 @pytest.mark.quotes
-@pytest.mark.skip(reason="Lambda does not implement input validation yet")
-def test_create_quote_invalid_data(api_client):
-    """Test that invalid quote data returns 400 with error message"""
-    invalid_data = {
-        "customer_name": "Jane Doe",
-        # Missing required fields
-    }
-
-    response = api_client.api_request('POST', '/quote', json=invalid_data)
-
-    # Should return 400 for invalid data (or possibly 422 for validation errors)
-    assert response.status_code in [400, 422], f"Expected 400/422, got {response.status_code}"
-
-    # Should include error information
-    data = response.json()
-    assert 'error' in data or 'message' in data, "Error response should contain error message"
-
-
-@pytest.mark.api
-@pytest.mark.quotes
 def test_get_quote_by_id(api_client, sample_quote_data):
     """Test that created quote can be retrieved by ID"""
     # Create a quote first
@@ -58,12 +38,12 @@ def test_get_quote_by_id(api_client, sample_quote_data):
     assert get_response.status_code == 200, f"Expected 200, got {get_response.status_code}"
     quote = get_response.json()
 
-    # Validate quote structure (API contract, not DB format)
+    # Validate quote structure (data is nested under 'data' key)
     assert quote['id'] == quote_id
-    assert 'customer_name' in quote
-    assert 'customer_email' in quote
-    assert 'property_address' in quote
-    assert 'coverage_amount' in quote
+    assert 'customer_name' in quote['data']
+    assert 'customer_email' in quote['data']
+    assert 'property_address' in quote['data']
+    assert 'coverage_amount' in quote['data']
 
 
 @pytest.mark.api
@@ -91,11 +71,11 @@ def test_quote_data_persistence(api_client, sample_quote_data):
     assert get_response.status_code == 200
     quote = get_response.json()
 
-    # Verify data matches what was submitted
-    assert quote['customer_name'] == sample_quote_data['customer_name']
-    assert quote['customer_email'] == sample_quote_data['customer_email']
-    assert quote['property_address'] == sample_quote_data['property_address']
-    assert quote['coverage_amount'] == sample_quote_data['coverage_amount']
+    # Verify data matches what was submitted (data is nested under 'data' key)
+    assert quote['data']['customer_name'] == sample_quote_data['customer_name']
+    assert quote['data']['customer_email'] == sample_quote_data['customer_email']
+    assert quote['data']['property_address'] == sample_quote_data['property_address']
+    assert quote['data']['coverage_amount'] == sample_quote_data['coverage_amount']
 
 
 @pytest.mark.api

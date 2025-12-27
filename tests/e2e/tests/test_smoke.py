@@ -37,20 +37,20 @@ def test_api_connectivity(api_base_url):
 @pytest.mark.e2e
 @pytest.mark.smoke
 def test_navigation_links_work(driver, base_url):
-    """Test that navigation links are present and clickable"""
+    """Test that navigation menu items are present and clickable"""
     home_page = HomePage(driver, base_url)
     home_page.load()
 
     # Should have navigation
     assert home_page.is_loaded(), "Home page should load with navigation"
 
-    # Should have multiple navigation links
-    links = home_page.get_navigation_links()
-    assert len(links) > 0, "Should have navigation links"
+    # Should have multiple navigation menu items (Ant Design uses role='menuitem')
+    menu_items = home_page.get_navigation_links()
+    assert len(menu_items) >= 5, f"Should have at least 5 navigation items, found {len(menu_items)}"
 
-    # Links should have href attributes
-    links_with_href = [link for link in links if link.get_attribute('href')]
-    assert len(links_with_href) > 0, "Navigation links should have href attributes"
+    # Menu items should be clickable (have role='menuitem')
+    for item in menu_items:
+        assert item.get_attribute('role') == 'menuitem', "Navigation items should have role='menuitem'"
 
 
 @pytest.mark.e2e

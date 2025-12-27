@@ -8,6 +8,7 @@ on:
       - 'ui/**'
       - 'tests/**'
       - 'scripts/**'
+      - '.github/workflows/**'
   workflow_dispatch:
     inputs:
       pr_number:
@@ -126,32 +127,32 @@ jobs:
 
       - name: Run deployment smoke tests
         id: smoke-tests
-        continue-on-error: true
         env:
           STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
         run: |
+          set -o pipefail
           echo "Running deployment smoke tests..."
           cd tests/smoke
           pytest -v -m smoke --tb=short 2>&1 | tee ../../smoke-tests-output.txt
 
       - name: Run API contract tests
         id: api-tests
-        continue-on-error: true
         env:
           SILVERMOAT_API_URL: ${{ steps.stack-outputs.outputs.api_url }}
         run: |
+          set -o pipefail
           echo "Running API contract tests..."
           cd tests/api
           pytest -v -m api --tb=short 2>&1 | tee ../../api-tests-output.txt
 
       - name: Run E2E smoke tests
         id: e2e-tests
-        continue-on-error: true
         env:
           SILVERMOAT_URL: ${{ steps.stack-outputs.outputs.web_url }}
           SILVERMOAT_API_URL: ${{ steps.stack-outputs.outputs.api_url }}
           HEADLESS: '1'
         run: |
+          set -o pipefail
           echo "Running E2E smoke tests..."
           cd tests/e2e
           pytest -v -m smoke --tb=short 2>&1 | tee ../../e2e-tests-output.txt
@@ -175,17 +176,24 @@ jobs:
       - name: Analyze test results with Claude
         if: always()
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_GITHUB_ACTIONS }}
           SMOKE_OUTCOME: ${{ steps.smoke-tests.outcome }}
           API_OUTCOME: ${{ steps.api-tests.outcome }}
           E2E_OUTCOME: ${{ steps.e2e-tests.outcome }}
         run: |
           echo "Analyzing test results with Claude..."
 
-          # Collect test outputs (escape for JSON)
-          SMOKE_OUTPUT=$(cat smoke-tests-output.txt 2>/dev/null | jq -Rs . || echo '"No output captured"')
-          API_OUTPUT=$(cat api-tests-output.txt 2>/dev/null | jq -Rs . || echo '"No output captured"')
-          E2E_OUTPUT=$(cat e2e-tests-output.txt 2>/dev/null | jq -Rs . || echo '"No output captured"')
+          # Verify API key is set
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "ERROR: ANTHROPIC_API_KEY_GITHUB_ACTIONS secret is not set"
+            echo "API analysis skipped (no API key). Using fallback message." > test-analysis.md
+            exit 0
+          fi
+
+          # Collect test outputs (escape for JSON, limit to 2000 lines each to avoid token limits)
+          SMOKE_OUTPUT=$(cat smoke-tests-output.txt 2>/dev/null | head -2000 | jq -Rs . || echo '"No output captured"')
+          API_OUTPUT=$(cat api-tests-output.txt 2>/dev/null | head -2000 | jq -Rs . || echo '"No output captured"')
+          E2E_OUTPUT=$(cat e2e-tests-output.txt 2>/dev/null | head -2000 | jq -Rs . || echo '"No output captured"')
 
           # Build JSON request with proper escaping
           jq -n \
@@ -196,7 +204,7 @@ jobs:
             --argjson api_output "$API_OUTPUT" \
             --argjson e2e_output "$E2E_OUTPUT" \
             '{
-              "model": "claude-sonnet-4-20250514",
+              "model": "claude-sonnet-4-5",
               "max_tokens": 4096,
               "messages": [{
                 "role": "user",
@@ -204,21 +212,50 @@ jobs:
               }]
             }' > analysis-request.json
 
-          # Call Claude API
-          HTTP_CODE=$(curl -s -w "%{http_code}" -o analysis-response.json \
+          # Call Claude API (60s timeout for analysis)
+          set +e  # Don't exit on curl error
+          curl -s --max-time 60 -o analysis-response.json -w "%{http_code}" \
             https://api.anthropic.com/v1/messages \
             -H "content-type: application/json" \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
-            -d @analysis-request.json)
+            -d @analysis-request.json > http_code.txt
+          CURL_EXIT=$?
+          HTTP_CODE=$(cat http_code.txt 2>/dev/null || echo "000")
+          set -e  # Re-enable exit on error
 
+          echo "Curl exit code: $CURL_EXIT"
           echo "API response code: $HTTP_CODE"
 
-          # Check for errors
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "API request failed with code $HTTP_CODE"
-            cat analysis-response.json
-            echo "API analysis failed. Using fallback message." > test-analysis.md
+          # Check for curl failures
+          if [ $CURL_EXIT -ne 0 ]; then
+            echo "Curl command failed with exit code $CURL_EXIT"
+            if [ $CURL_EXIT -eq 28 ]; then
+              echo "Timeout after 60 seconds"
+            elif [ $CURL_EXIT -eq 6 ]; then
+              echo "Could not resolve host api.anthropic.com"
+            else
+              echo "Connection or network error"
+            fi
+            echo "API analysis failed (connection error). Using fallback message." > test-analysis.md
+            exit 0
+          fi
+
+          # Check HTTP response codes
+          if [ "$HTTP_CODE" = "401" ]; then
+            echo "Authentication failed - check ANTHROPIC_API_KEY secret"
+            cat analysis-response.json 2>/dev/null || echo "No response body"
+            echo "API analysis failed (authentication). Using fallback message." > test-analysis.md
+            exit 0
+          elif [ "$HTTP_CODE" = "429" ]; then
+            echo "Rate limit exceeded"
+            cat analysis-response.json 2>/dev/null || echo "No response body"
+            echo "API analysis failed (rate limit). Using fallback message." > test-analysis.md
+            exit 0
+          elif [ "$HTTP_CODE" != "200" ]; then
+            echo "API request failed with HTTP code $HTTP_CODE"
+            cat analysis-response.json 2>/dev/null || echo "No response body"
+            echo "API analysis failed (HTTP $HTTP_CODE). Using fallback message." > test-analysis.md
             exit 0
           fi
 

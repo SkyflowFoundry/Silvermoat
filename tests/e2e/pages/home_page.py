@@ -9,13 +9,14 @@ from .base_page import BasePage
 class HomePage(BasePage):
     """Page object for home/dashboard page"""
 
-    # Locators
+    # Locators - Ant Design Menu structure
     LOGO = (By.CSS_SELECTOR, "[class*='logo'], [alt*='logo']")
-    NAVIGATION_MENU = (By.CSS_SELECTOR, "nav, [class*='nav'], [role='navigation']")
-    QUOTES_LINK = (By.XPATH, "//a[contains(., 'Quote')]")
-    POLICIES_LINK = (By.XPATH, "//a[contains(., 'Polic')]")
-    CLAIMS_LINK = (By.XPATH, "//a[contains(., 'Claim')]")
-    PAYMENTS_LINK = (By.XPATH, "//a[contains(., 'Payment')]")
+    NAVIGATION_MENU = (By.CSS_SELECTOR, "[role='menu']")  # Ant Design uses role="menu"
+    NAV_MENU_ITEMS = (By.CSS_SELECTOR, "[role='menuitem']")  # Menu items
+    QUOTES_LINK = (By.XPATH, "//*[@role='menuitem' and contains(., 'Quote')]")
+    POLICIES_LINK = (By.XPATH, "//*[@role='menuitem' and contains(., 'Polic')]")
+    CLAIMS_LINK = (By.XPATH, "//*[@role='menuitem' and contains(., 'Claim')]")
+    PAYMENTS_LINK = (By.XPATH, "//*[@role='menuitem' and contains(., 'Payment')]")
 
     def load(self):
         """Load the home page"""
@@ -47,6 +48,6 @@ class HomePage(BasePage):
         self.click(*self.PAYMENTS_LINK)
 
     def get_navigation_links(self):
-        """Get all navigation links"""
-        links = self.find_elements(By.TAG_NAME, "a")
-        return [link for link in links if link.is_displayed()]
+        """Get all navigation menu items (Ant Design uses role='menuitem')"""
+        menu_items = self.find_elements(*self.NAV_MENU_ITEMS)
+        return [item for item in menu_items if item.is_displayed()]
