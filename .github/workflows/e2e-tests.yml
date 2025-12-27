@@ -167,7 +167,7 @@ jobs:
             --region us-east-1 || echo "Stack deletion may still be in progress"
 
       - name: Post results to PR
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
