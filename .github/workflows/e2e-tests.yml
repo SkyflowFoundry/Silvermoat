@@ -210,34 +210,49 @@ jobs:
             }' > analysis-request.json
 
           # Call Claude API (60s timeout for analysis)
-          HTTP_CODE=$(curl -s -w "%{http_code}" --max-time 60 -o analysis-response.json \
+          set +e  # Don't exit on curl error
+          curl -s --max-time 60 -o analysis-response.json -w "%{http_code}" \
             https://api.anthropic.com/v1/messages \
             -H "content-type: application/json" \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
-            -d @analysis-request.json || echo "000")
+            -d @analysis-request.json > http_code.txt
+          CURL_EXIT=$?
+          HTTP_CODE=$(cat http_code.txt 2>/dev/null || echo "000")
+          set -e  # Re-enable exit on error
 
+          echo "Curl exit code: $CURL_EXIT"
           echo "API response code: $HTTP_CODE"
 
-          # Check for errors
-          if [ "$HTTP_CODE" = "000" ]; then
-            echo "API request timeout or connection error"
-            echo "API analysis failed (timeout). Using fallback message." > test-analysis.md
+          # Check for curl failures
+          if [ $CURL_EXIT -ne 0 ]; then
+            echo "Curl command failed with exit code $CURL_EXIT"
+            if [ $CURL_EXIT -eq 28 ]; then
+              echo "Timeout after 60 seconds"
+            elif [ $CURL_EXIT -eq 6 ]; then
+              echo "Could not resolve host api.anthropic.com"
+            else
+              echo "Connection or network error"
+            fi
+            echo "API analysis failed (connection error). Using fallback message." > test-analysis.md
             exit 0
-          elif [ "$HTTP_CODE" = "401" ]; then
+          fi
+
+          # Check HTTP response codes
+          if [ "$HTTP_CODE" = "401" ]; then
             echo "Authentication failed - check ANTHROPIC_API_KEY secret"
-            cat analysis-response.json
+            cat analysis-response.json 2>/dev/null || echo "No response body"
             echo "API analysis failed (authentication). Using fallback message." > test-analysis.md
             exit 0
           elif [ "$HTTP_CODE" = "429" ]; then
             echo "Rate limit exceeded"
-            cat analysis-response.json
+            cat analysis-response.json 2>/dev/null || echo "No response body"
             echo "API analysis failed (rate limit). Using fallback message." > test-analysis.md
             exit 0
           elif [ "$HTTP_CODE" != "200" ]; then
-            echo "API request failed with code $HTTP_CODE"
-            cat analysis-response.json
-            echo "API analysis failed. Using fallback message." > test-analysis.md
+            echo "API request failed with HTTP code $HTTP_CODE"
+            cat analysis-response.json 2>/dev/null || echo "No response body"
+            echo "API analysis failed (HTTP $HTTP_CODE). Using fallback message." > test-analysis.md
             exit 0
           fi
 
