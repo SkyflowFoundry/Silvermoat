@@ -12,16 +12,14 @@ source "$SCRIPT_DIR/lib/check-aws.sh"
 STACK_NAME="${STACK_NAME:-silvermoat}"
 TEMPLATE_FILE="$PROJECT_ROOT/infra/silvermoat-mvp-s3-website.yaml"
 
-# AWS Profile support
-AWS_PROFILE="${AWS_PROFILE:-}"
+# Check AWS CLI and credentials
+check_aws_configured
+
+# Build AWS command with profile if set
 AWS_CMD="aws"
 if [ -n "$AWS_PROFILE" ]; then
   AWS_CMD="aws --profile $AWS_PROFILE"
-  echo "Using AWS profile: $AWS_PROFILE"
 fi
-
-# Check AWS CLI and credentials
-check_aws_configured
 
 # Default parameters
 APP_NAME="${APP_NAME:-silvermoat}"

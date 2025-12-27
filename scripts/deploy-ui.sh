@@ -13,15 +13,14 @@ STACK_NAME="${STACK_NAME:-silvermoat}"
 UI_DIR="$PROJECT_ROOT/ui"
 BUILD_DIR="$UI_DIR/dist"
 
-# AWS Profile support
-AWS_PROFILE="${AWS_PROFILE:-}"
+# Check AWS CLI and credentials
+check_aws_configured
+
+# Build AWS command with profile if set
 AWS_CMD="aws"
 if [ -n "$AWS_PROFILE" ]; then
   AWS_CMD="aws --profile $AWS_PROFILE"
 fi
-
-# Check AWS CLI and credentials
-check_aws_configured
 
 echo "Building React UI..."
 echo ""
