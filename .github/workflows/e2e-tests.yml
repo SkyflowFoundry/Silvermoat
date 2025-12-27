@@ -8,6 +8,7 @@ on:
       - 'ui/**'
       - 'tests/**'
       - 'scripts/**'
+      - '.github/workflows/**'
   workflow_dispatch:
     inputs:
       pr_number:
