@@ -3,7 +3,9 @@
  * Shows relevant prompts based on current route
  */
 
+import { useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
+import PropTypes from 'prop-types';
 import { Button, Space, Typography } from 'antd';
 import { QuestionCircleOutlined } from '@ant-design/icons';
 import { useAppContext } from '../../contexts/AppContext';
@@ -55,8 +57,11 @@ const StarterPrompts = ({ onPromptClick }) => {
   const location = useLocation();
   const { isMobile } = useAppContext();
 
-  // Get prompts for current route, or use defaults
-  const prompts = ROUTE_PROMPTS[location.pathname] || DEFAULT_PROMPTS;
+  // Get prompts for current route, or use defaults (memoized)
+  const prompts = useMemo(
+    () => ROUTE_PROMPTS[location.pathname] || DEFAULT_PROMPTS,
+    [location.pathname]
+  );
 
   return (
     <Space direction="vertical" size="small" style={{ width: '100%' }}>
@@ -77,6 +82,10 @@ const StarterPrompts = ({ onPromptClick }) => {
       ))}
     </Space>
   );
+};
+
+StarterPrompts.propTypes = {
+  onPromptClick: PropTypes.func.isRequired,
 };
 
 export default StarterPrompts;

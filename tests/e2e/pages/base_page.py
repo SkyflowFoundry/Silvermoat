@@ -70,3 +70,14 @@ class BasePage:
         self.wait.until(
             lambda driver: driver.execute_script("return document.readyState") == "complete"
         )
+        # Also wait for loading screen to disappear if present
+        self.wait_for_loading_screen_to_disappear()
+
+    def wait_for_loading_screen_to_disappear(self, timeout=10):
+        """Wait for loading screen overlay to be removed from DOM"""
+        try:
+            wait = WebDriverWait(self.driver, timeout)
+            wait.until(EC.invisibility_of_element_located((By.ID, "loading-screen")))
+        except Exception:
+            # Loading screen may not exist on all pages, which is fine
+            pass

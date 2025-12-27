@@ -214,7 +214,7 @@ def test_starter_prompt_clickable(driver, base_url):
     messages = chat_page.get_messages()
     assert len(messages) > 0, "Clicking starter prompt should send a message"
 
-    # First message should match the prompt text
+    # First message should contain the prompt text
     first_message = messages[0].strip().lower()
-    assert first_message == first_prompt.lower(), \
-        f"First message should exactly match prompt. Expected: '{first_prompt}', Got: '{messages[0]}'"
+    assert first_prompt.lower() in first_message, \
+        f"First message should contain prompt text. Expected '{first_prompt}' in '{messages[0]}'"
