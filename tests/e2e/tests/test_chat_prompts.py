@@ -11,6 +11,7 @@ from ..pages.home_page import HomePage
 
 
 @pytest.mark.e2e
+@pytest.mark.smoke
 @pytest.mark.chat
 def test_chat_opens_on_homepage(driver, base_url):
     """Test that chat interface can be opened"""
@@ -26,6 +27,7 @@ def test_chat_opens_on_homepage(driver, base_url):
 
 
 @pytest.mark.e2e
+@pytest.mark.smoke
 @pytest.mark.chat
 def test_dashboard_starter_prompts(driver, base_url):
     """Test that dashboard shows dashboard-specific starter prompts"""
@@ -49,6 +51,7 @@ def test_dashboard_starter_prompts(driver, base_url):
 
 
 @pytest.mark.e2e
+@pytest.mark.smoke
 @pytest.mark.chat
 def test_quotes_page_starter_prompts(driver, base_url):
     """Test that quotes page shows quote-specific starter prompts"""
@@ -75,6 +78,7 @@ def test_quotes_page_starter_prompts(driver, base_url):
 
 
 @pytest.mark.e2e
+@pytest.mark.smoke
 @pytest.mark.chat
 def test_policies_page_starter_prompts(driver, base_url):
     """Test that policies page shows policy-specific starter prompts"""
@@ -101,6 +105,7 @@ def test_policies_page_starter_prompts(driver, base_url):
 
 
 @pytest.mark.e2e
+@pytest.mark.smoke
 @pytest.mark.chat
 def test_claims_page_starter_prompts(driver, base_url):
     """Test that claims page shows claim-specific starter prompts"""
@@ -127,6 +132,7 @@ def test_claims_page_starter_prompts(driver, base_url):
 
 
 @pytest.mark.e2e
+@pytest.mark.smoke
 @pytest.mark.chat
 def test_payments_page_starter_prompts(driver, base_url):
     """Test that payments page shows payment-specific starter prompts"""
@@ -154,6 +160,7 @@ def test_payments_page_starter_prompts(driver, base_url):
 
 
 @pytest.mark.e2e
+@pytest.mark.smoke
 @pytest.mark.chat
 def test_prompts_differ_by_page(driver, base_url):
     """Test that starter prompts actually change between pages"""
@@ -179,6 +186,7 @@ def test_prompts_differ_by_page(driver, base_url):
 
 
 @pytest.mark.e2e
+@pytest.mark.smoke
 @pytest.mark.chat
 def test_starter_prompt_clickable(driver, base_url):
     """Test that starter prompts are clickable and send messages"""
