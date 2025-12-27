@@ -194,7 +194,7 @@ jobs:
             --argjson api_output "$API_OUTPUT" \
             --argjson e2e_output "$E2E_OUTPUT" \
             '{
-              "model": "claude-sonnet-4-5-20250929",
+              "model": "claude-sonnet-4-5",
               "max_tokens": 4096,
               "messages": [{
                 "role": "user",
