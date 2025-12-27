@@ -5,20 +5,15 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Typography, Empty, Space, Button } from 'antd';
-import { QuestionCircleOutlined, CloseOutlined } from '@ant-design/icons';
+import { CloseOutlined } from '@ant-design/icons';
 import ChatMessage from './ChatMessage';
 import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
+import StarterPrompts from './StarterPrompts';
 import { useSendMessage } from '../../hooks/mutations/useSendMessage';
 import { useAppContext } from '../../contexts/AppContext';
 
 const { Title, Text } = Typography;
-
-const STARTER_PROMPTS = [
-  'Search for active policies',
-  'Show me pending claims',
-  'Find quotes from last week',
-];
 
 const ChatInterface = () => {
   const [messages, setMessages] = useState([]);
@@ -144,22 +139,7 @@ const ChatInterface = () => {
                     <li>Helping fill out forms</li>
                   </ul>
                 </div>
-                <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                  <Text type="secondary" style={{ fontSize: isMobile ? 11 : 12 }}>
-                    Try these:
-                  </Text>
-                  {STARTER_PROMPTS.map((prompt, idx) => (
-                    <Button
-                      key={idx}
-                      size={isMobile ? 'middle' : 'small'}
-                      icon={<QuestionCircleOutlined />}
-                      onClick={() => handleStarterPrompt(prompt)}
-                      style={{ textAlign: 'left', width: '100%' }}
-                    >
-                      {prompt}
-                    </Button>
-                  ))}
-                </Space>
+                <StarterPrompts onPromptClick={handleStarterPrompt} isMobile={isMobile} />
               </Space>
             }
           />
