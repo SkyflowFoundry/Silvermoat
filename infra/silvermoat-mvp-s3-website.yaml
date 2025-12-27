@@ -721,9 +721,19 @@ Resources:
               _id = str(uuid.uuid4())
               # Convert floats to Decimal for DynamoDB compatibility
               clean_body = convert_floats_to_decimal(body)
-              item = {"id": _id, "createdAt": int(time.time()), "data": clean_body}
+
+              # Add default status based on domain type
+              default_status = {
+                "quote": "PENDING",
+                "policy": "ACTIVE",
+                "claim": "PENDING",
+                "payment": "PENDING",
+                "case": "OPEN"
+              }.get(domain, "PENDING")
+
+              item = {"id": _id, "createdAt": int(time.time()), "data": clean_body, "status": default_status}
               table.put_item(Item=item)
-              _emit(f"{domain}.created", {"id": _id, "data": clean_body})
+              _emit(f"{domain}.created", {"id": _id, "data": clean_body, "status": default_status})
               return _resp(201, {"id": _id, "item": item})
 
             # GET /{domain}/{id} -> read
