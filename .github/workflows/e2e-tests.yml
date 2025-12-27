@@ -33,6 +33,13 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: ui/package-lock.json
+
       - name: Install test dependencies
         run: pip install -r requirements-test.txt
 
@@ -60,7 +67,7 @@ jobs:
           STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
           APP_NAME: silvermoat-test
           STAGE_NAME: test
-          UI_SEEDING_MODE: seeded
+          UI_SEEDING_MODE: external
           CREATE_CLOUDFRONT: false
           DOMAIN_NAME: ""
         run: |
@@ -77,6 +84,14 @@ jobs:
           aws cloudformation wait stack-update-complete \
             --stack-name ${{ steps.stack-name.outputs.stack_name }} \
             --region us-east-1
+
+      - name: Build and deploy React UI
+        env:
+          STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
+        run: |
+          echo "Building and deploying React UI..."
+          chmod +x scripts/deploy-ui.sh
+          ./scripts/deploy-ui.sh
 
       - name: Get stack outputs
         id: stack-outputs
