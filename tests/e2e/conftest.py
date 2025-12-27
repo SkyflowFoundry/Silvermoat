@@ -93,7 +93,6 @@ def driver():
     # Create driver
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
-    driver.implicitly_wait(10)
 
     yield driver
 
@@ -121,7 +120,6 @@ def mobile_driver():
 
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
-    driver.implicitly_wait(10)
 
     yield driver
 
@@ -142,7 +140,6 @@ def tablet_driver():
 
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
-    driver.implicitly_wait(10)
 
     yield driver
 

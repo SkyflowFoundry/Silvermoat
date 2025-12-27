@@ -62,7 +62,7 @@ class BasePage:
             wait = WebDriverWait(self.driver, timeout)
             wait.until(EC.presence_of_element_located((by, value)))
             return True
-        except:
+        except Exception:
             return False
 
     def wait_for_page_load(self):
