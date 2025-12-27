@@ -156,7 +156,7 @@ jobs:
           echo "Cleaning up test stack..."
           STACK_NAME="${{ steps.stack-name.outputs.stack_name }}"
           chmod +x scripts/delete-stack.sh
-          STACK_NAME="${STACK_NAME}" ./scripts/delete-stack.sh || echo "Stack deletion initiated"
+          STACK_NAME="${STACK_NAME}" ./scripts/delete-stack.sh --yes || echo "Stack deletion may have failed"
 
       - name: Wait for stack deletion
         if: always()
