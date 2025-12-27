@@ -10,15 +10,14 @@ source "$SCRIPT_DIR/lib/check-aws.sh"
 
 STACK_NAME="${STACK_NAME:-silvermoat}"
 
-# AWS Profile support
-AWS_PROFILE="${AWS_PROFILE:-}"
-AWS_CMD="aws"
-if [ -n "$AWS_PROFILE" ]; then
-  AWS_CMD="aws --profile $AWS_PROFILE"
-fi
-
 # Check AWS CLI and credentials
 check_aws_configured
+
+# Build AWS command with profile if set
+AWS_CMD="aws"
+if [ -n "${AWS_PROFILE:-}" ]; then
+  AWS_CMD="aws --profile $AWS_PROFILE"
+fi
 
 echo "Running smoke tests for stack: $STACK_NAME"
 echo ""

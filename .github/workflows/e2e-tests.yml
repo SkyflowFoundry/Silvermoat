@@ -33,6 +33,13 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: ui/package-lock.json
+
       - name: Install test dependencies
         run: pip install -r requirements-test.txt
 
@@ -60,7 +67,9 @@ jobs:
           STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
           APP_NAME: silvermoat-test
           STAGE_NAME: test
-          UI_SEEDING_MODE: seeded
+          UI_SEEDING_MODE: external
+          CREATE_CLOUDFRONT: false
+          DOMAIN_NAME: ""
         run: |
           echo "Deploying test stack: ${STACK_NAME}"
           chmod +x scripts/deploy-stack.sh
@@ -76,6 +85,14 @@ jobs:
             --stack-name ${{ steps.stack-name.outputs.stack_name }} \
             --region us-east-1
 
+      - name: Build and deploy React UI
+        env:
+          STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
+        run: |
+          echo "Building and deploying React UI..."
+          chmod +x scripts/deploy-ui.sh
+          ./scripts/deploy-ui.sh
+
       - name: Get stack outputs
         id: stack-outputs
         run: |
@@ -89,11 +106,11 @@ jobs:
 
           # Extract specific outputs
           API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="ApiBaseUrl") | .OutputValue')
-          WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="WebUrl") | .OutputValue')
 
-          # Fallback to CloudFrontUrl if WebUrl not found
+          # Try CloudFrontUrl first (production), fall back to WebUrl (test stacks)
+          WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="CloudFrontUrl") | .OutputValue')
           if [ -z "$WEB_URL" ] || [ "$WEB_URL" == "null" ]; then
-            WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="CloudFrontUrl") | .OutputValue')
+            WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="WebUrl") | .OutputValue')
           fi
 
           echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
@@ -108,22 +125,28 @@ jobs:
           chrome-version: stable
 
       - name: Run deployment smoke tests
+        id: smoke-tests
+        continue-on-error: true
         env:
           STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
         run: |
           echo "Running deployment smoke tests..."
           cd tests/smoke
-          pytest -v -m smoke --tb=short
+          pytest -v -m smoke --tb=short 2>&1 | tee ../../smoke-tests-output.txt
 
       - name: Run API contract tests
+        id: api-tests
+        continue-on-error: true
         env:
           SILVERMOAT_API_URL: ${{ steps.stack-outputs.outputs.api_url }}
         run: |
           echo "Running API contract tests..."
           cd tests/api
-          pytest -v -m api --tb=short
+          pytest -v -m api --tb=short 2>&1 | tee ../../api-tests-output.txt
 
       - name: Run E2E smoke tests
+        id: e2e-tests
+        continue-on-error: true
         env:
           SILVERMOAT_URL: ${{ steps.stack-outputs.outputs.web_url }}
           SILVERMOAT_API_URL: ${{ steps.stack-outputs.outputs.api_url }}
@@ -131,7 +154,7 @@ jobs:
         run: |
           echo "Running E2E smoke tests..."
           cd tests/e2e
-          pytest -v -m smoke --tb=short
+          pytest -v -m smoke --tb=short 2>&1 | tee ../../e2e-tests-output.txt
 
       - name: Cleanup test stack
         if: always()
@@ -139,7 +162,7 @@ jobs:
           echo "Cleaning up test stack..."
           STACK_NAME="${{ steps.stack-name.outputs.stack_name }}"
           chmod +x scripts/delete-stack.sh
-          STACK_NAME="${STACK_NAME}" ./scripts/delete-stack.sh || echo "Stack deletion initiated"
+          STACK_NAME="${STACK_NAME}" ./scripts/delete-stack.sh --yes || echo "Stack deletion may have failed"
 
       - name: Wait for stack deletion
         if: always()
@@ -149,27 +172,94 @@ jobs:
             --stack-name ${{ steps.stack-name.outputs.stack_name }} \
             --region us-east-1 || echo "Stack deletion may still be in progress"
 
+      - name: Analyze test results with Claude
+        if: always()
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SMOKE_OUTCOME: ${{ steps.smoke-tests.outcome }}
+          API_OUTCOME: ${{ steps.api-tests.outcome }}
+          E2E_OUTCOME: ${{ steps.e2e-tests.outcome }}
+        run: |
+          echo "Analyzing test results with Claude..."
+
+          # Collect test outputs (escape for JSON)
+          SMOKE_OUTPUT=$(cat smoke-tests-output.txt 2>/dev/null | jq -Rs . || echo '"No output captured"')
+          API_OUTPUT=$(cat api-tests-output.txt 2>/dev/null | jq -Rs . || echo '"No output captured"')
+          E2E_OUTPUT=$(cat e2e-tests-output.txt 2>/dev/null | jq -Rs . || echo '"No output captured"')
+
+          # Build JSON request with proper escaping
+          jq -n \
+            --arg smoke_outcome "$SMOKE_OUTCOME" \
+            --arg api_outcome "$API_OUTCOME" \
+            --arg e2e_outcome "$E2E_OUTCOME" \
+            --argjson smoke_output "$SMOKE_OUTPUT" \
+            --argjson api_output "$API_OUTPUT" \
+            --argjson e2e_output "$E2E_OUTPUT" \
+            '{
+              "model": "claude-sonnet-4-20250514",
+              "max_tokens": 4096,
+              "messages": [{
+                "role": "user",
+                "content": "You are analyzing test results from an E2E test suite for the Silvermoat insurance MVP application. Review the test outputs below and generate a concise PR comment summarizing:\n\n1. Overall status (✅ passed / ⚠️ partial / ❌ failed)\n2. Key findings for each test suite\n3. Critical failures that need immediate attention\n4. Recommendations for fixes (if failures exist)\n\nFormat as GitHub-flavored markdown. Be specific about which tests failed and why. Limit to 500 words.\n\n## Test Outcomes\n- Smoke tests: \($smoke_outcome)\n- API tests: \($api_outcome)\n- E2E tests: \($e2e_outcome)\n\n## Deployment Smoke Tests\n```\n\($smoke_output)\n```\n\n## API Contract Tests\n```\n\($api_output)\n```\n\n## E2E Smoke Tests\n```\n\($e2e_output)\n```"
+              }]
+            }' > analysis-request.json
+
+          # Call Claude API
+          HTTP_CODE=$(curl -s -w "%{http_code}" -o analysis-response.json \
+            https://api.anthropic.com/v1/messages \
+            -H "content-type: application/json" \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -d @analysis-request.json)
+
+          echo "API response code: $HTTP_CODE"
+
+          # Check for errors
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "API request failed with code $HTTP_CODE"
+            cat analysis-response.json
+            echo "API analysis failed. Using fallback message." > test-analysis.md
+            exit 0
+          fi
+
+          # Extract the analysis
+          ANALYSIS=$(jq -r '.content[0].text // "Analysis extraction failed"' analysis-response.json)
+
+          # Save for next step
+          echo "$ANALYSIS" > test-analysis.md
+          echo "Analysis complete!"
+
       - name: Post results to PR
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
             const prNumber = context.payload.pull_request.number;
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const stackName = '${{ steps.stack-name.outputs.stack_name }}';
 
-            const body = `## E2E Test Results
+            // Read AI-generated analysis
+            let analysis = "Test analysis not available";
+            try {
+              analysis = fs.readFileSync('test-analysis.md', 'utf8');
+            } catch (error) {
+              console.log('Could not read analysis file:', error);
+              analysis = "⚠️ AI analysis failed. Check logs for details.";
+            }
+
+            const body = `## 🤖 E2E Test Analysis
 
             **Test Stack:** \`${stackName}\`
-            **Status:** ${{ job.status }}
-            **Run:** [View Details](${runUrl})
+            **Run:** [View Full Logs](${runUrl})
 
-            ### Tests Executed
-            - Deployment smoke tests
-            - API contract tests
-            - E2E browser tests (smoke)
+            ---
 
-            Test stack has been cleaned up.
+            ${analysis}
+
+            ---
+
+            <sub>Stack \`${stackName}\` has been cleaned up. Analysis generated by Claude Sonnet 4.</sub>
             `;
 
             await github.rest.issues.createComment({
@@ -178,3 +268,19 @@ jobs:
               issue_number: prNumber,
               body: body
             });
+
+      - name: Check test results
+        if: always()
+        run: |
+          echo "Checking test results..."
+          echo "Smoke tests: ${{ steps.smoke-tests.outcome }}"
+          echo "API tests: ${{ steps.api-tests.outcome }}"
+          echo "E2E tests: ${{ steps.e2e-tests.outcome }}"
+
+          if [ "${{ steps.smoke-tests.outcome }}" = "failure" ] || \
+             [ "${{ steps.api-tests.outcome }}" = "failure" ] || \
+             [ "${{ steps.e2e-tests.outcome }}" = "failure" ]; then
+            echo "One or more test suites failed"
+            exit 1
+          fi
+          echo "All test suites passed"

@@ -126,6 +126,16 @@ is_sso_profile() {
   return 1
 }
 
+# Check if OIDC credentials are already configured
+# Returns: 0 if OIDC authenticated, 1 if not
+is_oidc_authenticated() {
+  # Try to call STS without profile to see if credentials work
+  if aws sts get-caller-identity > /dev/null 2>&1; then
+    return 0
+  fi
+  return 1
+}
+
 check_aws_configured() {
   local aws_cmd="aws"
   local profile_flag=""
@@ -146,6 +156,41 @@ check_aws_configured() {
     echo ""
     echo "Or visit: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
     exit 1
+  fi
+
+  # Check if OIDC credentials are already configured (e.g., in GitHub Actions)
+  if is_oidc_authenticated; then
+    echo "Using existing AWS credentials (OIDC or environment variables)"
+    echo ""
+
+    # Verify and display caller identity
+    CALLER_IDENTITY=$(aws sts get-caller-identity 2>&1)
+    RESULT_CODE=$?
+
+    if [ $RESULT_CODE -eq 0 ]; then
+      echo "AWS credentials verified!"
+
+      # Parse and display key info
+      if command -v jq > /dev/null 2>&1; then
+        ACCOUNT=$(echo "$CALLER_IDENTITY" | jq -r '.Account')
+        ARN=$(echo "$CALLER_IDENTITY" | jq -r '.Arn')
+        echo "  Account: $ACCOUNT"
+        echo "  Identity: $ARN"
+      else
+        # Fallback without jq
+        ACCOUNT=$(echo "$CALLER_IDENTITY" | grep -o '"Account"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"Account"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+        if [ -n "$ACCOUNT" ]; then
+          echo "  Account: $ACCOUNT"
+        fi
+      fi
+
+      echo ""
+
+      # Unset profile to signal OIDC authentication to caller
+      # Note: AWS CLI reads AWS_PROFILE env var, so we must unset (not set to "")
+      unset AWS_PROFILE
+      return 0
+    fi
   fi
 
   # Auto-detect profile if not set

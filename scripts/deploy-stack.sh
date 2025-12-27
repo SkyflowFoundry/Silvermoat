@@ -12,22 +12,22 @@ source "$SCRIPT_DIR/lib/check-aws.sh"
 STACK_NAME="${STACK_NAME:-silvermoat}"
 TEMPLATE_FILE="$PROJECT_ROOT/infra/silvermoat-mvp-s3-website.yaml"
 
-# AWS Profile support
-AWS_PROFILE="${AWS_PROFILE:-}"
-AWS_CMD="aws"
-if [ -n "$AWS_PROFILE" ]; then
-  AWS_CMD="aws --profile $AWS_PROFILE"
-  echo "Using AWS profile: $AWS_PROFILE"
-fi
-
 # Check AWS CLI and credentials
 check_aws_configured
+
+# Build AWS command with profile if set
+AWS_CMD="aws"
+if [ -n "${AWS_PROFILE:-}" ]; then
+  AWS_CMD="aws --profile $AWS_PROFILE"
+fi
 
 # Default parameters
 APP_NAME="${APP_NAME:-silvermoat}"
 STAGE_NAME="${STAGE_NAME:-demo}"
 API_DEPLOYMENT_TOKEN="${API_DEPLOYMENT_TOKEN:-v1}"
 UI_SEEDING_MODE="${UI_SEEDING_MODE:-external}"
+CREATE_CLOUDFRONT="${CREATE_CLOUDFRONT:-true}"
+DOMAIN_NAME="${DOMAIN_NAME:-silvermoat.net}"
 
 echo "Deploying CloudFormation stack: $STACK_NAME"
 echo "Template: $TEMPLATE_FILE"
@@ -36,6 +36,8 @@ echo "  AppName: $APP_NAME"
 echo "  StageName: $STAGE_NAME"
 echo "  ApiDeploymentToken: $API_DEPLOYMENT_TOKEN"
 echo "  UiSeedingMode: $UI_SEEDING_MODE"
+echo "  CreateCloudFront: $CREATE_CLOUDFRONT"
+echo "  DomainName: $DOMAIN_NAME"
 echo ""
 
 # Check if template file exists
@@ -76,6 +78,8 @@ $AWS_CMD cloudformation deploy \
     StageName="$STAGE_NAME" \
     ApiDeploymentToken="$API_DEPLOYMENT_TOKEN" \
     UiSeedingMode="$UI_SEEDING_MODE" \
+    CreateCloudFront="$CREATE_CLOUDFRONT" \
+    DomainName="$DOMAIN_NAME" \
   --no-fail-on-empty-changeset
 
 echo ""
