@@ -451,6 +451,16 @@ Resources:
               return int(obj) if obj % 1 == 0 else float(obj)
             raise TypeError
 
+          def convert_floats_to_decimal(obj):
+            """Recursively convert floats to Decimal for DynamoDB compatibility"""
+            if isinstance(obj, list):
+              return [convert_floats_to_decimal(item) for item in obj]
+            elif isinstance(obj, dict):
+              return {key: convert_floats_to_decimal(value) for key, value in obj.items()}
+            elif isinstance(obj, float):
+              return Decimal(str(obj))
+            return obj
+
           def _resp(code, body):
             return {
               "statusCode": code,
@@ -709,9 +719,11 @@ Resources:
             # POST /{domain} -> create
             if method == "POST" and len(parts) == 1:
               _id = str(uuid.uuid4())
-              item = {"id": _id, "createdAt": int(time.time()), "data": body}
+              # Convert floats to Decimal for DynamoDB compatibility
+              clean_body = convert_floats_to_decimal(body)
+              item = {"id": _id, "createdAt": int(time.time()), "data": clean_body}
               table.put_item(Item=item)
-              _emit(f"{domain}.created", {"id": _id, "data": body})
+              _emit(f"{domain}.created", {"id": _id, "data": clean_body})
               return _resp(201, {"id": _id, "item": item})
 
             # GET /{domain}/{id} -> read

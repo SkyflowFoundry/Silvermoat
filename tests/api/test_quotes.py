@@ -58,12 +58,12 @@ def test_get_quote_by_id(api_client, sample_quote_data):
     assert get_response.status_code == 200, f"Expected 200, got {get_response.status_code}"
     quote = get_response.json()
 
-    # Validate quote structure (API contract, not DB format)
+    # Validate quote structure (data is nested under 'data' key)
     assert quote['id'] == quote_id
-    assert 'customer_name' in quote
-    assert 'customer_email' in quote
-    assert 'property_address' in quote
-    assert 'coverage_amount' in quote
+    assert 'customer_name' in quote['data']
+    assert 'customer_email' in quote['data']
+    assert 'property_address' in quote['data']
+    assert 'coverage_amount' in quote['data']
 
 
 @pytest.mark.api
@@ -91,11 +91,11 @@ def test_quote_data_persistence(api_client, sample_quote_data):
     assert get_response.status_code == 200
     quote = get_response.json()
 
-    # Verify data matches what was submitted
-    assert quote['customer_name'] == sample_quote_data['customer_name']
-    assert quote['customer_email'] == sample_quote_data['customer_email']
-    assert quote['property_address'] == sample_quote_data['property_address']
-    assert quote['coverage_amount'] == sample_quote_data['coverage_amount']
+    # Verify data matches what was submitted (data is nested under 'data' key)
+    assert quote['data']['customer_name'] == sample_quote_data['customer_name']
+    assert quote['data']['customer_email'] == sample_quote_data['customer_email']
+    assert quote['data']['property_address'] == sample_quote_data['property_address']
+    assert quote['data']['coverage_amount'] == sample_quote_data['coverage_amount']
 
 
 @pytest.mark.api
