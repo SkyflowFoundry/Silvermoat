@@ -75,3 +75,14 @@ class ChatPage(BasePage):
 
         messages = self.find_elements(*self.CHAT_MESSAGES)
         return [m.text for m in messages if m.is_displayed()]
+
+    def wait_for_messages(self, min_count=1, timeout=10):
+        """Wait for at least N messages to appear in chat"""
+        from selenium.webdriver.support.ui import WebDriverWait
+
+        def messages_present(driver):
+            messages = self.find_elements(*self.CHAT_MESSAGES)
+            visible_messages = [m for m in messages if m.is_displayed()]
+            return len(visible_messages) >= min_count
+
+        WebDriverWait(self.driver, timeout).until(messages_present)

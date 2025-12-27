@@ -101,7 +101,8 @@ def test_policies_page_starter_prompts(driver, base_url):
 
     # Policies prompts should mention policies
     prompt_text = " ".join(prompts).lower()
-    assert 'polic' in prompt_text, f"Policies page prompts should mention 'polic': {prompts}"
+    assert 'policy' in prompt_text or 'policies' in prompt_text, \
+        f"Policies page prompts should mention 'policy' or 'policies': {prompts}"
 
 
 @pytest.mark.e2e
@@ -206,14 +207,14 @@ def test_starter_prompt_clickable(driver, base_url):
     # Click first starter prompt
     chat_page.click_starter_prompt(0)
 
-    # Wait a moment for message to appear
-    import time
-    time.sleep(1)
+    # Wait for message to appear
+    chat_page.wait_for_messages(min_count=1, timeout=10)
 
     # Should have at least one message (user's message from clicking prompt)
     messages = chat_page.get_messages()
     assert len(messages) > 0, "Clicking starter prompt should send a message"
 
-    # First message should contain the prompt text
-    assert first_prompt.lower() in " ".join(messages).lower(), \
-        f"Message should contain clicked prompt text '{first_prompt}'"
+    # First message should match the prompt text
+    first_message = messages[0].strip().lower()
+    assert first_message == first_prompt.lower(), \
+        f"First message should exactly match prompt. Expected: '{first_prompt}', Got: '{messages[0]}'"
