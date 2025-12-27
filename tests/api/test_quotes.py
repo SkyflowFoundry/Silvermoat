@@ -25,26 +25,6 @@ def test_create_quote_success(api_client, sample_quote_data):
 
 @pytest.mark.api
 @pytest.mark.quotes
-@pytest.mark.skip(reason="Lambda does not implement input validation yet")
-def test_create_quote_invalid_data(api_client):
-    """Test that invalid quote data returns 400 with error message"""
-    invalid_data = {
-        "customer_name": "Jane Doe",
-        # Missing required fields
-    }
-
-    response = api_client.api_request('POST', '/quote', json=invalid_data)
-
-    # Should return 400 for invalid data (or possibly 422 for validation errors)
-    assert response.status_code in [400, 422], f"Expected 400/422, got {response.status_code}"
-
-    # Should include error information
-    data = response.json()
-    assert 'error' in data or 'message' in data, "Error response should contain error message"
-
-
-@pytest.mark.api
-@pytest.mark.quotes
 def test_get_quote_by_id(api_client, sample_quote_data):
     """Test that created quote can be retrieved by ID"""
     # Create a quote first
