@@ -1,0 +1,15 @@
+# Selenium E2E Testing Dependencies
+
+# Selenium WebDriver
+selenium==4.27.1
+
+# Test framework
+pytest==8.3.4
+pytest-html==4.1.1
+pytest-xdist==3.6.1  # For parallel test execution
+
+# AWS SDK (for fetching stack outputs)
+boto3==1.35.94
+
+# HTTP requests (for API smoke tests)
+requests==2.32.3
