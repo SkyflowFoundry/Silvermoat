@@ -18,7 +18,7 @@ check_aws_configured
 
 # Build AWS command with profile if set
 AWS_CMD="aws"
-if [ -n "$AWS_PROFILE" ]; then
+if [ -n "${AWS_PROFILE:-}" ]; then
   AWS_CMD="aws --profile $AWS_PROFILE"
 fi
 

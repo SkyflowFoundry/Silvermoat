@@ -186,8 +186,9 @@ check_aws_configured() {
 
       echo ""
 
-      # Export empty profile to signal OIDC authentication to caller
-      export AWS_PROFILE=""
+      # Unset profile to signal OIDC authentication to caller
+      # Note: AWS CLI reads AWS_PROFILE env var, so we must unset (not set to "")
+      unset AWS_PROFILE
       return 0
     fi
   fi
