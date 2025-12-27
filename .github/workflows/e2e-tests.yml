@@ -173,7 +173,7 @@ jobs:
       - name: Analyze test results with Claude
         if: always()
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_GITHUB_ACTIONS }}
           SMOKE_OUTCOME: ${{ steps.smoke-tests.outcome }}
           API_OUTCOME: ${{ steps.api-tests.outcome }}
           E2E_OUTCOME: ${{ steps.e2e-tests.outcome }}
@@ -182,7 +182,7 @@ jobs:
 
           # Verify API key is set
           if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "ERROR: ANTHROPIC_API_KEY secret is not set"
+            echo "ERROR: ANTHROPIC_API_KEY_GITHUB_ACTIONS secret is not set"
             echo "API analysis skipped (no API key). Using fallback message." > test-analysis.md
             exit 0
           fi
