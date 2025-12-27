@@ -43,8 +43,23 @@ Parameters:
       To use custom domain: deploy stack, add DNS validation CNAME to Cloudflare,
       wait for cert validation, then add CloudFront alias CNAME to Cloudflare.
 
+  CreateCloudFront:
+    Type: String
+    Default: "true"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: >
+      Create CloudFront distribution (default: true).
+      Set to "false" for ephemeral test stacks to use S3 website URL directly (HTTP).
+      Production stacks should use "true" for HTTPS via CloudFront.
+
 Conditions:
   HasDomainName: !Not [!Equals [!Ref DomainName, ""]]
+  ShouldCreateCloudFront: !Equals [!Ref CreateCloudFront, "true"]
+  ShouldCreateCertificate: !And
+    - !Condition ShouldCreateCloudFront
+    - !Condition HasDomainName
 
 Resources:
 
@@ -90,7 +105,7 @@ Resources:
 
   UiCertificate:
     Type: AWS::CertificateManager::Certificate
-    Condition: HasDomainName
+    Condition: ShouldCreateCertificate
     Properties:
       DomainName: !Ref DomainName
       ValidationMethod: DNS
@@ -104,6 +119,7 @@ Resources:
 
   UiDistribution:
     Type: AWS::CloudFront::Distribution
+    Condition: ShouldCreateCloudFront
     Properties:
       DistributionConfig:
         # Custom domain aliases (only if DomainName provided)
@@ -1473,28 +1489,30 @@ Resources:
 
 Outputs:
   WebUrl:
-    Description: "S3 Website URL (HTTP, legacy access) - Use CloudFrontUrl for production"
+    Description: "S3 Website URL (HTTP) - Use CloudFrontUrl for production, or this for test stacks"
     Value: !GetAtt UiBucket.WebsiteURL
 
   CloudFrontUrl:
+    Condition: ShouldCreateCloudFront
     Description: "CloudFront distribution URL (HTTPS) - Primary access method"
     Value: !Sub "https://${UiDistribution.DomainName}"
     Export:
       Name: !Sub "${AWS::StackName}-CloudFrontUrl"
 
   CloudFrontDomain:
+    Condition: ShouldCreateCloudFront
     Description: "CloudFront domain name (for DNS CNAME record)"
     Value: !GetAtt UiDistribution.DomainName
     Export:
       Name: !Sub "${AWS::StackName}-CloudFrontDomain"
 
   CustomDomainUrl:
-    Condition: HasDomainName
-    Description: "Custom domain URL (if DomainName parameter provided)"
+    Condition: ShouldCreateCertificate
+    Description: "Custom domain URL (if DomainName parameter provided and CloudFront enabled)"
     Value: !Sub "https://${DomainName}"
 
   CertificateArn:
-    Condition: HasDomainName
+    Condition: ShouldCreateCertificate
     Description: "ACM certificate ARN (for reference)"
     Value: !Ref UiCertificate
 

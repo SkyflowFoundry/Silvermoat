@@ -61,6 +61,8 @@ jobs:
           APP_NAME: silvermoat-test
           STAGE_NAME: test
           UI_SEEDING_MODE: seeded
+          CREATE_CLOUDFRONT: false
+          DOMAIN_NAME: ""
         run: |
           echo "Deploying test stack: ${STACK_NAME}"
           chmod +x scripts/deploy-stack.sh
@@ -89,11 +91,11 @@ jobs:
 
           # Extract specific outputs
           API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="ApiBaseUrl") | .OutputValue')
-          WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="WebUrl") | .OutputValue')
 
-          # Fallback to CloudFrontUrl if WebUrl not found
+          # Try CloudFrontUrl first (production), fall back to WebUrl (test stacks)
+          WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="CloudFrontUrl") | .OutputValue')
           if [ -z "$WEB_URL" ] || [ "$WEB_URL" == "null" ]; then
-            WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="CloudFrontUrl") | .OutputValue')
+            WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="WebUrl") | .OutputValue')
           fi
 
           echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
