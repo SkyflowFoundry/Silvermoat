@@ -732,6 +732,7 @@ Resources:
               }.get(domain, "PENDING")
 
               item = {"id": _id, "createdAt": int(time.time()), "data": clean_body, "status": default_status}
+              print(f"Creating {domain} with id={_id}, status={default_status}")
               table.put_item(Item=item)
               _emit(f"{domain}.created", {"id": _id, "data": clean_body, "status": default_status})
               return _resp(201, {"id": _id, "item": item})
