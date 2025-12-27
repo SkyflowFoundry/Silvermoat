@@ -1,0 +1,252 @@
+name: Infrastructure & E2E Tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - 'ui/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - '.github/workflows/infra-tests.yml'
+  workflow_dispatch:
+    inputs:
+      stack_name_suffix:
+        description: 'Optional stack name suffix (default: pr-NUMBER or run-RUN_ID)'
+        required: false
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  test:
+    name: Deploy Test Stack & Run Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      # ----------------------------
+      # Setup
+      # ----------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install test dependencies
+        run: |
+          pip install -r requirements-test.txt
+
+      # ----------------------------
+      # AWS Authentication
+      # ----------------------------
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS credentials
+        run: |
+          aws sts get-caller-identity
+
+      # ----------------------------
+      # Generate Test Stack Name
+      # ----------------------------
+      - name: Generate test stack name
+        id: stack_name
+        run: |
+          if [ -n "${{ inputs.stack_name_suffix }}" ]; then
+            SUFFIX="${{ inputs.stack_name_suffix }}"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            SUFFIX="pr-${{ github.event.pull_request.number }}"
+          else
+            SUFFIX="run-${{ github.run_id }}"
+          fi
+          STACK_NAME="silvermoat-test-${SUFFIX}"
+          echo "stack_name=${STACK_NAME}" >> $GITHUB_OUTPUT
+          echo "Test stack name: ${STACK_NAME}"
+
+      # ----------------------------
+      # Deploy Test Stack
+      # ----------------------------
+      - name: Deploy CloudFormation test stack
+        id: deploy
+        env:
+          STACK_NAME: ${{ steps.stack_name.outputs.stack_name }}
+          APP_NAME: silvermoat
+          STAGE_NAME: test
+          API_DEPLOYMENT_TOKEN: test-v1
+          UI_SEEDING_MODE: seeded
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          echo "Deploying test stack: ${STACK_NAME}"
+          ./scripts/deploy-stack.sh
+
+          echo "Fetching stack outputs..."
+          WEB_URL=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='WebUrl'].OutputValue" \
+            --output text)
+
+          API_BASE_URL=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" \
+            --output text)
+
+          echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
+          echo "api_base_url=${API_BASE_URL}" >> $GITHUB_OUTPUT
+
+          echo "Test stack deployed successfully"
+          echo "Web URL: ${WEB_URL}"
+          echo "API URL: ${API_BASE_URL}"
+
+      # ----------------------------
+      # Infrastructure Tests
+      # ----------------------------
+      - name: Run infrastructure tests
+        env:
+          TEST_STACK_NAME: ${{ steps.stack_name.outputs.stack_name }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          echo "Running infrastructure validation tests..."
+          cd tests/infra
+          pytest tests/ -v -m infra --tb=short --html=report-infra.html --self-contained-html || true
+
+      - name: Run API integration tests
+        env:
+          TEST_STACK_NAME: ${{ steps.stack_name.outputs.stack_name }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          echo "Running API integration tests..."
+          cd tests/infra
+          pytest tests/ -v -m api --tb=short --html=report-api.html --self-contained-html || true
+
+      # ----------------------------
+      # Smoke Tests (Shell Script)
+      # ----------------------------
+      - name: Run smoke tests
+        env:
+          STACK_NAME: ${{ steps.stack_name.outputs.stack_name }}
+        run: |
+          echo "Running smoke tests..."
+          ./scripts/smoke-test.sh || true
+
+      # ----------------------------
+      # UI E2E Tests (Optional - if tests/e2e exists)
+      # ----------------------------
+      - name: Check if E2E tests exist
+        id: check_e2e
+        run: |
+          if [ -d "tests/e2e" ]; then
+            echo "e2e_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "e2e_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install Chrome and ChromeDriver
+        if: steps.check_e2e.outputs.e2e_exists == 'true'
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Install Selenium dependencies
+        if: steps.check_e2e.outputs.e2e_exists == 'true'
+        run: |
+          pip install selenium webdriver-manager pytest-html
+
+      - name: Run E2E smoke tests
+        if: steps.check_e2e.outputs.e2e_exists == 'true'
+        env:
+          SILVERMOAT_URL: ${{ steps.deploy.outputs.web_url }}
+          SILVERMOAT_API_URL: ${{ steps.deploy.outputs.api_base_url }}
+          TEST_STACK_NAME: ${{ steps.stack_name.outputs.stack_name }}
+        run: |
+          echo "Running E2E smoke tests..."
+          cd tests/e2e
+          pytest tests/ -v -m smoke --tb=short --html=report-e2e.html --self-contained-html || true
+
+      # ----------------------------
+      # Generate Test Reports
+      # ----------------------------
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            tests/infra/report-*.html
+            tests/e2e/report-*.html
+          retention-days: 7
+
+      - name: Post test results to PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const stackName = '${{ steps.stack_name.outputs.stack_name }}';
+            const webUrl = '${{ steps.deploy.outputs.web_url }}';
+            const apiUrl = '${{ steps.deploy.outputs.api_base_url }}';
+            const runUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}';
+
+            const comment = `### Test Results
+
+            **Test Stack:** \`${stackName}\`
+            **Web URL:** ${webUrl}
+            **API URL:** ${apiUrl}
+
+            **Test run:** [View details](${runUrl})
+
+            Test reports are available as artifacts in the workflow run.
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      # ----------------------------
+      # Cleanup Test Stack (Always Runs)
+      # ----------------------------
+      - name: Delete test stack
+        if: always()
+        env:
+          STACK_NAME: ${{ steps.stack_name.outputs.stack_name }}
+        run: |
+          echo "Cleaning up test stack: ${STACK_NAME}"
+
+          # Check if stack exists
+          if aws cloudformation describe-stacks --stack-name "${STACK_NAME}" > /dev/null 2>&1; then
+            echo "Stack exists, initiating deletion..."
+
+            # Delete stack (Custom Resource will handle cleanup)
+            aws cloudformation delete-stack --stack-name "${STACK_NAME}"
+
+            echo "Waiting for stack deletion to complete..."
+            aws cloudformation wait stack-delete-complete --stack-name "${STACK_NAME}" || {
+              echo "Stack deletion failed or timed out"
+              echo "Checking stack status..."
+              aws cloudformation describe-stacks --stack-name "${STACK_NAME}" || echo "Stack no longer exists"
+              exit 0
+            }
+
+            echo "Test stack deleted successfully"
+          else
+            echo "Stack ${STACK_NAME} does not exist, skipping cleanup"
+          fi

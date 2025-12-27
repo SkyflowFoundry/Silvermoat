@@ -1,0 +1,22 @@
+# Test Dependencies for Silvermoat
+
+# Core testing framework
+pytest==8.3.4
+pytest-html==4.1.1
+
+# AWS SDK
+boto3==1.35.90
+botocore==1.35.90
+
+# API testing
+requests==2.32.3
+
+# Selenium E2E testing
+selenium==4.27.1
+webdriver-manager==4.0.2
+
+# Optional: Enhanced testing features
+# pytest-xdist==3.6.1        # Parallel test execution
+# pytest-cov==6.0.0          # Code coverage
+# pytest-timeout==2.3.1      # Test timeouts
+# pytest-mock==3.14.0        # Mocking utilities
