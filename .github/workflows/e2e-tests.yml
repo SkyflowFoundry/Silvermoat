@@ -180,10 +180,17 @@ jobs:
         run: |
           echo "Analyzing test results with Claude..."
 
-          # Collect test outputs (escape for JSON)
-          SMOKE_OUTPUT=$(cat smoke-tests-output.txt 2>/dev/null | jq -Rs . || echo '"No output captured"')
-          API_OUTPUT=$(cat api-tests-output.txt 2>/dev/null | jq -Rs . || echo '"No output captured"')
-          E2E_OUTPUT=$(cat e2e-tests-output.txt 2>/dev/null | jq -Rs . || echo '"No output captured"')
+          # Verify API key is set
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "ERROR: ANTHROPIC_API_KEY secret is not set"
+            echo "API analysis skipped (no API key). Using fallback message." > test-analysis.md
+            exit 0
+          fi
+
+          # Collect test outputs (escape for JSON, limit to 2000 lines each to avoid token limits)
+          SMOKE_OUTPUT=$(cat smoke-tests-output.txt 2>/dev/null | head -2000 | jq -Rs . || echo '"No output captured"')
+          API_OUTPUT=$(cat api-tests-output.txt 2>/dev/null | head -2000 | jq -Rs . || echo '"No output captured"')
+          E2E_OUTPUT=$(cat e2e-tests-output.txt 2>/dev/null | head -2000 | jq -Rs . || echo '"No output captured"')
 
           # Build JSON request with proper escaping
           jq -n \
@@ -202,18 +209,32 @@ jobs:
               }]
             }' > analysis-request.json
 
-          # Call Claude API
-          HTTP_CODE=$(curl -s -w "%{http_code}" -o analysis-response.json \
+          # Call Claude API (60s timeout for analysis)
+          HTTP_CODE=$(curl -s -w "%{http_code}" --max-time 60 -o analysis-response.json \
             https://api.anthropic.com/v1/messages \
             -H "content-type: application/json" \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
-            -d @analysis-request.json)
+            -d @analysis-request.json || echo "000")
 
           echo "API response code: $HTTP_CODE"
 
           # Check for errors
-          if [ "$HTTP_CODE" != "200" ]; then
+          if [ "$HTTP_CODE" = "000" ]; then
+            echo "API request timeout or connection error"
+            echo "API analysis failed (timeout). Using fallback message." > test-analysis.md
+            exit 0
+          elif [ "$HTTP_CODE" = "401" ]; then
+            echo "Authentication failed - check ANTHROPIC_API_KEY secret"
+            cat analysis-response.json
+            echo "API analysis failed (authentication). Using fallback message." > test-analysis.md
+            exit 0
+          elif [ "$HTTP_CODE" = "429" ]; then
+            echo "Rate limit exceeded"
+            cat analysis-response.json
+            echo "API analysis failed (rate limit). Using fallback message." > test-analysis.md
+            exit 0
+          elif [ "$HTTP_CODE" != "200" ]; then
             echo "API request failed with code $HTTP_CODE"
             cat analysis-response.json
             echo "API analysis failed. Using fallback message." > test-analysis.md
