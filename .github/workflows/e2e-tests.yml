@@ -125,6 +125,7 @@ jobs:
           chrome-version: stable
 
       - name: Run deployment smoke tests
+        id: smoke-tests
         continue-on-error: true
         env:
           STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
@@ -134,6 +135,7 @@ jobs:
           pytest -v -m smoke --tb=short
 
       - name: Run API contract tests
+        id: api-tests
         continue-on-error: true
         env:
           SILVERMOAT_API_URL: ${{ steps.stack-outputs.outputs.api_url }}
@@ -143,6 +145,7 @@ jobs:
           pytest -v -m api --tb=short
 
       - name: Run E2E smoke tests
+        id: e2e-tests
         continue-on-error: true
         env:
           SILVERMOAT_URL: ${{ steps.stack-outputs.outputs.web_url }}
@@ -198,3 +201,19 @@ jobs:
               issue_number: prNumber,
               body: body
             });
+
+      - name: Check test results
+        if: always()
+        run: |
+          echo "Checking test results..."
+          echo "Smoke tests: ${{ steps.smoke-tests.outcome }}"
+          echo "API tests: ${{ steps.api-tests.outcome }}"
+          echo "E2E tests: ${{ steps.e2e-tests.outcome }}"
+
+          if [ "${{ steps.smoke-tests.outcome }}" = "failure" ] || \
+             [ "${{ steps.api-tests.outcome }}" = "failure" ] || \
+             [ "${{ steps.e2e-tests.outcome }}" = "failure" ]; then
+            echo "One or more test suites failed"
+            exit 1
+          fi
+          echo "All test suites passed"
