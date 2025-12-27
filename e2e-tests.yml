@@ -1,0 +1,132 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'ui/**'
+      - 'infra/**'
+      - 'tests/**'
+      - '.github/workflows/e2e-tests.yml'
+  workflow_dispatch:
+    inputs:
+      stack_name:
+        description: 'CloudFormation stack name to test'
+        required: false
+        default: 'silvermoat'
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        run: |
+          pip install -r requirements-test.txt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Get stack outputs
+        id: stack-outputs
+        run: |
+          STACK_NAME="${{ github.event.inputs.stack_name || 'silvermoat' }}"
+
+          # Get stack outputs using AWS CLI
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
+            --output text)
+
+          UI_URL=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query "Stacks[0].Outputs[?OutputKey=='CustomDomainUrl'].OutputValue" \
+            --output text)
+
+          if [ -z "$UI_URL" ] || [ "$UI_URL" == "None" ]; then
+            UI_URL=$(aws cloudformation describe-stacks \
+              --stack-name $STACK_NAME \
+              --query "Stacks[0].Outputs[?OutputKey=='CloudFrontUrl'].OutputValue" \
+              --output text)
+          fi
+
+          if [ -z "$UI_URL" ] || [ "$UI_URL" == "None" ]; then
+            UI_URL=$(aws cloudformation describe-stacks \
+              --stack-name $STACK_NAME \
+              --query "Stacks[0].Outputs[?OutputKey=='UiUrl'].OutputValue" \
+              --output text)
+          fi
+
+          echo "API_URL=$API_URL" >> $GITHUB_OUTPUT
+          echo "UI_URL=$UI_URL" >> $GITHUB_OUTPUT
+          echo "Testing against:"
+          echo "  UI: $UI_URL"
+          echo "  API: $API_URL"
+
+      - name: Install Chrome and ChromeDriver
+        run: |
+          wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
+      - name: Run E2E tests
+        env:
+          SILVERMOAT_URL: ${{ steps.stack-outputs.outputs.UI_URL }}
+          SILVERMOAT_API_URL: ${{ steps.stack-outputs.outputs.API_URL }}
+          STACK_NAME: ${{ github.event.inputs.stack_name || 'silvermoat' }}
+        run: |
+          cd tests/e2e
+          pytest tests/ --html=../../test-report.html --self-contained-html -v
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-report
+          path: test-report.html
+          retention-days: 30
+
+      - name: Comment PR with results
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const testReport = fs.existsSync('test-report.html');
+
+            const body = `## E2E Test Results
+
+            **Stack:** \`${{ github.event.inputs.stack_name || 'silvermoat' }}\`
+            **UI URL:** ${{ steps.stack-outputs.outputs.UI_URL }}
+            **API URL:** ${{ steps.stack-outputs.outputs.API_URL }}
+
+            ${testReport ? '📊 Test report available in artifacts' : '❌ Test report not generated'}
+
+            Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
