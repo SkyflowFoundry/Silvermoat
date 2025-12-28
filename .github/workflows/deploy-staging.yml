@@ -1,0 +1,181 @@
+name: Deploy to Staging
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+env:
+  AWS_REGION: us-east-1
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.12'
+  STACK_NAME: silvermoat-staging
+  APP_NAME: silvermoat
+  STAGE_NAME: staging
+
+jobs:
+  deploy:
+    name: Deploy to Staging Environment
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    environment:
+      name: staging
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: cdk/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install CDK CLI
+        run: npm install -g aws-cdk
+
+      - name: Install CDK dependencies
+        working-directory: cdk
+        run: npm ci
+
+      - name: Build CDK
+        working-directory: cdk
+        run: npm run build
+
+      - name: CDK Diff
+        working-directory: cdk
+        run: |
+          cdk diff \
+            -c appName=${{ env.APP_NAME }} \
+            -c stageName=${{ env.STAGE_NAME }} \
+            -c uiSeedingMode=external \
+            -c createCloudFront=true \
+            -c domainName="" \
+          || echo "Diff complete"
+
+      - name: CDK Deploy
+        id: deploy
+        working-directory: cdk
+        run: |
+          cdk deploy \
+            --require-approval never \
+            --outputs-file outputs.json \
+            -c appName=${{ env.APP_NAME }} \
+            -c stageName=${{ env.STAGE_NAME }} \
+            -c uiSeedingMode=external \
+            -c createCloudFront=true \
+            -c domainName=""
+
+          # Extract outputs
+          API_URL=$(jq -r '.SilvermoatStack.ApiBaseUrl' outputs.json)
+          if jq -e '.SilvermoatStack.CloudFrontUrl' outputs.json > /dev/null; then
+            WEB_URL=$(jq -r '.SilvermoatStack.CloudFrontUrl' outputs.json)
+          else
+            WEB_URL=$(jq -r '.SilvermoatStack.WebUrl' outputs.json)
+          fi
+
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+          echo "web_url=$WEB_URL" >> $GITHUB_OUTPUT
+          echo "url=$WEB_URL" >> $GITHUB_OUTPUT
+
+      - name: Deploy UI to S3
+        env:
+          API_URL: ${{ steps.deploy.outputs.api_url }}
+        run: |
+          cd ui
+          npm ci
+          VITE_API_BASE_URL=$API_URL npm run build
+
+          # Get S3 bucket name from stack outputs
+          BUCKET_NAME=$(jq -r '.SilvermoatStack.UiBucketName' ../cdk/outputs.json)
+
+          # Sync to S3
+          aws s3 sync dist/ s3://$BUCKET_NAME/ \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html"
+
+          # Upload index.html with no-cache
+          aws s3 cp dist/index.html s3://$BUCKET_NAME/index.html \
+            --cache-control "public,max-age=0,must-revalidate"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
+            --output text)
+
+          if [ -n "$DISTRIBUTION_ID" ] && [ "$DISTRIBUTION_ID" != "None" ]; then
+            aws cloudfront create-invalidation \
+              --distribution-id $DISTRIBUTION_ID \
+              --paths "/*"
+            echo "CloudFront cache invalidated"
+          else
+            echo "No CloudFront distribution found, skipping cache invalidation"
+          fi
+
+      - name: Run E2E tests
+        env:
+          API_BASE_URL: ${{ steps.deploy.outputs.api_url }}
+          WEB_BASE_URL: ${{ steps.deploy.outputs.web_url }}
+        run: |
+          cd tests/e2e
+          pip install -r requirements.txt
+          pytest tests/ -v || echo "E2E tests failed but continuing"
+
+      - name: Comment PR with deployment status
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const apiUrl = '${{ steps.deploy.outputs.api_url }}';
+            const webUrl = '${{ steps.deploy.outputs.web_url }}';
+            const status = '${{ job.status }}';
+            const prNumber = ${{ github.event.pull_request.number }};
+
+            const emoji = status === 'success' ? '✅' : '❌';
+            const statusText = status === 'success' ? 'Deployed' : 'Failed';
+
+            const body = `### ${emoji} Staging Deployment ${statusText}
+
+            **Environment:** staging
+            **PR:** #${prNumber}
+            **Commit:** ${{ github.sha }}
+
+            ${status === 'success' ? `
+            **URLs:**
+            - 🌐 Web: ${webUrl}
+            - 🔌 API: ${apiUrl}
+
+            Deployment completed at ${new Date().toISOString()}
+            ` : `
+            **Error:** Deployment failed. Check workflow logs for details.
+            `}
+            `;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body
+            });

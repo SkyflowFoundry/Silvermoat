@@ -1,0 +1,240 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type "deploy-to-production" to confirm'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write
+
+env:
+  AWS_REGION: us-east-1
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.12'
+  STACK_NAME: silvermoat
+  APP_NAME: silvermoat
+  STAGE_NAME: prod
+
+jobs:
+  validate-confirmation:
+    name: Validate Deployment Confirmation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation
+        run: |
+          if [ "${{ inputs.confirmation }}" != "deploy-to-production" ]; then
+            echo "❌ Invalid confirmation. You must type 'deploy-to-production' to proceed."
+            exit 1
+          fi
+          echo "✅ Confirmation validated"
+
+  deploy:
+    name: Deploy to Production Environment
+    runs-on: ubuntu-latest
+    needs: validate-confirmation
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: cdk/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install CDK CLI
+        run: npm install -g aws-cdk
+
+      - name: Install CDK dependencies
+        working-directory: cdk
+        run: npm ci
+
+      - name: Build CDK
+        working-directory: cdk
+        run: npm run build
+
+      - name: CDK Diff (Review Changes)
+        working-directory: cdk
+        run: |
+          echo "### 📋 CDK Diff - Review Changes Before Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          cdk diff \
+            -c appName=${{ env.APP_NAME }} \
+            -c stageName=${{ env.STAGE_NAME }} \
+            -c uiSeedingMode=external \
+            -c createCloudFront=true \
+            -c domainName=silvermoat.net \
+          | tee /tmp/cdk-diff.txt || true
+          cat /tmp/cdk-diff.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Create backup
+        run: |
+          # Tag current state before deployment
+          git tag -a "pre-deploy-$(date +%Y%m%d-%H%M%S)" -m "Backup before production deployment"
+          git push origin --tags || echo "Failed to push backup tag (non-critical)"
+
+      - name: CDK Deploy with Change Set
+        id: deploy
+        working-directory: cdk
+        run: |
+          # Deploy with change set review
+          cdk deploy \
+            --require-approval never \
+            --outputs-file outputs.json \
+            -c appName=${{ env.APP_NAME }} \
+            -c stageName=${{ env.STAGE_NAME }} \
+            -c uiSeedingMode=external \
+            -c createCloudFront=true \
+            -c domainName=silvermoat.net
+
+          # Extract outputs
+          API_URL=$(jq -r '.SilvermoatStack.ApiBaseUrl' outputs.json)
+
+          # Check for custom domain or CloudFront URL
+          if jq -e '.SilvermoatStack.CustomDomainUrl' outputs.json > /dev/null; then
+            WEB_URL=$(jq -r '.SilvermoatStack.CustomDomainUrl' outputs.json)
+          elif jq -e '.SilvermoatStack.CloudFrontUrl' outputs.json > /dev/null; then
+            WEB_URL=$(jq -r '.SilvermoatStack.CloudFrontUrl' outputs.json)
+          else
+            WEB_URL=$(jq -r '.SilvermoatStack.WebUrl' outputs.json)
+          fi
+
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+          echo "web_url=$WEB_URL" >> $GITHUB_OUTPUT
+          echo "url=$WEB_URL" >> $GITHUB_OUTPUT
+
+      - name: Deploy UI to S3
+        env:
+          API_URL: ${{ steps.deploy.outputs.api_url }}
+        run: |
+          cd ui
+          npm ci
+          VITE_API_BASE_URL=$API_URL npm run build
+
+          # Get S3 bucket name from stack outputs
+          BUCKET_NAME=$(jq -r '.SilvermoatStack.UiBucketName' ../cdk/outputs.json)
+
+          # Sync to S3 with production cache settings
+          aws s3 sync dist/ s3://$BUCKET_NAME/ \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html" \
+            --exclude "*.map"
+
+          # Upload index.html with no-cache
+          aws s3 cp dist/index.html s3://$BUCKET_NAME/index.html \
+            --cache-control "public,max-age=0,must-revalidate"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
+            --output text)
+
+          if [ -n "$DISTRIBUTION_ID" ] && [ "$DISTRIBUTION_ID" != "None" ]; then
+            aws cloudfront create-invalidation \
+              --distribution-id $DISTRIBUTION_ID \
+              --paths "/*"
+            echo "✅ CloudFront cache invalidated"
+          else
+            echo "⚠️ No CloudFront distribution found"
+          fi
+
+      - name: Run production smoke tests
+        env:
+          API_BASE_URL: ${{ steps.deploy.outputs.api_url }}
+          WEB_BASE_URL: ${{ steps.deploy.outputs.web_url }}
+        run: |
+          cd tests/smoke
+          pip install requests
+          python test_api_health.py
+
+      - name: Create deployment issue
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const apiUrl = '${{ steps.deploy.outputs.api_url }}';
+            const webUrl = '${{ steps.deploy.outputs.web_url }}';
+            const status = '${{ job.status }}';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const emoji = status === 'success' ? '✅' : '❌';
+            const statusText = status === 'success' ? 'Successful' : 'Failed';
+            const label = status === 'success' ? 'deployment-success' : 'deployment-failed';
+
+            const body = `### ${emoji} Production Deployment ${statusText}
+
+            **Environment:** production
+            **Commit:** ${{ github.sha }}
+            **Actor:** @${{ github.actor }}
+            **Workflow Run:** [View logs](${runUrl})
+
+            ${status === 'success' ? `
+            **URLs:**
+            - 🌐 Web: ${webUrl}
+            - 🔌 API: ${apiUrl}
+
+            **Post-Deployment Checklist:**
+            - [ ] Verify website loads correctly
+            - [ ] Test core user flows (quotes, policies, claims)
+            - [ ] Check API endpoints respond correctly
+            - [ ] Monitor CloudWatch logs for errors
+            - [ ] Verify CloudFront cache is working
+
+            **Monitoring:**
+            - CloudWatch Logs: \`/aws/lambda/silvermoat-*\`
+            - API Gateway metrics: Check AWS Console
+
+            Deployed at ${new Date().toISOString()}
+            ` : `
+            **Error:** Deployment failed.
+
+            **Action Required:**
+            1. Review workflow logs: [${runUrl}](${runUrl})
+            2. Check CloudWatch logs for Lambda errors
+            3. Verify AWS credentials and permissions
+            4. Rollback if necessary: \`cdk destroy && git checkout <previous-tag>\`
+
+            Failed at ${new Date().toISOString()}
+            `}
+            `;
+
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[${statusText}] Production Deployment - ${new Date().toISOString().split('T')[0]}`,
+              body,
+              labels: ['deployment', label]
+            });
+
+            console.log(`Created issue #${issue.data.number}`);
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Production deployment failed. Check logs and created GitHub issue for details."

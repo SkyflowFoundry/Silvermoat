@@ -1,0 +1,182 @@
+name: Deploy to Dev
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'cdk/**'
+      - 'lambda/**'
+      - 'ui/**'
+      - '.github/workflows/deploy-dev.yml'
+
+# Permissions needed for AWS OIDC authentication
+permissions:
+  id-token: write   # Required for requesting JWT from GitHub OIDC
+  contents: read    # Required for checking out code
+  pull-requests: write  # For commenting deployment status
+
+env:
+  AWS_REGION: us-east-1
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.12'
+  STACK_NAME: silvermoat-dev
+  APP_NAME: silvermoat
+  STAGE_NAME: dev
+
+jobs:
+  deploy:
+    name: Deploy to Dev Environment
+    runs-on: ubuntu-latest
+    environment:
+      name: dev
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: cdk/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install CDK CLI
+        run: npm install -g aws-cdk
+
+      - name: Install CDK dependencies
+        working-directory: cdk
+        run: npm ci
+
+      - name: Build CDK
+        working-directory: cdk
+        run: npm run build
+
+      - name: CDK Synth
+        working-directory: cdk
+        run: |
+          cdk synth \
+            -c appName=${{ env.APP_NAME }} \
+            -c stageName=${{ env.STAGE_NAME }} \
+            -c uiSeedingMode=external \
+            -c createCloudFront=false \
+            -c domainName=""
+
+      - name: CDK Deploy
+        id: deploy
+        working-directory: cdk
+        run: |
+          cdk deploy \
+            --require-approval never \
+            --outputs-file outputs.json \
+            -c appName=${{ env.APP_NAME }} \
+            -c stageName=${{ env.STAGE_NAME }} \
+            -c uiSeedingMode=external \
+            -c createCloudFront=false \
+            -c domainName=""
+
+          # Extract outputs
+          API_URL=$(jq -r '.SilvermoatStack.ApiBaseUrl' outputs.json)
+          WEB_URL=$(jq -r '.SilvermoatStack.WebUrl' outputs.json)
+
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+          echo "web_url=$WEB_URL" >> $GITHUB_OUTPUT
+          echo "url=$WEB_URL" >> $GITHUB_OUTPUT
+
+      - name: Deploy UI to S3
+        env:
+          API_URL: ${{ steps.deploy.outputs.api_url }}
+        run: |
+          cd ui
+          npm ci
+          VITE_API_BASE_URL=$API_URL npm run build
+
+          # Get S3 bucket name from stack outputs
+          BUCKET_NAME=$(jq -r '.SilvermoatStack.UiBucketName' ../cdk/outputs.json)
+
+          # Sync to S3
+          aws s3 sync dist/ s3://$BUCKET_NAME/ \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html"
+
+          # Upload index.html with no-cache
+          aws s3 cp dist/index.html s3://$BUCKET_NAME/index.html \
+            --cache-control "public,max-age=0,must-revalidate"
+
+      - name: Run smoke tests
+        env:
+          API_BASE_URL: ${{ steps.deploy.outputs.api_url }}
+        run: |
+          cd tests/smoke
+          pip install requests
+          python test_api_health.py
+
+      - name: Comment deployment status
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const apiUrl = '${{ steps.deploy.outputs.api_url }}';
+            const webUrl = '${{ steps.deploy.outputs.web_url }}';
+            const status = '${{ job.status }}';
+
+            const emoji = status === 'success' ? '✅' : '❌';
+            const statusText = status === 'success' ? 'Deployed' : 'Failed';
+
+            const body = `### ${emoji} Dev Deployment ${statusText}
+
+            **Environment:** dev
+            **Commit:** ${{ github.sha }}
+            **Actor:** @${{ github.actor }}
+
+            ${status === 'success' ? `
+            **URLs:**
+            - 🌐 Web: ${webUrl}
+            - 🔌 API: ${apiUrl}
+
+            Deployment completed at ${new Date().toISOString()}
+            ` : `
+            **Error:** Deployment failed. Check workflow logs for details.
+            `}
+            `;
+
+            // Find existing comment
+            const { data: comments } = await github.rest.repos.listCommentsForCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha
+            });
+
+            const existingComment = comments.find(c =>
+              c.body.includes('Dev Deployment') && c.user.type === 'Bot'
+            );
+
+            if (existingComment) {
+              await github.rest.repos.updateCommitComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body
+              });
+            } else {
+              await github.rest.repos.createCommitComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: context.sha,
+                body
+              });
+            }

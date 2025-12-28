@@ -366,6 +366,203 @@ cdk deploy -c appName=silvermoat -c stageName=demo
 
 See `cdk/README.md` for detailed CDK documentation.
 
+## CI/CD Workflows
+
+Silvermoat uses GitHub Actions for automated deployments and testing. All workflows use AWS OIDC authentication (no access keys stored in GitHub).
+
+### Workflows Overview
+
+| Workflow | Trigger | Environment | Purpose |
+|----------|---------|-------------|---------|
+| `test.yml` | PR open/update | PR preview | Run tests, deploy ephemeral stack, comment PR |
+| `deploy-dev.yml` | Push to `main` | dev | Auto-deploy to dev environment |
+| `deploy-staging.yml` | PR merged to `main` | staging | Deploy to staging with E2E tests |
+| `deploy-prod.yml` | Manual trigger | production | Deploy to production with approval gate |
+
+### Setup Instructions
+
+#### 1. Configure AWS OIDC Provider
+
+Follow the detailed guide: [`.github/AWS_OIDC_SETUP.md`](.github/AWS_OIDC_SETUP.md)
+
+Quick summary:
+```bash
+# Create OIDC provider
+aws iam create-open-id-connect-provider \
+  --url https://token.actions.githubusercontent.com \
+  --client-id-list sts.amazonaws.com \
+  --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
+
+# Create IAM role with trust policy for your GitHub repo
+# Attach necessary permissions (CDK deployment permissions)
+```
+
+#### 2. Configure GitHub Secrets
+
+Go to: Repository → Settings → Secrets and variables → Actions
+
+Add secret:
+- **Name:** `AWS_ROLE_ARN`
+- **Value:** `arn:aws:iam::<ACCOUNT_ID>:role/GitHubActionsDeploymentRole`
+
+For production (optional):
+- **Name:** `AWS_ROLE_ARN_PROD`
+- **Value:** `arn:aws:iam::<PROD_ACCOUNT_ID>:role/GitHubActionsProductionRole`
+
+#### 3. Configure GitHub Environments
+
+Go to: Repository → Settings → Environments
+
+Create environments:
+- **dev**: No protection rules (auto-deploy)
+- **staging**: Optional reviewers
+- **production**: Required reviewers + approval gate
+
+### Deployment Workflows
+
+#### Dev Deployment (Automatic)
+
+Triggers on push to `main`:
+
+```bash
+git checkout main
+git pull
+git push  # Triggers deploy-dev.yml
+```
+
+Workflow:
+1. Builds and deploys CDK stack to dev
+2. Deploys UI to S3
+3. Runs smoke tests
+4. Comments commit with deployment URLs
+
+#### Staging Deployment (Automatic)
+
+Triggers when PR is merged to `main`:
+
+```bash
+gh pr merge 123  # Triggers deploy-staging.yml
+```
+
+Workflow:
+1. Deploys to staging environment
+2. Invalidates CloudFront cache
+3. Runs E2E tests
+4. Comments PR with results
+
+#### Production Deployment (Manual)
+
+Requires manual trigger with confirmation:
+
+```bash
+# Via GitHub UI:
+# Actions → Deploy to Production → Run workflow → Type "deploy-to-production"
+```
+
+Workflow:
+1. Shows CDK diff for review
+2. Waits for approval (if configured)
+3. Creates backup tag
+4. Deploys to production
+5. Invalidates CloudFront
+6. Runs production smoke tests
+7. Creates deployment issue with checklist
+
+### PR Preview Deployments
+
+Every PR gets an ephemeral preview stack:
+
+1. Open PR → Workflow deploys `silvermoat-pr-123`
+2. Bot comments with preview URLs
+3. Push updates → Preview redeploys
+4. Close PR → Stack automatically destroyed
+
+Preview URLs:
+- Web: `http://silvermoat-pr-123-ui.s3-website-us-east-1.amazonaws.com`
+- API: `https://abc123.execute-api.us-east-1.amazonaws.com/pr-123`
+
+### Testing in CI
+
+#### Smoke Tests (All Envs)
+
+```bash
+cd tests/smoke
+python test_api_health.py
+```
+
+Validates:
+- API responds with 200
+- Basic CRUD operations work
+- Required endpoints exist
+
+#### E2E Tests (Staging Only)
+
+```bash
+cd tests/e2e
+pytest tests/ -v
+```
+
+Validates:
+- UI loads correctly
+- Navigation works
+- Forms submit successfully
+- Data displays correctly
+
+### Monitoring Deployments
+
+**GitHub Actions:**
+- View workflow runs: Actions tab
+- Check logs for errors
+- Review PR comments for deployment status
+
+**AWS Console:**
+- CloudWatch Logs: `/aws/lambda/silvermoat-*`
+- CloudFormation: Stack events and outputs
+- S3: Bucket contents and website hosting
+
+**Deployment Issues:**
+Each production deployment creates a GitHub issue with:
+- Deployment status
+- URLs and outputs
+- Post-deployment checklist
+- Monitoring links
+
+### Rollback Procedure
+
+**Via CDK:**
+```bash
+cd cdk
+git checkout <previous-tag>
+npm run deploy
+```
+
+**Via CloudFormation:**
+```bash
+aws cloudformation update-stack \
+  --stack-name silvermoat \
+  --use-previous-template
+```
+
+**Automatic Backup:**
+Production deployments create git tags: `pre-deploy-YYYYMMDD-HHMMSS`
+
+### Troubleshooting Workflows
+
+**"Not authorized to perform sts:AssumeRoleWithWebIdentity"**
+- Check OIDC provider exists in AWS IAM
+- Verify trust policy matches repository
+- See [AWS_OIDC_SETUP.md](.github/AWS_OIDC_SETUP.md)
+
+**"CDK deploy failed"**
+- Check AWS credentials and permissions
+- Verify CDK is bootstrapped: `cdk bootstrap`
+- Review CloudWatch logs for Lambda errors
+
+**"S3 sync failed"**
+- Verify bucket exists in stack outputs
+- Check IAM role has S3 permissions
+- Ensure bucket policy allows access
+
 ## UI Development Guide
 
 Full UI architecture and development guide available in original README (UI Architecture section).

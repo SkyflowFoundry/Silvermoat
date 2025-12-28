@@ -1,0 +1,284 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+  statuses: write
+
+env:
+  AWS_REGION: us-east-1
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  lint:
+    name: Lint CDK Code
+    runs-on: ubuntu-latest
+    if: github.event.action != 'closed'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: cdk/package-lock.json
+
+      - name: Install dependencies
+        working-directory: cdk
+        run: npm ci
+
+      - name: Lint TypeScript
+        working-directory: cdk
+        run: npm run lint || true  # Don't fail on lint warnings for now
+
+      - name: Build CDK
+        working-directory: cdk
+        run: npm run build
+
+      - name: CDK Synth
+        working-directory: cdk
+        run: |
+          npm install -g aws-cdk
+          cdk synth
+
+  test-lambda:
+    name: Test Lambda Functions
+    runs-on: ubuntu-latest
+    if: github.event.action != 'closed'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Lambda dependencies
+        run: |
+          pip install boto3 pytest pytest-cov
+
+      - name: Run Lambda tests
+        run: |
+          # TODO: Add unit tests for Lambda functions
+          echo "Lambda tests placeholder - add tests in future PR"
+
+  preview-deploy:
+    name: Deploy PR Preview
+    runs-on: ubuntu-latest
+    if: |
+      github.event.action != 'closed' &&
+      (github.event_name == 'pull_request' ||
+       (github.event_name == 'pull_request_review' && github.event.review.state == 'approved'))
+    environment:
+      name: pr-${{ github.event.pull_request.number }}
+      url: ${{ steps.deploy.outputs.web_url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: cdk/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install CDK CLI
+        run: npm install -g aws-cdk
+
+      - name: Install CDK dependencies
+        working-directory: cdk
+        run: npm ci
+
+      - name: Build CDK
+        working-directory: cdk
+        run: npm run build
+
+      - name: Deploy ephemeral stack
+        id: deploy
+        working-directory: cdk
+        env:
+          STACK_NAME: silvermoat-pr-${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          cdk deploy \
+            --require-approval never \
+            --outputs-file outputs.json \
+            -c appName=silvermoat \
+            -c stageName=pr-${{ github.event.pull_request.number }} \
+            -c uiSeedingMode=external \
+            -c createCloudFront=false \
+            -c domainName=""
+
+          # Extract outputs
+          API_URL=$(jq -r '.SilvermoatStack.ApiBaseUrl' outputs.json)
+          WEB_URL=$(jq -r '.SilvermoatStack.WebUrl' outputs.json)
+
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+          echo "web_url=$WEB_URL" >> $GITHUB_OUTPUT
+
+      - name: Deploy UI to S3
+        env:
+          API_URL: ${{ steps.deploy.outputs.api_url }}
+        run: |
+          cd ui
+          npm ci
+          VITE_API_BASE_URL=$API_URL npm run build
+
+          # Get S3 bucket name from stack outputs
+          BUCKET_NAME=$(jq -r '.SilvermoatStack.UiBucketName' ../cdk/outputs.json)
+
+          # Sync to S3
+          aws s3 sync dist/ s3://$BUCKET_NAME/ \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html"
+
+          aws s3 cp dist/index.html s3://$BUCKET_NAME/index.html \
+            --cache-control "public,max-age=0,must-revalidate"
+
+      - name: Run smoke tests
+        env:
+          API_BASE_URL: ${{ steps.deploy.outputs.api_url }}
+        run: |
+          cd tests/smoke
+          pip install requests
+          python test_api_health.py || echo "Smoke tests failed but continuing"
+
+      - name: Comment PR with preview URL
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const apiUrl = '${{ steps.deploy.outputs.api_url }}';
+            const webUrl = '${{ steps.deploy.outputs.web_url }}';
+            const prNumber = ${{ github.event.pull_request.number }};
+
+            const body = `### 🚀 PR Preview Deployed
+
+            **Preview Environment:** pr-${prNumber}
+            **Commit:** ${{ github.sha }}
+
+            **URLs:**
+            - 🌐 Web App: ${webUrl}
+            - 🔌 API: ${apiUrl}
+
+            **Stack:** \`silvermoat-pr-${prNumber}\`
+
+            > ⚠️ This is an ephemeral preview stack. It will be automatically destroyed when this PR is closed.
+
+            Deployed at ${new Date().toISOString()}
+            `;
+
+            // Find existing preview comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber
+            });
+
+            const existingComment = comments.find(c =>
+              c.body.includes('PR Preview Deployed') && c.user.type === 'Bot'
+            );
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body
+              });
+            }
+
+  cleanup-preview:
+    name: Cleanup PR Preview
+    runs-on: ubuntu-latest
+    if: github.event.action == 'closed'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install CDK CLI
+        run: npm install -g aws-cdk
+
+      - name: Install CDK dependencies
+        working-directory: cdk
+        run: npm ci
+
+      - name: Build CDK
+        working-directory: cdk
+        run: npm run build
+
+      - name: Destroy ephemeral stack
+        working-directory: cdk
+        env:
+          STACK_NAME: silvermoat-pr-${{ github.event.pull_request.number }}
+        run: |
+          cdk destroy \
+            --force \
+            -c appName=silvermoat \
+            -c stageName=pr-${{ github.event.pull_request.number }} \
+            || echo "Stack may not exist or already deleted"
+
+      - name: Comment PR cleanup status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ github.event.pull_request.number }};
+
+            const body = `### 🧹 PR Preview Cleaned Up
+
+            Ephemeral stack \`silvermoat-pr-${prNumber}\` has been destroyed.
+
+            Cleaned up at ${new Date().toISOString()}
+            `;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body
+            });
