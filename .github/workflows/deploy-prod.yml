@@ -81,6 +81,7 @@ jobs:
           echo "### 📋 CDK Diff - Review Changes Before Deployment" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           cdk diff \
+            -c stackName=${{ env.STACK_NAME }} \
             -c appName=${{ env.APP_NAME }} \
             -c stageName=${{ env.STAGE_NAME }} \
             -c uiSeedingMode=external \
@@ -104,22 +105,24 @@ jobs:
           cdk deploy \
             --require-approval never \
             --outputs-file outputs.json \
+            -c stackName=${{ env.STACK_NAME }} \
             -c appName=${{ env.APP_NAME }} \
             -c stageName=${{ env.STAGE_NAME }} \
             -c uiSeedingMode=external \
             -c createCloudFront=true \
             -c domainName=silvermoat.net
 
-          # Extract outputs
-          API_URL=$(jq -r '.SilvermoatStack.ApiBaseUrl' outputs.json)
+          # Extract outputs (use correct stack name key)
+          STACK_KEY=$(echo "${{ env.STACK_NAME }}" | sed 's/-//g')
+          API_URL=$(jq -r ".[\"$STACK_KEY\"].ApiBaseUrl // .[\"${{ env.STACK_NAME }}\"].ApiBaseUrl" outputs.json)
 
           # Check for custom domain or CloudFront URL
-          if jq -e '.SilvermoatStack.CustomDomainUrl' outputs.json > /dev/null; then
-            WEB_URL=$(jq -r '.SilvermoatStack.CustomDomainUrl' outputs.json)
-          elif jq -e '.SilvermoatStack.CloudFrontUrl' outputs.json > /dev/null; then
-            WEB_URL=$(jq -r '.SilvermoatStack.CloudFrontUrl' outputs.json)
+          if jq -e ".[\"$STACK_KEY\"].CustomDomainUrl // .[\"${{ env.STACK_NAME }}\"].CustomDomainUrl" outputs.json > /dev/null 2>&1; then
+            WEB_URL=$(jq -r ".[\"$STACK_KEY\"].CustomDomainUrl // .[\"${{ env.STACK_NAME }}\"].CustomDomainUrl" outputs.json)
+          elif jq -e ".[\"$STACK_KEY\"].CloudFrontUrl // .[\"${{ env.STACK_NAME }}\"].CloudFrontUrl" outputs.json > /dev/null 2>&1; then
+            WEB_URL=$(jq -r ".[\"$STACK_KEY\"].CloudFrontUrl // .[\"${{ env.STACK_NAME }}\"].CloudFrontUrl" outputs.json)
           else
-            WEB_URL=$(jq -r '.SilvermoatStack.WebUrl' outputs.json)
+            WEB_URL=$(jq -r ".[\"$STACK_KEY\"].WebUrl // .[\"${{ env.STACK_NAME }}\"].WebUrl" outputs.json)
           fi
 
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
@@ -135,7 +138,8 @@ jobs:
           VITE_API_BASE_URL=$API_URL npm run build
 
           # Get S3 bucket name from stack outputs
-          BUCKET_NAME=$(jq -r '.SilvermoatStack.UiBucketName' ../cdk/outputs.json)
+          STACK_KEY=$(echo "${{ env.STACK_NAME }}" | sed 's/-//g')
+          BUCKET_NAME=$(jq -r ".[\"$STACK_KEY\"].UiBucketName // .[\"${{ env.STACK_NAME }}\"].UiBucketName" ../cdk/outputs.json)
 
           # Sync to S3 with production cache settings
           aws s3 sync dist/ s3://$BUCKET_NAME/ \

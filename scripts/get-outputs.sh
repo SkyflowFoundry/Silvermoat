@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Load AWS CLI check utility
 source "$SCRIPT_DIR/lib/check-aws.sh"
 
-STACK_NAME="${STACK_NAME:-silvermoat}"
+STACK_NAME="${STACK_NAME:-SilvermoatStack}"
 OUTPUT_FORMAT="${OUTPUT_FORMAT:-table}"
 
 # Check AWS CLI and credentials

@@ -9,7 +9,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Load AWS CLI check utility
 source "$SCRIPT_DIR/lib/check-aws.sh"
 
-STACK_NAME="${STACK_NAME:-silvermoat}"
+STACK_NAME="${STACK_NAME:-SilvermoatStack}"
 UI_DIR="$PROJECT_ROOT/ui"
 BUILD_DIR="$UI_DIR/dist"
 

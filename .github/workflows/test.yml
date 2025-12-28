@@ -129,15 +129,17 @@ jobs:
           cdk deploy \
             --require-approval never \
             --outputs-file outputs.json \
+            -c stackName=$STACK_NAME \
             -c appName=silvermoat \
             -c stageName=pr-${{ github.event.pull_request.number }} \
             -c uiSeedingMode=external \
             -c createCloudFront=false \
             -c domainName=""
 
-          # Extract outputs
-          API_URL=$(jq -r '.SilvermoatStack.ApiBaseUrl' outputs.json)
-          WEB_URL=$(jq -r '.SilvermoatStack.WebUrl' outputs.json)
+          # Extract outputs (use correct stack name key)
+          STACK_KEY=$(echo "$STACK_NAME" | sed 's/-//g')
+          API_URL=$(jq -r ".[\"$STACK_KEY\"].ApiBaseUrl // .[\"$STACK_NAME\"].ApiBaseUrl" outputs.json)
+          WEB_URL=$(jq -r ".[\"$STACK_KEY\"].WebUrl // .[\"$STACK_NAME\"].WebUrl" outputs.json)
 
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "web_url=$WEB_URL" >> $GITHUB_OUTPUT
@@ -151,7 +153,9 @@ jobs:
           VITE_API_BASE_URL=$API_URL npm run build
 
           # Get S3 bucket name from stack outputs
-          BUCKET_NAME=$(jq -r '.SilvermoatStack.UiBucketName' ../cdk/outputs.json)
+          STACK_NAME="silvermoat-pr-${{ github.event.pull_request.number }}"
+          STACK_KEY=$(echo "$STACK_NAME" | sed 's/-//g')
+          BUCKET_NAME=$(jq -r ".[\"$STACK_KEY\"].UiBucketName // .[\"$STACK_NAME\"].UiBucketName" ../cdk/outputs.json)
 
           # Sync to S3
           aws s3 sync dist/ s3://$BUCKET_NAME/ \
@@ -259,6 +263,7 @@ jobs:
         run: |
           cdk destroy \
             --force \
+            -c stackName=$STACK_NAME \
             -c appName=silvermoat \
             -c stageName=pr-${{ github.event.pull_request.number }} \
             || echo "Stack may not exist or already deleted"
