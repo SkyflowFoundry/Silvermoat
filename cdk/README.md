@@ -190,13 +190,14 @@ CDK detects code changes and updates Lambda functions automatically.
 
 ## Migration from CloudFormation
 
-This CDK project replaces the raw CloudFormation template at `infra/silvermoat-mvp-s3-website.yaml`.
+This CDK project replaced the raw CloudFormation template (previously at `infra/silvermoat-mvp-s3-website.yaml`, now removed).
 
-**Key differences:**
+**Key improvements:**
 
 - **Type safety**: TypeScript catches errors at compile time
 - **Reusable constructs**: DynamoDB tables, Lambda functions follow DRY principle
 - **Automatic Lambda packaging**: No manual ZIP + S3 upload
 - **Cleaner syntax**: Less verbose than YAML
+- **Better maintainability**: Organized constructs by architectural concern
 
-**Equivalence:** `cdk synth` generates CloudFormation that deploys identically to the original template.
+**Old deployment scripts** (CloudFormation-based) have been archived to `scripts/legacy/` and are no longer needed.
