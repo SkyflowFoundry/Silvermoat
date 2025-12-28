@@ -41,8 +41,8 @@ Every plan MUST include:
 ## Execution
 
 - Do not execute until explicitly told:
-  - “Execute phase X”
-  - or “Proceed with implementation”
+  - "Execute phase X"
+  - or "Proceed with implementation"
 - When executing:
   - Make minimal, correct changes.
   - Leave TODO markers for future phases.
@@ -74,27 +74,30 @@ Every plan MUST include:
 
 ## Project Overview
 
-Silvermoat is a one-shot deployable insurance MVP demo built on AWS CloudFormation. The entire infrastructure and application can be deployed with a single CloudFormation template, featuring:
+Silvermoat is a one-shot deployable insurance MVP demo built on AWS CDK (TypeScript). Infrastructure and application can be deployed with a single CDK command, featuring:
 
-- **Frontend**: React SPA (Vite) hosted on S3 website
+- **Frontend**: React SPA (Vite) hosted on S3 website with CloudFront CDN (HTTPS)
 - **Backend**: Single Lambda function handling all API routes via AWS_PROXY integration
-- **Infrastructure**: All AWS resources defined in CloudFormation (no Terraform, CDK, or other tools)
+- **Infrastructure**: All AWS resources defined in CDK (TypeScript)
 
 ## Key Commands
 
 ### Infrastructure Deployment
 ```bash
-# Deploy CloudFormation stack
-./scripts/deploy-stack.sh
+# Deploy CDK stack
+cd cdk
+npm install
+npm run deploy
 
 # Deploy with custom parameters
-STACK_NAME=my-silvermoat APP_NAME=silvermoat STAGE_NAME=prod ./scripts/deploy-stack.sh
+export APP_NAME=silvermoat STAGE_NAME=prod
+npm run deploy
 
 # Get stack outputs (API URL, S3 bucket names, etc.)
-./scripts/get-outputs.sh
+../scripts/get-outputs.sh
 
 # Delete entire stack
-./scripts/delete-stack.sh
+npm run destroy
 ```
 
 ### UI Development
@@ -108,7 +111,7 @@ npm run dev
 npm run build
 
 # Deploy UI to S3 (after infrastructure is deployed)
-./scripts/deploy-ui.sh
+../scripts/deploy-ui.sh
 ```
 
 ### Testing
@@ -121,13 +124,14 @@ npm run build
 
 ### Backend: Single Lambda Pattern
 
-The backend uses a **single Lambda function** (`MvpServiceFunction`) that routes all API requests based on path and HTTP method. This is defined inline in the CloudFormation template at `infra/silvermoat-mvp-s3-website.yaml:236-355`.
+The backend uses a **single Lambda function** (`MvpServiceFunction`) that routes all API requests based on path and HTTP method. Code is in `cdk/lib/lambda/mvp-service/index.py`.
 
 **Key routing patterns:**
 - `POST /{domain}` → Create entity (quote, policy, claim, payment, case)
 - `GET /{domain}/{id}` → Read entity by ID
 - `POST /claim/{id}/status` → Update claim status
 - `POST /claim/{id}/doc` → Attach document to claim
+- `POST /chat` → Bedrock AI assistant
 
 The Lambda uses AWS_PROXY integration, meaning it must return responses in API Gateway proxy format with `statusCode`, `headers`, and `body` fields.
 
@@ -135,6 +139,7 @@ The Lambda uses AWS_PROXY integration, meaning it must return responses in API G
 - `QUOTES_TABLE`, `POLICIES_TABLE`, `CLAIMS_TABLE`, `PAYMENTS_TABLE`, `CASES_TABLE`
 - `DOCS_BUCKET` (S3 bucket for documents)
 - `SNS_TOPIC_ARN` (for notifications)
+- `BEDROCK_MODEL_ID`, `BEDROCK_REGION` (for AI assistant)
 
 **CORS**: The Lambda includes CORS headers (`Access-Control-Allow-Origin: *`) in all responses to allow browser requests from the S3 website.
 
@@ -142,9 +147,10 @@ The Lambda uses AWS_PROXY integration, meaning it must return responses in API G
 
 The UI is located in `ui/` and uses:
 - React 18 with functional components and hooks
+- React Router v6 with lazy loading
+- React Query (TanStack Query v5) for server state
+- Ant Design v5 for UI components
 - Vite for build tooling
-- Simple component structure: `App.jsx` → `QuoteForm.jsx` + `QuoteList.jsx`
-- API client abstraction in `ui/src/services/api.js`
 
 **API Base URL Configuration:**
 The frontend gets the API URL via:
@@ -152,27 +158,56 @@ The frontend gets the API URL via:
 2. Runtime: `window.API_BASE_URL` (can be injected in `index.html`)
 3. Fallback: `import.meta.env.VITE_API_BASE_URL`
 
-### CloudFormation Custom Resources
+### CDK Infrastructure
 
-The stack includes two Custom Resources powered by a single `SeederFunction` Lambda:
+The stack is defined in `cdk/lib/` using TypeScript:
+
+**Main Stack** (`silvermoat-stack.ts`):
+- Orchestrates all constructs
+- Creates SNS topic
+- Configures Custom Resources for seeding/cleanup
+
+**Storage Construct** (`constructs/storage.ts`):
+- Creates 5 DynamoDB tables (Quotes, Policies, Claims, Payments, Cases)
+- Creates 2 S3 buckets (UI public, Docs private)
+
+**Compute Construct** (`constructs/compute.ts`):
+- Creates MvpServiceFunction Lambda (API handler)
+- Creates SeederFunction Lambda (custom resource)
+- Creates IAM roles with least-privilege permissions
+
+**API Construct** (`constructs/api.ts`):
+- Creates API Gateway REST API
+- Configures Lambda proxy integration
+- Sets up ANY method on root and {proxy+}
+
+**CDN Construct** (`constructs/cdn.ts`):
+- Creates CloudFront distribution (conditional)
+- Creates ACM certificate for custom domain (conditional)
+- Configures SPA routing (404/403 → index.html)
+
+### Custom Resources
+
+The stack includes Custom Resources powered by `SeederFunction`:
 
 1. **SeedCustomResource** (`Mode: seed`): Runs on CREATE/UPDATE to:
    - Upload initial `index.html` if `UiSeedingMode=seeded`
-   - Seed DynamoDB tables with demo data
+   - Seed DynamoDB tables with demo data (80 quotes, 60 policies, 40 claims, 180 payments, 50 cases)
    - Upload sample documents to S3
 
 2. **CleanupCustomResource** (`Mode: cleanup`): Runs on DELETE to:
    - Empty both S3 buckets (handles versioned objects and delete markers)
    - Wipe all DynamoDB table items
-   - Ensures buckets are empty before CloudFormation deletion
+   - Ensures buckets are empty before CDK deletion
 
-The cleanup Lambda is critical for successful stack deletion. Check CloudWatch logs at `/aws/lambda/<stack-name>-SeederFunction-*` if deletion fails.
+The cleanup Lambda is critical for successful stack deletion. Check CloudWatch logs at `/aws/lambda/SilvermoatStack-Compute-SeederFunction-*` if deletion fails.
 
 ### DynamoDB Schema
 
 All tables use a simple key schema:
 - **Partition Key**: `id` (String)
 - **Billing Mode**: PAY_PER_REQUEST (no provisioned capacity)
+- **Removal Policy**: DESTROY (for demo purposes)
 
 Tables: `QuotesTable`, `PoliciesTable`, `ClaimsTable`, `PaymentsTable`, `CasesTable`
 
@@ -184,41 +219,37 @@ Tables: `QuotesTable`, `PoliciesTable`, `ClaimsTable`, `PaymentsTable`, `CasesTa
    - Website configuration: `IndexDocument: index.html`, `ErrorDocument: index.html`
    - Public read access via bucket policy
    - Serves as origin for CloudFront distribution
+   - `autoDeleteObjects: true` for clean deletion
 
 2. **DocsBucket**: Private bucket for claim documents/attachments
    - Access controlled via IAM (Lambda-only access)
+   - `autoDeleteObjects: true` for clean deletion
 
 ### CloudFront & Custom Domains
 
-The stack includes CloudFront distribution with optional custom domain support (added for production HTTPS).
+The stack includes CloudFront distribution with optional custom domain support.
+
+**Configuration via parameters:**
+- `DomainName`: Custom domain (default: `silvermoat.net`), empty = CloudFront default only
+- `CreateCloudFront`: Create distribution (default: `true`), `false` = S3 website URL only
 
 **Resources:**
 
 1. **UiCertificate** (conditional, if `DomainName` provided):
-   - Type: AWS::CertificateManager::Certificate
-   - Region: us-east-1 (required for CloudFront)
+   - Type: ACM Certificate
    - Validation: DNS (requires CNAME in Cloudflare)
    - Used by CloudFront for HTTPS on custom domain
 
-2. **UiDistribution** (always created):
-   - Type: AWS::CloudFront::Distribution
-   - Origin: S3 website endpoint (CustomOriginConfig, HTTP)
+2. **UiDistribution** (conditional, if `CreateCloudFront` true):
+   - Origin: S3 website endpoint (HttpOrigin, HTTP only)
    - Aliases: Custom domain (if `DomainName` parameter set)
    - Certificate: ACM cert (if custom domain), else CloudFront default
-   - Caching: AWS managed policy (CachingOptimized)
+   - Caching: CachingOptimized policy
    - SPA routing: 404/403 → index.html with 200 status
-   - Price class: 100 (US/CA/EU, cheapest)
-
-**Key behaviors:**
-- S3 website endpoint remains accessible (HTTP)
-- CloudFront adds HTTPS layer and caching
-- Both CloudFront default domain AND custom domain work (if configured)
-- HTTP requests redirect to HTTPS
-- SPA client-side routing handled (404 errors serve index.html)
-- Compression enabled (gzip/brotli)
+   - Price class: 100 (US/CA/EU)
 
 **Custom domain setup (default: silvermoat.net):**
-1. Deploy stack (DomainName defaults to `silvermoat.net`)
+1. Deploy stack: `cd cdk && npm run deploy`
 2. Stack creates ACM cert, waits for DNS validation
 3. Add ACM validation CNAME to Cloudflare (DNS only, gray cloud)
 4. Wait for cert validation (~5-15min)
@@ -226,47 +257,19 @@ The stack includes CloudFront distribution with optional custom domain support (
 6. Add CloudFront alias CNAME to Cloudflare (DNS only, gray cloud)
 7. Access via `https://silvermoat.net`
 
-**To disable custom domain:** Set `DomainName=""` parameter (CloudFront default domain only)
-**To use different domain:** Set `DomainName=app.silvermoat.net` parameter
-
-**Outputs:**
-- `CloudFrontUrl`: https://xyz123.cloudfront.net (always available)
-- `CustomDomainUrl`: https://silvermoat.net (if `DomainName` configured)
-- `CloudFrontDomain`: CloudFront domain for DNS CNAME
-- `CertificateArn`: ACM cert ARN (if custom domain)
-
-**Cloudflare DNS setup:**
-User must add 2 CNAME records:
-1. `_validation-subdomain.silvermoat.net` → `_validation-target.acm-validations.aws.` (cert validation)
-2. `silvermoat.net` → `xyz123.cloudfront.net` (site access)
-
-**Critical**: Cloudflare proxy must be **disabled** (DNS only, gray cloud) for both records. Orange cloud (proxied) conflicts with CloudFront's SSL/caching.
-
-**Architecture flow:**
-```
-Browser → CloudFront (HTTPS) → S3 Website Endpoint (HTTP)
-          https://silvermoat.net
-          OR
-          https://xyz123.cloudfront.net
-          ↓
-          CloudFront caches, compresses, serves
-          ↓
-          Origin: bucket-name.s3-website-us-east-1.amazonaws.com
-```
-
-S3 website endpoint (HTTP) still works for direct access/testing.
+**Critical**: Cloudflare proxy must be **disabled** (DNS only, gray cloud) for both records.
 
 ## Development Workflow
 
 ### Making Backend Changes
 
-The backend Lambda code is **inline in the CloudFormation template** (YAML ZipFile). To modify:
+The backend Lambda code is in `cdk/lib/lambda/mvp-service/index.py`. To modify:
 
-1. Edit the Python code in `infra/silvermoat-mvp-s3-website.yaml` (lines 236-355 for `MvpServiceFunction`, lines 481-795 for `SeederFunction`)
-2. Redeploy the stack: `./scripts/deploy-stack.sh`
-3. CloudFormation will update the Lambda function code
+1. Edit the Python code in `cdk/lib/lambda/mvp-service/index.py`
+2. Redeploy: `cd cdk && npm run deploy`
+3. CDK automatically packages and uploads Lambda code
 
-**Note**: For API Gateway method changes, increment `API_DEPLOYMENT_TOKEN` parameter to force a new deployment.
+**Note**: For API Gateway method changes, increment `API_DEPLOYMENT_TOKEN` environment variable to force a new deployment.
 
 ### Making Frontend Changes
 
@@ -281,15 +284,29 @@ The `deploy-ui.sh` script:
 - Syncs build output to S3 with proper cache headers
 - HTML files: `no-cache`, static assets: `max-age=31536000`
 
+### Making Infrastructure Changes
+
+To modify CDK infrastructure:
+
+1. Edit CDK code in `cdk/lib/` (TypeScript)
+2. Compile: `cd cdk && npm run build`
+3. Preview changes: `npm run diff`
+4. Deploy: `npm run deploy`
+
+**Common changes:**
+- Add DynamoDB table: Edit `constructs/storage.ts`
+- Add Lambda permissions: Edit `constructs/compute.ts`
+- Add API endpoint: Edit Lambda code in `lib/lambda/mvp-service/index.py`
+- Change CloudFront behavior: Edit `constructs/cdn.ts`
+
 ### Adding New API Endpoints
 
 To add a new endpoint to the Lambda function:
 
-1. Locate the `handler` function in the CloudFormation template (line 283)
-2. Parse `path` and `method` to add your route
-3. Add any required environment variables to `MvpServiceFunction.Environment.Variables`
-4. Update IAM permissions in `MvpLambdaRole` if accessing new resources
-5. Redeploy: `./scripts/deploy-stack.sh`
+1. Edit `cdk/lib/lambda/mvp-service/index.py`
+2. Add route handling in the `handler` function
+3. If accessing new AWS resources, update IAM role in `constructs/compute.ts`
+4. Redeploy: `cd cdk && npm run deploy`
 
 Example route pattern:
 ```python
@@ -302,47 +319,67 @@ if domain == "policy" and method == "POST" and len(parts) == 3 and parts[2] == "
 
 ## Important Constraints
 
-### API Gateway Deployment Token
+### CDK Bootstrap
 
-When you modify API Gateway resources (methods, integrations), you must change the `ApiDeploymentToken` parameter to force a new deployment:
+Before first deployment, AWS account must be bootstrapped for CDK:
 
 ```bash
-API_DEPLOYMENT_TOKEN=v2 ./scripts/deploy-stack.sh
+cdk bootstrap aws://ACCOUNT-NUMBER/REGION
 ```
 
-Without this, API Gateway may not reflect your changes even though CloudFormation shows `UPDATE_COMPLETE`.
+### API Gateway Deployment Token
 
-### S3 Website Hosting (HTTP Only)
+When you modify API Gateway resources, change the `API_DEPLOYMENT_TOKEN` environment variable to force a new deployment:
 
-The S3 website endpoint is HTTP, not HTTPS. This is intentional for the MVP to avoid CloudFront complexity. The architecture diagram in README.md shows browser → S3 Website (HTTP) → API Gateway (HTTPS).
+```bash
+export API_DEPLOYMENT_TOKEN=v2
+cd cdk && npm run deploy
+```
+
+Without this, API Gateway may not reflect changes.
+
+### Lambda Packaging
+
+CDK handles Lambda packaging automatically:
+- Reads Python code from `cdk/lib/lambda/*/index.py`
+- Creates ZIP file
+- Uploads to S3 bucket (created by CDK bootstrap)
+- Updates Lambda function code
+
+No manual ZIP files or S3 uploads required.
 
 ### Custom Resource Behavior
 
 - The `SeederFunction` handles both seeding and cleanup using the `Mode` property
-- On stack deletion, the cleanup Lambda empties S3 buckets before CloudFormation tries to delete them
-- If stack deletion fails with "bucket not empty", check `/aws/lambda/<stack-name>-SeederFunction-*` logs
+- On stack deletion, the cleanup Lambda empties S3 buckets before CDK tries to delete them
+- If stack deletion fails with "bucket not empty", check `/aws/lambda/SilvermoatStack-Compute-SeederFunction-*` logs
 - The Lambda has a 120-second timeout to handle large bucket cleanups
 
 ### UI Seeding Mode
 
-The `UiSeedingMode` parameter controls initial UI deployment:
-- `seeded` (default): Lambda uploads a basic `index.html` for quick demo
-- `external`: Skip Lambda upload, deploy React SPA separately with `deploy-ui.sh`
+The `UI_SEEDING_MODE` environment variable controls initial UI deployment:
+- `seeded`: Lambda uploads a basic `index.html` for quick demo
+- `external` (default): Skip Lambda upload, deploy React SPA separately with `deploy-ui.sh`
 
-For development, always use `UiSeedingMode=external` and deploy the React app with the script.
+For development, always use `UI_SEEDING_MODE=external` and deploy the React app with the script.
 
 ## Stack Parameters
 
-Defined in `infra/silvermoat-mvp-s3-website.yaml:7-35`:
+Set via environment variables:
 
-- `AppName` (default: `silvermoat`): Short name used in resource naming
-- `StageName` (default: `demo`): API Gateway stage name
-- `ApiDeploymentToken` (default: `v1`): Change to force API redeployment
-- `UiSeedingMode` (default: `seeded`): `seeded` or `external`
+- `APP_NAME` (default: `silvermoat`): Short name used in resource naming
+- `STAGE_NAME` (default: `demo`): API Gateway stage name
+- `API_DEPLOYMENT_TOKEN` (default: `v1`): Change to force API redeployment
+- `UI_SEEDING_MODE` (default: `external`): `seeded` or `external`
+- `DOMAIN_NAME` (default: `silvermoat.net`): Custom domain, empty = CloudFront default only
+- `CREATE_CLOUDFRONT` (default: `true`): Create CloudFront, `false` = S3 website only
 
-Set via environment variables in `deploy-stack.sh`:
+Example:
 ```bash
-STACK_NAME=silvermoat APP_NAME=silvermoat STAGE_NAME=demo ./scripts/deploy-stack.sh
+export APP_NAME=silvermoat
+export STAGE_NAME=prod
+export DOMAIN_NAME=app.silvermoat.net
+cd cdk && npm run deploy
 ```
 
 ## Troubleshooting
@@ -350,22 +387,22 @@ STACK_NAME=silvermoat APP_NAME=silvermoat STAGE_NAME=demo ./scripts/deploy-stack
 ### Stack Deletion Fails
 
 If `DELETE_FAILED` with bucket errors:
-1. Check CloudWatch logs: `/aws/lambda/<stack-name>-SeederFunction-*`
+1. Check CloudWatch logs: `/aws/lambda/SilvermoatStack-Compute-SeederFunction-*`
 2. Verify cleanup Lambda executed successfully
 3. Manual fallback: `aws s3 rm s3://<bucket-name> --recursive`
 
 ### API Returns 403/404
 
 - Verify API Gateway deployment token was updated
-- Check Lambda logs: `/aws/lambda/<stack-name>-MvpServiceFunction-*`
-- Confirm Lambda has permission to invoke from API Gateway (`ApiInvokePermission`)
+- Check Lambda logs: `/aws/lambda/SilvermoatStack-Compute-MvpServiceFunction-*`
+- Confirm Lambda has permission to invoke from API Gateway
 
 ### UI Shows "API base URL not configured"
 
 The React app couldn't find the API URL. Options:
 1. Ensure `deploy-ui.sh` ran (it sets `VITE_API_BASE_URL` during build)
 2. Manually set `window.API_BASE_URL` in `ui/index.html`
-3. Check `App.jsx:11-20` for URL resolution logic
+3. Check `App.jsx` for URL resolution logic
 
 ### CORS Errors
 
@@ -373,6 +410,20 @@ The Lambda returns CORS headers in all responses. If CORS errors persist:
 1. Verify API Gateway integration is `AWS_PROXY` (not `AWS`)
 2. Check Lambda is returning proper response format with `headers` field
 3. Confirm browser is making requests to the correct API URL
+
+### CDK Synth Fails
+
+- Verify Node.js and TypeScript installed
+- Run `cd cdk && npm install`
+- Run `npm run build` to compile TypeScript
+- Check for TypeScript errors in `cdk/lib/`
+
+### CDK Deploy Fails
+
+- Verify AWS credentials: `aws sts get-caller-identity`
+- Ensure CDK bootstrap: `cdk bootstrap`
+- Check CloudFormation stack events in AWS Console
+- Review error messages in terminal
 
 ## Testing
 

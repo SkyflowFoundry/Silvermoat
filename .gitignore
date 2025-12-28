@@ -1,10 +1,18 @@
 # Dependencies
 node_modules/
 ui/node_modules/
+cdk/node_modules/
 
 # Build outputs
 ui/dist/
 ui/build/
+cdk/cdk.out/
+cdk/*.js
+cdk/*.d.ts
+cdk/lib/**/*.js
+cdk/lib/**/*.d.ts
+cdk/bin/**/*.js
+cdk/bin/**/*.d.ts
 *.log
 
 # Environment variables
@@ -30,7 +38,6 @@ samconfig.toml
 *.pem
 *.key
 
-# CloudFormation
-packaged-template.yaml
-packaged-template.yml
+# CDK
+cdk/.cdk.staging/
 
