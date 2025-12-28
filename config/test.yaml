@@ -1,0 +1,7 @@
+Parameters:
+  AppName: silvermoat-test
+  StageName: test
+  ApiDeploymentToken: v1
+  UiSeedingMode: seeded
+  DomainName: ""
+  CreateCloudFront: "false"

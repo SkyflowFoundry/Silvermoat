@@ -1,0 +1,7 @@
+Parameters:
+  AppName: silvermoat
+  StageName: demo
+  ApiDeploymentToken: v1
+  UiSeedingMode: external
+  DomainName: silvermoat.net
+  CreateCloudFront: "true"
