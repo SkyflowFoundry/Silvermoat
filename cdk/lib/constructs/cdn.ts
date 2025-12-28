@@ -1,5 +1,6 @@
 import * as cdk from 'aws-cdk-lib';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
+import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
@@ -46,7 +47,7 @@ export class CdnConstruct extends Construct {
     this.distribution = new cloudfront.Distribution(this, 'UiDistribution', {
       comment: `${props.appName}-${props.stageName} UI Distribution`,
       defaultBehavior: {
-        origin: new cloudfront.HttpOrigin(websiteDomain, {
+        origin: new origins.HttpOrigin(websiteDomain, {
           protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
         }),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
