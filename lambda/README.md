@@ -1,6 +1,6 @@
 # Lambda Functions
 
-This directory contains the extracted Lambda function code for Silvermoat MVP.
+This directory contains the Lambda function code for Silvermoat MVP.
 
 ## Structure
 
@@ -12,21 +12,13 @@ lambda/
     └── handler.py       # Custom Resource Lambda (seeding + cleanup)
 ```
 
-## Current State (Phase 1)
+## Current State (S3-Packaged Lambda Code)
 
-The Lambda code has been **extracted from the CloudFormation template** into separate Python files for better maintainability, testing, and development experience.
+The Lambda code is **stored in separate Python files** and **packaged to S3** during deployment.
 
-**However**, the CloudFormation template (`infra/silvermoat-mvp-s3-website.yaml`) still contains **inline Lambda code** to preserve the "one-shot deployable" philosophy.
+The CloudFormation template (`infra/silvermoat-mvp-s3-website.yaml`) references the Lambda code from S3 using the `S3Bucket` and `S3Key` properties.
 
-### Why Keep Inline Code?
-
-- **One-shot deployment**: The stack can be deployed with a single CloudFormation template without pre-requisites
-- **No external dependencies**: No need to upload Lambda code to S3 before deployment
-- **Backwards compatibility**: Existing deployment workflows continue to work
-
-### Benefits of Extracted Code
-
-Even though the CF template still has inline code, extracting it provides:
+### Benefits
 
 1. **Better development experience**:
    - IDE support (autocomplete, type checking, linting)
@@ -43,48 +35,38 @@ Even though the CF template still has inline code, extracting it provides:
    - Can run linters (pylint, mypy, black) on Lambda code
    - Can import and test functions locally
 
-4. **Transition path**:
-   - Foundation for Phase 2: moving to S3-packaged Lambda code
-   - Can gradually migrate to AWS SAM or other packaging tools
-   - Keeps options open without breaking current workflows
+4. **No code duplication**:
+   - Single source of truth for Lambda code
+   - No need to sync code between files
 
-## Keeping Code in Sync
-
-**IMPORTANT**: When modifying Lambda code, you must update BOTH locations:
-
-1. Edit the Python file in `lambda/*/handler.py`
-2. Copy the updated code to the inline `ZipFile` section in `infra/silvermoat-mvp-s3-website.yaml`
-
-This is a temporary measure during Phase 1. In Phase 2, we will eliminate this duplication by moving to S3-packaged Lambda code.
-
-### Helper Script
-
-To make syncing easier, you can use:
-
-```bash
-# TODO Phase 2: Create sync script
-./scripts/sync-lambda-code.sh
-```
-
-## Phase 2 Migration (Future)
-
-Phase 2 will migrate to S3-packaged Lambda code:
-
-1. **Add Lambda packaging to deployment**:
-   - `./scripts/package-lambda.sh` uploads Lambda ZIPs to S3
-   - CloudFormation references S3 location instead of inline code
-   - `./scripts/deploy-stack.sh` automatically packages and deploys
-
-2. **Update CloudFormation template**:
-   - Add `LambdaCodeBucket` resource
-   - Change `MvpServiceFunction.Code` from `ZipFile` to `S3Bucket/S3Key`
-   - Change `SeederFunction.Code` from `ZipFile` to `S3Bucket/S3Key`
-
-3. **Benefits of S3 packaging**:
-   - No more code duplication (single source of truth)
+5. **Scalability**:
    - Can add dependencies via `requirements.txt`
    - Faster deployments (only upload code when changed)
    - Better for CI/CD pipelines
+
+## Deployment Workflow
+
+The `./scripts/deploy-stack.sh` script automatically:
+1. Packages Lambda functions to ZIP files
+2. Uploads ZIP files to S3 (same bucket as CloudFormation templates)
+3. Deploys CloudFormation stack with references to S3 code
+
+You don't need to manually package or upload Lambda code.
+
+## Migration from Inline Code (Complete)
+
+The migration from inline Lambda code to S3-packaged code is **complete**:
+
+1. ✅ **Lambda packaging integrated into deployment**:
+   - `./scripts/deploy-stack.sh` automatically packages and uploads Lambda ZIPs to S3
+   - CloudFormation template references S3 location instead of inline code
+   - Uses same S3 bucket as CloudFormation templates
+
+2. ✅ **CloudFormation template updated**:
+   - Added `LambdaCodeS3Bucket`, `MvpServiceCodeS3Key`, `SeederCodeS3Key` parameters
+   - Changed `MvpServiceFunction.Code` from `ZipFile` to `S3Bucket/S3Key`
+   - Changed `SeederFunction.Code` from `ZipFile` to `S3Bucket/S3Key`
+   - Removed all inline Lambda code (no more duplication)
 
 ## Development Workflow
 

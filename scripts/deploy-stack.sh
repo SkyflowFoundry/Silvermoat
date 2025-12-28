@@ -67,6 +67,31 @@ else
   echo "S3 bucket already exists"
 fi
 
+# Package Lambda functions
+echo ""
+echo "Packaging Lambda functions..."
+LAMBDA_DIR="$PROJECT_ROOT/lambda"
+
+# Package mvp_service Lambda
+echo "Packaging mvp_service..."
+cd "$LAMBDA_DIR/mvp_service"
+rm -f mvp-service.zip
+zip -q mvp-service.zip handler.py
+$AWS_CMD s3 cp mvp-service.zip "s3://$S3_BUCKET/lambda/mvp-service.zip"
+echo "✓ Uploaded mvp-service.zip"
+
+# Package seeder Lambda
+echo "Packaging seeder..."
+cd "$LAMBDA_DIR/seeder"
+rm -f seeder.zip
+zip -q seeder.zip handler.py
+$AWS_CMD s3 cp seeder.zip "s3://$S3_BUCKET/lambda/seeder.zip"
+echo "✓ Uploaded seeder.zip"
+
+cd "$PROJECT_ROOT"
+echo "Lambda packaging complete"
+echo ""
+
 # Deploy stack
 $AWS_CMD cloudformation deploy \
   --stack-name "$STACK_NAME" \
@@ -80,6 +105,9 @@ $AWS_CMD cloudformation deploy \
     UiSeedingMode="$UI_SEEDING_MODE" \
     CreateCloudFront="$CREATE_CLOUDFRONT" \
     DomainName="$DOMAIN_NAME" \
+    LambdaCodeS3Bucket="$S3_BUCKET" \
+    MvpServiceCodeS3Key="lambda/mvp-service.zip" \
+    SeederCodeS3Key="lambda/seeder.zip" \
   --no-fail-on-empty-changeset
 
 echo ""

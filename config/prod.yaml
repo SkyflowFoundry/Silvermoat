@@ -5,3 +5,7 @@ Parameters:
   UiSeedingMode: external
   DomainName: silvermoat.net
   CreateCloudFront: "true"
+  # Lambda code S3 parameters (typically set by deploy-stack.sh)
+  # LambdaCodeS3Bucket: cf-templates-silvermoat-ACCOUNT_ID-REGION
+  # MvpServiceCodeS3Key: lambda/mvp-service.zip
+  # SeederCodeS3Key: lambda/seeder.zip
