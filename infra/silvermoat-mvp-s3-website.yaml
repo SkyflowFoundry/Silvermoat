@@ -103,7 +103,6 @@ Resources:
 
   UiBucketPolicy:
     Type: AWS::S3::BucketPolicy
-    DependsOn: UiBucket
     Properties:
       Bucket: !Ref UiBucket
       PolicyDocument:
@@ -538,7 +537,6 @@ Resources:
     DependsOn:
       - UiBucket
       - DocsBucket
-      - SeederFunction
     Properties:
       ServiceToken: !GetAtt SeederFunction.Arn
       Mode: cleanup
