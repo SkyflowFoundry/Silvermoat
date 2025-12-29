@@ -72,6 +72,17 @@ Every plan MUST include:
 - Ask.
 - Do not guess.
 
+## Testing
+
+- Add tests for new functionality when existing test categories exist.
+- Do not create new test categories unnecessarily.
+- Match existing test patterns and structure.
+- If there are no tests for similar functionality, skip adding tests.
+- Examples:
+  - API tests exist → add API tests for new endpoints
+  - E2E smoke tests exist → add E2E tests for new pages
+  - No form tests exist → skip adding form tests
+
 ## Project Overview
 
 Silvermoat is a one-shot deployable insurance MVP demo built on AWS CloudFormation. The entire infrastructure and application can be deployed with a single CloudFormation template, featuring:
@@ -115,7 +126,62 @@ npm run build
 ```bash
 # Run smoke tests against deployed stack
 ./scripts/smoke-test.sh
+
+# Run full E2E test suite
+cd tests/e2e
+pytest -v -m smoke
 ```
+
+## CI/CD & A-B Deployment
+
+Silvermoat uses GitHub Actions for automated testing and deployment.
+
+### Workflows
+
+**1. E2E Tests** (`.github/workflows/e2e-tests.yml`)
+- Trigger: PR to main
+- Creates ephemeral test stack: `silvermoat-test-pr-{NUMBER}`
+- No CloudFront (HTTP S3 only, fast deployment)
+- Runs smoke + API + E2E tests
+- AI-powered test analysis via Claude
+- Stack persists until PR closed
+
+**2. PR Stack Cleanup** (`.github/workflows/pr-stack-cleanup.yml`)
+- Trigger: PR closed/merged
+- Deletes test stack created by E2E workflow
+- Ensures no orphaned stacks
+
+**3. Deploy Production** (`.github/workflows/deploy-production.yml`)
+- Trigger: Push to main
+- Deploys production stack: `silvermoat`
+- CloudFront + custom domain enabled
+- Smart DNS update via Cloudflare (skips if CloudFront domain unchanged)
+- Invalidates CloudFront cache
+- Runs smoke tests
+- Fails if tests fail
+
+**4. Validate CloudFormation** (`.github/workflows/validate-cfn.yml`)
+- Trigger: PR + push to main
+- Lints CloudFormation templates
+
+### GitHub Secrets
+
+Required secrets configured:
+- `AWS_ROLE_ARN` - IAM role for AWS operations (all workflows)
+- `CLOUDFLARE_API_TOKEN` - Cloudflare DNS updates (production only)
+- `CLOUDFLARE_ZONE_ID` - Zone ID for silvermoat.net (production only)
+- `ANTHROPIC_API_KEY_GITHUB_ACTIONS` - E2E test analysis
+
+### Smart DNS Updates
+
+Script: `scripts/update-cloudflare-dns.sh`
+
+- Fetches current DNS from Cloudflare API
+- Fetches target CloudFront domain from stack outputs
+- Only updates if different (optimization)
+- CloudFront domains rarely change (~10% of deploys)
+
+See `docs/ab-deployment-design.md` for complete architecture.
 
 ## Architecture
 
@@ -142,8 +208,8 @@ The Lambda uses AWS_PROXY integration, meaning it must return responses in API G
 
 The UI is located in `ui/` and uses:
 - React 18 with functional components and hooks
+- Ant Design component library
 - Vite for build tooling
-- Simple component structure: `App.jsx` → `QuoteForm.jsx` + `QuoteList.jsx`
 - API client abstraction in `ui/src/services/api.js`
 
 **API Base URL Configuration:**
@@ -151,6 +217,14 @@ The frontend gets the API URL via:
 1. Build-time: `VITE_API_BASE_URL` environment variable (set by `deploy-ui.sh`)
 2. Runtime: `window.API_BASE_URL` (can be injected in `index.html`)
 3. Fallback: `import.meta.env.VITE_API_BASE_URL`
+
+**Form Sample Data:**
+All forms include "Fill with Sample Data" button:
+- Utility: `ui/src/utils/formSampleData.js`
+- Functions: `generateQuoteSampleData()`, `generatePolicySampleData()`, etc.
+- Reuses helpers from `seedData.js` for consistency
+- Forms: Quote, Policy, Claim, Payment, Case
+- Button uses `ThunderboltOutlined` icon, default styling
 
 ### CloudFormation Custom Resources
 

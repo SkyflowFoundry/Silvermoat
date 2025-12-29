@@ -2,10 +2,12 @@
  * Payment Form Component
  */
 
-import { Form, Input, Button, Card, DatePicker, Select, InputNumber } from 'antd';
-import { DollarOutlined, CreditCardOutlined, FileProtectOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Card, DatePicker, Select, InputNumber, Space } from 'antd';
+import { DollarOutlined, CreditCardOutlined, FileProtectOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { useCreatePayment } from '../../hooks/mutations/useCreatePayment';
 import { PAYMENT_METHOD_OPTIONS, PAYMENT_STATUS_OPTIONS } from '../../config/constants';
+import { generatePaymentSampleData } from '../../utils/formSampleData';
+import dayjs from 'dayjs';
 
 const PaymentForm = ({ onSuccess }) => {
   const [form] = Form.useForm();
@@ -26,6 +28,14 @@ const PaymentForm = ({ onSuccess }) => {
     } catch (error) {
       console.error('Failed to create payment:', error);
     }
+  };
+
+  const handleFillSampleData = () => {
+    const sampleData = generatePaymentSampleData();
+    form.setFieldsValue({
+      ...sampleData,
+      paymentDate: dayjs(sampleData.paymentDate),
+    });
   };
 
   return (
@@ -111,15 +121,26 @@ const PaymentForm = ({ onSuccess }) => {
         </Form.Item>
 
         <Form.Item>
-          <Button
-            type="primary"
-            htmlType="submit"
-            loading={createPaymentMutation.isPending}
-            size="large"
-            block
-          >
-            {createPaymentMutation.isPending ? 'Recording Payment...' : 'Record Payment'}
-          </Button>
+          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            <Button
+              type="default"
+              icon={<ThunderboltOutlined />}
+              onClick={handleFillSampleData}
+              size="large"
+              block
+            >
+              Fill with Sample Data
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={createPaymentMutation.isPending}
+              size="large"
+              block
+            >
+              {createPaymentMutation.isPending ? 'Recording Payment...' : 'Record Payment'}
+            </Button>
+          </Space>
         </Form.Item>
       </Form>
     </Card>

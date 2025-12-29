@@ -3,15 +3,17 @@
  * Form for creating new policies with validation
  */
 
-import { Form, Input, Button, Card, DatePicker, Select, InputNumber } from 'antd';
+import { Form, Input, Button, Card, DatePicker, Select, InputNumber, Space } from 'antd';
 import {
   UserOutlined,
   FileTextOutlined,
   DollarOutlined,
   SafetyCertificateOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons';
 import { useCreatePolicy } from '../../hooks/mutations/useCreatePolicy';
 import { POLICY_STATUS_OPTIONS } from '../../config/constants';
+import { generatePolicySampleData } from '../../utils/formSampleData';
 import dayjs from 'dayjs';
 
 const PolicyForm = ({ onSuccess }) => {
@@ -35,6 +37,16 @@ const PolicyForm = ({ onSuccess }) => {
     } catch (error) {
       console.error('Failed to create policy:', error);
     }
+  };
+
+  const handleFillSampleData = () => {
+    const sampleData = generatePolicySampleData();
+    // Convert date strings to dayjs objects for DatePicker
+    form.setFieldsValue({
+      ...sampleData,
+      effectiveDate: dayjs(sampleData.effectiveDate),
+      expirationDate: dayjs(sampleData.expirationDate),
+    });
   };
 
   return (
@@ -160,15 +172,26 @@ const PolicyForm = ({ onSuccess }) => {
         </Form.Item>
 
         <Form.Item>
-          <Button
-            type="primary"
-            htmlType="submit"
-            loading={createPolicyMutation.isPending}
-            size="large"
-            block
-          >
-            {createPolicyMutation.isPending ? 'Creating Policy...' : 'Create Policy'}
-          </Button>
+          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            <Button
+              type="default"
+              icon={<ThunderboltOutlined />}
+              onClick={handleFillSampleData}
+              size="large"
+              block
+            >
+              Fill with Sample Data
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={createPolicyMutation.isPending}
+              size="large"
+              block
+            >
+              {createPolicyMutation.isPending ? 'Creating Policy...' : 'Create Policy'}
+            </Button>
+          </Space>
         </Form.Item>
       </Form>
     </Card>

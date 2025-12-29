@@ -3,10 +3,12 @@
  * Form for creating new claims
  */
 
-import { Form, Input, Button, Card, DatePicker, Select, InputNumber } from 'antd';
-import { FileTextOutlined, UserOutlined, DollarOutlined, FileProtectOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Card, DatePicker, Select, InputNumber, Space } from 'antd';
+import { FileTextOutlined, UserOutlined, DollarOutlined, FileProtectOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { useCreateClaim } from '../../hooks/mutations/useCreateClaim';
 import { CLAIM_STATUS_OPTIONS } from '../../config/constants';
+import { generateClaimSampleData } from '../../utils/formSampleData';
+import dayjs from 'dayjs';
 
 const { TextArea } = Input;
 
@@ -29,6 +31,14 @@ const ClaimForm = ({ onSuccess }) => {
     } catch (error) {
       console.error('Failed to create claim:', error);
     }
+  };
+
+  const handleFillSampleData = () => {
+    const sampleData = generateClaimSampleData();
+    form.setFieldsValue({
+      ...sampleData,
+      incidentDate: dayjs(sampleData.incidentDate),
+    });
   };
 
   return (
@@ -144,15 +154,26 @@ const ClaimForm = ({ onSuccess }) => {
         </Form.Item>
 
         <Form.Item>
-          <Button
-            type="primary"
-            htmlType="submit"
-            loading={createClaimMutation.isPending}
-            size="large"
-            block
-          >
-            {createClaimMutation.isPending ? 'Creating Claim...' : 'Create Claim'}
-          </Button>
+          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            <Button
+              type="default"
+              icon={<ThunderboltOutlined />}
+              onClick={handleFillSampleData}
+              size="large"
+              block
+            >
+              Fill with Sample Data
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={createClaimMutation.isPending}
+              size="large"
+              block
+            >
+              {createClaimMutation.isPending ? 'Creating Claim...' : 'Create Claim'}
+            </Button>
+          </Space>
         </Form.Item>
       </Form>
     </Card>

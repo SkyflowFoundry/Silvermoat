@@ -2,14 +2,15 @@
  * Case Form Component
  */
 
-import { Form, Input, Button, Card, Select } from 'antd';
-import { FileProtectOutlined, UserOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Card, Select, Space } from 'antd';
+import { FileProtectOutlined, UserOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { useCreateCase } from '../../hooks/mutations/useCreateCase';
 import {
   CASE_PRIORITY_OPTIONS,
   CASE_STATUS_OPTIONS,
   RELATED_ENTITY_TYPES,
 } from '../../config/constants';
+import { generateCaseSampleData } from '../../utils/formSampleData';
 
 const { TextArea } = Input;
 
@@ -27,6 +28,11 @@ const CaseForm = ({ onSuccess }) => {
     } catch (error) {
       console.error('Failed to create case:', error);
     }
+  };
+
+  const handleFillSampleData = () => {
+    const sampleData = generateCaseSampleData();
+    form.setFieldsValue(sampleData);
   };
 
   return (
@@ -140,15 +146,26 @@ const CaseForm = ({ onSuccess }) => {
         </Form.Item>
 
         <Form.Item>
-          <Button
-            type="primary"
-            htmlType="submit"
-            loading={createCaseMutation.isPending}
-            size="large"
-            block
-          >
-            {createCaseMutation.isPending ? 'Creating Case...' : 'Create Case'}
-          </Button>
+          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            <Button
+              type="default"
+              icon={<ThunderboltOutlined />}
+              onClick={handleFillSampleData}
+              size="large"
+              block
+            >
+              Fill with Sample Data
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={createCaseMutation.isPending}
+              size="large"
+              block
+            >
+              {createCaseMutation.isPending ? 'Creating Case...' : 'Create Case'}
+            </Button>
+          </Space>
         </Form.Item>
       </Form>
     </Card>
