@@ -1,0 +1,44 @@
+name: Validate CloudFormation
+
+on:
+  pull_request:
+    paths:
+      - 'infra/**.yaml'
+      - 'infra/**.yml'
+      - 'config/**.yaml'
+      - 'config/**.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'infra/**.yaml'
+      - 'infra/**.yml'
+      - 'config/**.yaml'
+      - 'config/**.yml'
+
+jobs:
+  lint:
+    name: Lint CloudFormation Templates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install cfn-lint
+        run: pip install cfn-lint
+
+      - name: Lint CloudFormation template
+        run: cfn-lint infra/silvermoat-mvp-s3-website.yaml
+
+      - name: Validate parameter files
+        run: |
+          for config in config/*.yaml; do
+            echo "Validating $config"
+            # Check that parameter file is valid YAML
+            python -c "import yaml; yaml.safe_load(open('$config'))"
+          done
