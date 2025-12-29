@@ -14,11 +14,17 @@ on:
       pr_number:
         description: 'PR number for stack naming (optional)'
         required: false
+      create_issues:
+        description: 'Auto-create GitHub issues for test failures'
+        type: boolean
+        default: true
+        required: false
 
 permissions:
   id-token: write
   contents: read
   pull-requests: write
+  issues: write
 
 jobs:
   validate-cfn:
@@ -98,7 +104,38 @@ jobs:
           echo "stack_name=${STACK_NAME}" >> $GITHUB_OUTPUT
           echo "Test stack name: ${STACK_NAME}"
 
+      - name: Check if stack exists
+        id: check-stack
+        run: |
+          STACK_NAME="${{ steps.stack-name.outputs.stack_name }}"
+          echo "Checking if stack ${STACK_NAME} exists..."
+
+          # Check stack status
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+
+          echo "Stack status: ${STACK_STATUS}"
+          echo "stack_status=${STACK_STATUS}" >> $GITHUB_OUTPUT
+
+          # Stack is ready if in a stable complete state
+          if [[ "${STACK_STATUS}" == "CREATE_COMPLETE" ]] || [[ "${STACK_STATUS}" == "UPDATE_COMPLETE" ]]; then
+            echo "✅ Stack exists and is ready"
+            echo "stack_exists=true" >> $GITHUB_OUTPUT
+            echo "skip_deploy=true" >> $GITHUB_OUTPUT
+          elif [[ "${STACK_STATUS}" == "NOT_FOUND" ]]; then
+            echo "Stack does not exist, will create"
+            echo "stack_exists=false" >> $GITHUB_OUTPUT
+            echo "skip_deploy=false" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Stack exists but in state: ${STACK_STATUS}"
+            echo "stack_exists=true" >> $GITHUB_OUTPUT
+            echo "skip_deploy=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy test stack
+        if: steps.check-stack.outputs.skip_deploy != 'true'
         env:
           STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
           APP_NAME: silvermoat-test
@@ -112,6 +149,7 @@ jobs:
           ./scripts/deploy-stack.sh
 
       - name: Wait for stack deployment
+        if: steps.check-stack.outputs.skip_deploy != 'true'
         run: |
           echo "Waiting for stack deployment to complete..."
           aws cloudformation wait stack-create-complete \
@@ -121,13 +159,76 @@ jobs:
             --stack-name ${{ steps.stack-name.outputs.stack_name }} \
             --region us-east-1
 
+      - name: Check if UI needs deployment
+        id: check-ui
+        run: |
+          STACK_NAME="${{ steps.stack-name.outputs.stack_name }}"
+
+          # If stack was just deployed, always deploy UI
+          if [ "${{ steps.check-stack.outputs.skip_deploy }}" != "true" ]; then
+            echo "Stack was just deployed, UI needs deployment"
+            echo "skip_ui=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Get UI bucket from stack outputs
+          UI_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].Outputs[?OutputKey==`UiBucketName`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$UI_BUCKET" ]; then
+            echo "⚠️ Could not find UI bucket, will deploy UI"
+            echo "skip_ui=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check if bucket has index.html
+          if aws s3 ls "s3://${UI_BUCKET}/index.html" >/dev/null 2>&1; then
+            echo "✅ UI already deployed in bucket ${UI_BUCKET}"
+
+            # Calculate hash of UI source to detect changes
+            UI_HASH=$(find ui/src ui/public ui/index.html -type f -exec md5sum {} \; 2>/dev/null | sort | md5sum | cut -d' ' -f1)
+
+            # Try to get stored hash from S3
+            STORED_HASH=$(aws s3 cp "s3://${UI_BUCKET}/.ui-hash" - 2>/dev/null || echo "")
+
+            if [ "${UI_HASH}" = "${STORED_HASH}" ]; then
+              echo "✅ UI source unchanged (hash: ${UI_HASH}), skipping rebuild"
+              echo "skip_ui=true" >> $GITHUB_OUTPUT
+            else
+              echo "UI source changed (${UI_HASH} vs ${STORED_HASH}), will deploy"
+              echo "skip_ui=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "UI not found in bucket, will deploy"
+            echo "skip_ui=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and deploy React UI
+        if: steps.check-ui.outputs.skip_ui != 'true'
         env:
           STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
         run: |
           echo "Building and deploying React UI..."
           chmod +x scripts/deploy-ui.sh
           ./scripts/deploy-ui.sh
+
+      - name: Summary of operations
+        if: always()
+        run: |
+          echo "=== Setup Stack Summary ==="
+          echo "Stack: ${{ steps.stack-name.outputs.stack_name }}"
+          echo "Stack status: ${{ steps.check-stack.outputs.stack_status }}"
+          echo "Stack deployment skipped: ${{ steps.check-stack.outputs.skip_deploy }}"
+          echo "UI deployment skipped: ${{ steps.check-ui.outputs.skip_ui }}"
+          echo ""
+          if [ "${{ steps.check-stack.outputs.skip_deploy }}" = "true" ]; then
+            echo "⚡ Stack already exists and is ready - saved ~10-15 minutes!"
+          fi
+          if [ "${{ steps.check-ui.outputs.skip_ui }}" = "true" ]; then
+            echo "⚡ UI unchanged - saved ~2-3 minutes!"
+          fi
 
       - name: Get stack outputs
         id: stack-outputs
@@ -219,6 +320,15 @@ jobs:
           path: ${{ matrix.test-type }}-tests-output.txt
           retention-days: 7
 
+      - name: Upload test artifacts (screenshots, page source, logs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.test-type }}-test-artifacts
+          path: tests/${{ matrix.test-dir }}/test-artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: Check test outcome
         if: always()
         run: |
@@ -260,6 +370,18 @@ jobs:
           API_OUTPUT=$(cat test-outputs/api-test-output/api-tests-output.txt 2>/dev/null | head -2000 | jq -Rs . || echo '"No output captured"')
           E2E_OUTPUT=$(cat test-outputs/e2e-test-output/e2e-tests-output.txt 2>/dev/null | head -2000 | jq -Rs . || echo '"No output captured"')
 
+          # Collect debug artifacts (concise summaries for failed tests)
+          E2E_ARTIFACTS=""
+          if [ -d "test-outputs/e2e-test-artifacts" ]; then
+            echo "Collecting E2E test artifacts..."
+            for artifact in test-outputs/e2e-test-artifacts/*.txt; do
+              if [ -f "$artifact" ]; then
+                E2E_ARTIFACTS="${E2E_ARTIFACTS}\n\n### $(basename $artifact)\n$(cat $artifact | head -50)"
+              fi
+            done
+          fi
+          E2E_ARTIFACTS_JSON=$(echo "$E2E_ARTIFACTS" | jq -Rs . || echo '""')
+
           # Determine outcomes from job results (will be set in check-results job)
           SMOKE_OUTCOME="${{ needs.test-suite.result }}"
           API_OUTCOME="${{ needs.test-suite.result }}"
@@ -273,12 +395,13 @@ jobs:
             --argjson smoke_output "$SMOKE_OUTPUT" \
             --argjson api_output "$API_OUTPUT" \
             --argjson e2e_output "$E2E_OUTPUT" \
+            --argjson e2e_artifacts "$E2E_ARTIFACTS_JSON" \
             '{
               "model": "claude-sonnet-4-5",
               "max_tokens": 4096,
               "messages": [{
                 "role": "user",
-                "content": "You are analyzing test results from an E2E test suite for the Silvermoat insurance MVP application. Review the test outputs below and generate a concise PR comment summarizing:\n\n1. Overall status (✅ passed / ⚠️ partial / ❌ failed)\n2. Key findings for each test suite\n3. Critical failures that need immediate attention\n4. Recommendations for fixes (if failures exist)\n\nFormat as GitHub-flavored markdown. Be specific about which tests failed and why. Limit to 500 words.\n\n## Test Outcomes\n- Smoke tests: \($smoke_outcome)\n- API tests: \($api_outcome)\n- E2E tests: \($e2e_outcome)\n\n## Deployment Smoke Tests\n```\n\($smoke_output)\n```\n\n## API Contract Tests\n```\n\($api_output)\n```\n\n## E2E Smoke Tests\n```\n\($e2e_output)\n```"
+                "content": "You are analyzing test results from an E2E test suite for the Silvermoat insurance MVP application. Review the test outputs below and generate a concise PR comment summarizing:\n\n1. Overall status (✅ passed / ⚠️ partial / ❌ failed)\n2. Key findings for each test suite\n3. Critical failures that need immediate attention\n4. Recommendations for fixes (if failures exist)\n\nFormat as GitHub-flavored markdown. Be specific about which tests failed and why. Limit to 500 words.\n\n## Test Outcomes\n- Smoke tests: \($smoke_outcome)\n- API tests: \($api_outcome)\n- E2E tests: \($e2e_outcome)\n\n## Deployment Smoke Tests\n```\n\($smoke_output)\n```\n\n## API Contract Tests\n```\n\($api_output)\n```\n\n## E2E Smoke Tests\n```\n\($e2e_output)\n```\n\n## E2E Debug Artifacts\nThese contain DOM state, console errors, and diagnostic info for failed tests:\n```\n\($e2e_artifacts)\n```"
               }]
             }' > analysis-request.json
 
@@ -336,25 +459,168 @@ jobs:
           echo "$ANALYSIS" > test-analysis.md
           echo "Analysis complete!"
 
-      - name: Upload analysis
+      - name: Extract issues from test failures
+        if: always() && (inputs.create_issues == true || github.event_name == 'pull_request')
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_GITHUB_ACTIONS }}
+        run: |
+          echo "Extracting actionable issues from test failures..."
+
+          # Skip if no API key or analysis failed
+          if [ -z "$ANTHROPIC_API_KEY" ] || [ ! -f "test-analysis.md" ]; then
+            echo "[]" > issues-to-create.json
+            exit 0
+          fi
+
+          # Collect test outputs again
+          SMOKE_OUTPUT=$(cat test-outputs/smoke-test-output/smoke-tests-output.txt 2>/dev/null | head -1000 | jq -Rs . || echo '"No output"')
+          API_OUTPUT=$(cat test-outputs/api-test-output/api-tests-output.txt 2>/dev/null | head -1000 | jq -Rs . || echo '"No output"')
+          E2E_OUTPUT=$(cat test-outputs/e2e-test-output/e2e-tests-output.txt 2>/dev/null | head -1000 | jq -Rs . || echo '"No output"')
+
+          # Collect artifacts for better issue context
+          E2E_ARTIFACTS=""
+          if [ -d "test-outputs/e2e-test-artifacts" ]; then
+            for artifact in test-outputs/e2e-test-artifacts/*.txt; do
+              if [ -f "$artifact" ]; then
+                E2E_ARTIFACTS="${E2E_ARTIFACTS}\n\n### $(basename $artifact)\n$(cat $artifact | head -50)"
+              fi
+            done
+          fi
+          E2E_ARTIFACTS_JSON=$(echo "$E2E_ARTIFACTS" | jq -Rs . || echo '""')
+
+          # Ask Claude to extract discrete issues
+          jq -n \
+            --argjson smoke "$SMOKE_OUTPUT" \
+            --argjson api "$API_OUTPUT" \
+            --argjson e2e "$E2E_OUTPUT" \
+            --argjson e2e_artifacts "$E2E_ARTIFACTS_JSON" \
+            '{
+              "model": "claude-sonnet-4-5",
+              "max_tokens": 2048,
+              "messages": [{
+                "role": "user",
+                "content": "Analyze these test failures and extract discrete, actionable issues. For each distinct problem, provide:\n\n1. Title (concise, specific to the failure)\n2. Body (details: what failed, error messages, reproduction context, DOM state from artifacts)\n3. Labels (array: e.g., [\"bug\", \"tests\", \"e2e\"])\n\nReturn ONLY a JSON array (no markdown, no explanation):\n```json\n[\n  {\n    \"title\": \"E2E test timeout: Sample data button not found\",\n    \"body\": \"## Problem\\n[details]\\n\\n## Error\\n```\\n[error]\\n```\\n\\n## DOM State\\n[from artifacts]\\n\\n## Context\\nWorkflow: ...\\n\",\n    \"labels\": [\"bug\", \"e2e-tests\"]\n  }\n]\n```\n\nIf no distinct issues (all tests pass, or failures are duplicates), return: []\n\n## Smoke Tests\n```\n\($smoke)\n```\n\n## API Tests\n```\n\($api)\n```\n\n## E2E Tests\n```\n\($e2e)\n```\n\n## E2E Debug Artifacts (DOM state, console errors)\n```\n\($e2e_artifacts)\n```"
+              }]
+            }' > issues-request.json
+
+          # Call Claude API
+          set +e
+          curl -s --max-time 45 -o issues-response.json -w "%{http_code}" \
+            https://api.anthropic.com/v1/messages \
+            -H "content-type: application/json" \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -d @issues-request.json > issues_http_code.txt
+          CURL_EXIT=$?
+          HTTP_CODE=$(cat issues_http_code.txt 2>/dev/null || echo "000")
+          set -e
+
+          # Handle failures
+          if [ $CURL_EXIT -ne 0 ] || [ "$HTTP_CODE" != "200" ]; then
+            echo "Issue extraction failed (curl: $CURL_EXIT, http: $HTTP_CODE)"
+            echo "[]" > issues-to-create.json
+            exit 0
+          fi
+
+          # Extract JSON array from response
+          ISSUES_JSON=$(jq -r '.content[0].text // "[]"' issues-response.json)
+
+          # Try to parse it - Claude might wrap in markdown code blocks
+          if echo "$ISSUES_JSON" | grep -q '```json'; then
+            # Extract JSON from markdown code block
+            ISSUES_JSON=$(echo "$ISSUES_JSON" | sed -n '/```json/,/```/p' | sed '1d;$d')
+          elif echo "$ISSUES_JSON" | grep -q '```'; then
+            ISSUES_JSON=$(echo "$ISSUES_JSON" | sed -n '/```/,/```/p' | sed '1d;$d')
+          fi
+
+          # Validate JSON
+          if echo "$ISSUES_JSON" | jq empty 2>/dev/null; then
+            echo "$ISSUES_JSON" > issues-to-create.json
+            ISSUE_COUNT=$(echo "$ISSUES_JSON" | jq 'length')
+            echo "Extracted $ISSUE_COUNT issue(s) to create"
+          else
+            echo "Failed to parse issues JSON, skipping issue creation"
+            echo "[]" > issues-to-create.json
+          fi
+
+      - name: Upload analysis and issues
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-analysis
-          path: test-analysis.md
+          path: |
+            test-analysis.md
+            issues-to-create.json
           retention-days: 7
 
   post-to-pr:
     needs: [setup-stack, analyze-results]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 5
 
     steps:
       - name: Download analysis
         uses: actions/download-artifact@v4
         with:
           name: test-analysis
+
+      - name: Create GitHub issues for test failures
+        id: create-issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Read issues to create
+            let issuesToCreate = [];
+            try {
+              const issuesJson = fs.readFileSync('issues-to-create.json', 'utf8');
+              issuesToCreate = JSON.parse(issuesJson);
+            } catch (error) {
+              console.log('No issues to create or failed to read:', error);
+              core.setOutput('created_issues', JSON.stringify([]));
+              return;
+            }
+
+            if (!Array.isArray(issuesToCreate) || issuesToCreate.length === 0) {
+              console.log('No issues to create');
+              core.setOutput('created_issues', JSON.stringify([]));
+              return;
+            }
+
+            console.log(`Creating ${issuesToCreate.length} issue(s)...`);
+
+            const createdIssues = [];
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const prNumber = context.payload.pull_request.number;
+
+            for (const issue of issuesToCreate) {
+              try {
+                // Add workflow context to issue body
+                const bodyWithContext = `${issue.body}\n\n---\n\n**Detected by:** Workflow run [#${context.runId}](${runUrl})\n**Related PR:** #${prNumber}`;
+
+                const result = await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: issue.title,
+                  body: bodyWithContext,
+                  labels: issue.labels || ['bug', 'automated']
+                });
+
+                createdIssues.push({
+                  number: result.data.number,
+                  title: result.data.title,
+                  url: result.data.html_url
+                });
+
+                console.log(`Created issue #${result.data.number}: ${result.data.title}`);
+              } catch (error) {
+                console.error(`Failed to create issue "${issue.title}":`, error);
+              }
+            }
+
+            core.setOutput('created_issues', JSON.stringify(createdIssues));
 
       - name: Post results to PR
         uses: actions/github-script@v7
@@ -374,6 +640,24 @@ jobs:
               analysis = "⚠️ AI analysis failed. Check logs for details.";
             }
 
+            // Read created issues from previous step
+            const createdIssuesJson = '${{ steps.create-issues.outputs.created_issues }}';
+            let createdIssues = [];
+            try {
+              createdIssues = JSON.parse(createdIssuesJson);
+            } catch (error) {
+              console.log('No created issues:', error);
+            }
+
+            // Build issues section if any were created
+            let issuesSection = '';
+            if (createdIssues.length > 0) {
+              issuesSection = '\n\n## 📋 Issues Created\n\n';
+              for (const issue of createdIssues) {
+                issuesSection += `- #${issue.number} ${issue.title}\n`;
+              }
+            }
+
             const body = `## 🤖 E2E Test Analysis
 
             **Test Stack:** \`${stackName}\`
@@ -381,7 +665,7 @@ jobs:
 
             ---
 
-            ${analysis}
+            ${analysis}${issuesSection}
 
             ---
 
