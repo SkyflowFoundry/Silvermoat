@@ -13,36 +13,59 @@ from selenium.common.exceptions import TimeoutException
 
 
 def save_debug_artifacts(driver, test_name, base_url):
-    """Save screenshot, page source, and console logs for debugging"""
+    """Save minimal debug info for AI analysis (no screenshots, concise text only)"""
     try:
         # Create artifacts directory
         artifacts_dir = "test-artifacts"
         os.makedirs(artifacts_dir, exist_ok=True)
 
-        # Save screenshot
-        screenshot_path = f"{artifacts_dir}/{test_name}_screenshot.png"
-        driver.save_screenshot(screenshot_path)
-        print(f"Screenshot saved: {screenshot_path}")
-
-        # Save page source
-        source_path = f"{artifacts_dir}/{test_name}_page_source.html"
-        with open(source_path, 'w', encoding='utf-8') as f:
-            f.write(driver.page_source)
-        print(f"Page source saved: {source_path}")
-
-        # Save console logs
-        logs_path = f"{artifacts_dir}/{test_name}_console_logs.txt"
-        with open(logs_path, 'w', encoding='utf-8') as f:
+        # Save concise debug summary (text only, for Claude)
+        summary_path = f"{artifacts_dir}/{test_name}.txt"
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            f.write(f"Test: {test_name}\n")
             f.write(f"URL: {driver.current_url}\n")
-            f.write(f"Expected URL pattern: {base_url}\n\n")
-            f.write("=== Browser Console Logs ===\n")
+            f.write(f"Expected: {base_url}/[entity]/new\n\n")
+
+            # Console errors (SEVERE only)
+            f.write("=== Console Errors ===\n")
             try:
                 logs = driver.get_log('browser')
-                for log in logs:
-                    f.write(f"[{log['level']}] {log['message']}\n")
+                severe_errors = [log for log in logs if log['level'] == 'SEVERE']
+                if severe_errors:
+                    for log in severe_errors[:5]:  # Max 5 errors
+                        f.write(f"[{log['level']}] {log['message'][:200]}\n")
+                else:
+                    f.write("No severe console errors\n")
             except Exception as e:
                 f.write(f"Could not capture logs: {e}\n")
-        print(f"Console logs saved: {logs_path}")
+
+            # Check if target element exists at all
+            f.write("\n=== DOM Check ===\n")
+            try:
+                # Check for button
+                button_exists = driver.execute_script(
+                    "return document.querySelectorAll('[data-testid=\"fill-sample-data-button\"]').length"
+                )
+                f.write(f"Sample data buttons found: {button_exists}\n")
+
+                # Check for modal
+                modal_exists = driver.execute_script(
+                    "return document.querySelectorAll('.ant-modal').length"
+                )
+                modal_visible = driver.execute_script(
+                    "return document.querySelectorAll('.ant-modal:not(.ant-modal-hidden)').length"
+                )
+                f.write(f"Modals in DOM: {modal_exists}\n")
+                f.write(f"Visible modals: {modal_visible}\n")
+
+                # Check if React loaded
+                react_loaded = driver.execute_script("return !!window.React || !!document.getElementById('root')")
+                f.write(f"React loaded: {react_loaded}\n")
+
+            except Exception as e:
+                f.write(f"DOM check failed: {e}\n")
+
+        print(f"Debug summary saved: {summary_path}")
 
     except Exception as e:
         print(f"Error saving debug artifacts: {e}")
