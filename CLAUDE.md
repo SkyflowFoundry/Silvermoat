@@ -196,7 +196,7 @@ Reusable actions to reduce duplication:
 ### Workflows
 
 **1. E2E Tests** (`.github/workflows/e2e-tests.yml`)
-- Trigger: PR to main
+- Trigger: PR to main, workflow_dispatch
 - Creates ephemeral test stack: `silvermoat-test-pr-{NUMBER}`
 - No CloudFront (HTTP S3 only, fast deployment)
 - **Matrix strategy**: 6 jobs with parallel test execution
@@ -204,10 +204,12 @@ Reusable actions to reduce duplication:
   - `setup-stack`: Deploy infrastructure + UI (20min, waits for validation)
   - `test-suite`: Run smoke/API/E2E in parallel (15min max)
   - `analyze-results`: Aggregate outputs + Claude AI analysis (5min)
-  - `post-to-pr`: Post analysis to PR (2min)
+  - `post-to-pr`: Post analysis + auto-create issues for failures (5min)
   - `check-results`: Final pass/fail determination
 - Tests run in parallel, reducing total runtime ~50% (45min → 25min)
 - Stack persists until PR closed
+- **Auto-issue creation**: Claude extracts discrete issues from test failures and creates GitHub issues automatically (default: enabled for PRs, controlled by `create_issues` input on workflow_dispatch)
+- Test artifacts (screenshots, page source, console logs) uploaded on failure for debugging
 
 **2. PR Stack Cleanup** (`.github/workflows/pr-stack-cleanup.yml`)
 - Trigger: PR closed/merged
