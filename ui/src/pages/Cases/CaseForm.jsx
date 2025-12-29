@@ -153,6 +153,7 @@ const CaseForm = ({ onSuccess }) => {
               onClick={handleFillSampleData}
               size="large"
               block
+              data-testid="fill-sample-data-button"
             >
               Fill with Sample Data
             </Button>

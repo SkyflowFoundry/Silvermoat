@@ -17,12 +17,12 @@ def test_quote_form_sample_data_button(driver, base_url):
     driver.get(f"{base_url}/quotes")
 
     # Wait for page to load
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.XPATH, "//button[contains(text(), 'Fill with Sample Data')]"))
+    WebDriverWait(driver, 15).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']"))
     )
 
     # Click the sample data button
-    sample_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Fill with Sample Data')]")
+    sample_button = driver.find_element(By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']")
     sample_button.click()
 
     # Verify name field is populated
@@ -43,12 +43,12 @@ def test_policy_form_sample_data_button(driver, base_url):
     driver.get(f"{base_url}/policies")
 
     # Wait for page to load
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.XPATH, "//button[contains(text(), 'Fill with Sample Data')]"))
+    WebDriverWait(driver, 15).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']"))
     )
 
     # Click the sample data button
-    sample_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Fill with Sample Data')]")
+    sample_button = driver.find_element(By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']")
     sample_button.click()
 
     # Verify policy number field is populated
@@ -78,12 +78,12 @@ def test_claim_form_sample_data_button(driver, base_url):
     driver.get(f"{base_url}/claims")
 
     # Wait for page to load
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.XPATH, "//button[contains(text(), 'Fill with Sample Data')]"))
+    WebDriverWait(driver, 15).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']"))
     )
 
     # Click the sample data button
-    sample_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Fill with Sample Data')]")
+    sample_button = driver.find_element(By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']")
     sample_button.click()
 
     # Verify claim number is populated
@@ -118,12 +118,12 @@ def test_payment_form_sample_data_button(driver, base_url):
     driver.get(f"{base_url}/payments")
 
     # Wait for page to load
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.XPATH, "//button[contains(text(), 'Fill with Sample Data')]"))
+    WebDriverWait(driver, 15).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']"))
     )
 
     # Click the sample data button
-    sample_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Fill with Sample Data')]")
+    sample_button = driver.find_element(By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']")
     sample_button.click()
 
     # Verify payment date is populated
@@ -149,12 +149,12 @@ def test_case_form_sample_data_button(driver, base_url):
     driver.get(f"{base_url}/cases")
 
     # Wait for page to load
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.XPATH, "//button[contains(text(), 'Fill with Sample Data')]"))
+    WebDriverWait(driver, 15).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']"))
     )
 
     # Click the sample data button
-    sample_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Fill with Sample Data')]")
+    sample_button = driver.find_element(By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']")
     sample_button.click()
 
     # Verify title is populated
@@ -192,8 +192,8 @@ def test_sample_data_buttons_exist_on_all_forms(driver, base_url):
 
         # Wait for button to be present
         try:
-            button = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.XPATH, "//button[contains(text(), 'Fill with Sample Data')]"))
+            button = WebDriverWait(driver, 15).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']"))
             )
             assert button.is_displayed(), f"{form_name} form should have visible sample data button"
         except Exception as e:
@@ -207,11 +207,11 @@ def test_sample_data_button_reusable(driver, base_url):
     driver.get(f"{base_url}/quotes")
 
     # Wait for page to load
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.XPATH, "//button[contains(text(), 'Fill with Sample Data')]"))
+    WebDriverWait(driver, 15).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']"))
     )
 
-    sample_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Fill with Sample Data')]")
+    sample_button = driver.find_element(By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']")
     name_field = driver.find_element(By.ID, "name")
 
     # Click first time
