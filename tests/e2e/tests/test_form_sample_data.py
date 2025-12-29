@@ -71,15 +71,24 @@ def save_debug_artifacts(driver, test_name, base_url):
         print(f"Error saving debug artifacts: {e}")
 
 
-def wait_for_react_hydration(driver, timeout=10):
-    """Wait for React app to be fully hydrated and interactive"""
+def wait_for_app_ready(driver, timeout=15):
+    """Wait for app to be fully loaded and interactive (includes 3s+ loading screen)"""
     try:
-        # Wait for React root div to exist and have content
+        # Wait for React root div to exist
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located((By.ID, "root"))
         )
 
-        # Wait for any loading spinners to disappear
+        # CRITICAL: Wait for loading screen to be REMOVED from DOM (not just fade-out)
+        # Loading screen has 3s minimum + 800ms fade = 3.8s total minimum
+        WebDriverWait(driver, timeout).until(
+            lambda d: d.execute_script(
+                "return !document.getElementById('loading-screen')"
+            )
+        )
+        print("Loading screen removed")
+
+        # Wait for any Ant Design loading spinners to disappear
         WebDriverWait(driver, timeout).until(
             lambda d: d.execute_script(
                 "return document.readyState === 'complete' && "
@@ -89,7 +98,7 @@ def wait_for_react_hydration(driver, timeout=10):
 
         return True
     except TimeoutException:
-        print("Warning: React hydration check timed out")
+        print("Warning: App ready check timed out")
         return False
 
 
@@ -102,8 +111,8 @@ def test_quote_form_sample_data_button(driver, base_url):
     try:
         driver.get(f"{base_url}/quotes/new")
 
-        # Wait for React to hydrate
-        wait_for_react_hydration(driver)
+        # Wait for app ready (loading screen removed)
+        wait_for_app_ready(driver)
 
         # Wait for page to load and button to appear
         print(f"[{test_name}] Waiting for sample data button...")
@@ -146,8 +155,8 @@ def test_policy_form_sample_data_button(driver, base_url):
     try:
         driver.get(f"{base_url}/policies/new")
 
-        # Wait for React to hydrate
-        wait_for_react_hydration(driver)
+        # Wait for app ready (loading screen removed)
+        wait_for_app_ready(driver)
 
         # Wait for page to load and button to appear
         print(f"[{test_name}] Waiting for sample data button...")
@@ -199,8 +208,8 @@ def test_claim_form_sample_data_button(driver, base_url):
     try:
         driver.get(f"{base_url}/claims/new")
 
-        # Wait for React to hydrate
-        wait_for_react_hydration(driver)
+        # Wait for app ready (loading screen removed)
+        wait_for_app_ready(driver)
 
         # Wait for page to load and button to appear
         print(f"[{test_name}] Waiting for sample data button...")
@@ -257,8 +266,8 @@ def test_payment_form_sample_data_button(driver, base_url):
     try:
         driver.get(f"{base_url}/payments/new")
 
-        # Wait for React to hydrate
-        wait_for_react_hydration(driver)
+        # Wait for app ready (loading screen removed)
+        wait_for_app_ready(driver)
 
         # Wait for page to load and button to appear
         print(f"[{test_name}] Waiting for sample data button...")
@@ -306,8 +315,8 @@ def test_case_form_sample_data_button(driver, base_url):
     try:
         driver.get(f"{base_url}/cases/new")
 
-        # Wait for React to hydrate
-        wait_for_react_hydration(driver)
+        # Wait for app ready (loading screen removed)
+        wait_for_app_ready(driver)
 
         # Wait for page to load and button to appear
         print(f"[{test_name}] Waiting for sample data button...")
@@ -396,8 +405,8 @@ def test_sample_data_button_reusable(driver, base_url):
     try:
         driver.get(f"{base_url}/quotes/new")
 
-        # Wait for React to hydrate
-        wait_for_react_hydration(driver)
+        # Wait for app ready (loading screen removed)
+        wait_for_app_ready(driver)
 
         # Wait for page to load and button to appear
         print(f"[{test_name}] Waiting for sample data button...")
