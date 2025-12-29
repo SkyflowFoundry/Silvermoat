@@ -77,7 +77,7 @@ def test_quote_form_sample_data_button(driver, base_url):
     test_name = "test_quote_form_sample_data_button"
 
     try:
-        driver.get(f"{base_url}/quotes")
+        driver.get(f"{base_url}/quotes/new")
 
         # Wait for React to hydrate
         wait_for_react_hydration(driver)
@@ -121,7 +121,7 @@ def test_policy_form_sample_data_button(driver, base_url):
     test_name = "test_policy_form_sample_data_button"
 
     try:
-        driver.get(f"{base_url}/policies")
+        driver.get(f"{base_url}/policies/new")
 
         # Wait for React to hydrate
         wait_for_react_hydration(driver)
@@ -174,7 +174,7 @@ def test_claim_form_sample_data_button(driver, base_url):
     test_name = "test_claim_form_sample_data_button"
 
     try:
-        driver.get(f"{base_url}/claims")
+        driver.get(f"{base_url}/claims/new")
 
         # Wait for React to hydrate
         wait_for_react_hydration(driver)
@@ -232,7 +232,7 @@ def test_payment_form_sample_data_button(driver, base_url):
     test_name = "test_payment_form_sample_data_button"
 
     try:
-        driver.get(f"{base_url}/payments")
+        driver.get(f"{base_url}/payments/new")
 
         # Wait for React to hydrate
         wait_for_react_hydration(driver)
@@ -281,7 +281,7 @@ def test_case_form_sample_data_button(driver, base_url):
     test_name = "test_case_form_sample_data_button"
 
     try:
-        driver.get(f"{base_url}/cases")
+        driver.get(f"{base_url}/cases/new")
 
         # Wait for React to hydrate
         wait_for_react_hydration(driver)
@@ -331,11 +331,11 @@ def test_sample_data_buttons_exist_on_all_forms(driver, base_url):
     """Test that all forms have the sample data button present"""
     test_name = "test_sample_data_buttons_exist_on_all_forms"
     forms = [
-        ("/quotes", "Quote"),
-        ("/policies", "Policy"),
-        ("/claims", "Claim"),
-        ("/payments", "Payment"),
-        ("/cases", "Case"),
+        ("/quotes/new", "Quote"),
+        ("/policies/new", "Policy"),
+        ("/claims/new", "Claim"),
+        ("/payments/new", "Payment"),
+        ("/cases/new", "Case"),
     ]
 
     for path, form_name in forms:
@@ -371,7 +371,7 @@ def test_sample_data_button_reusable(driver, base_url):
     test_name = "test_sample_data_button_reusable"
 
     try:
-        driver.get(f"{base_url}/quotes")
+        driver.get(f"{base_url}/quotes/new")
 
         # Wait for React to hydrate
         wait_for_react_hydration(driver)
