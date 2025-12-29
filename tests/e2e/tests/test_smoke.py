@@ -9,6 +9,7 @@ import pytest
 import requests
 from selenium.webdriver.common.by import By
 from ..pages.home_page import HomePage
+from ..conftest import wait_for_app_ready
 
 
 @pytest.mark.e2e
@@ -16,6 +17,7 @@ from ..pages.home_page import HomePage
 def test_application_loads(driver, base_url):
     """Test that application loads successfully"""
     driver.get(base_url)
+    wait_for_app_ready(driver)  # Wait for loading screen removal + React hydration
 
     # Wait for page to load
     assert "Silvermoat" in driver.title or len(driver.title) > 0, "Page title should be set"
