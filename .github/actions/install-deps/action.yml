@@ -1,0 +1,21 @@
+name: Install Dependencies
+description: Install Python test dependencies and UI npm packages
+
+inputs:
+  install-ui:
+    description: 'Whether to install UI dependencies'
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - name: Install Python test dependencies
+      shell: bash
+      run: pip install -r requirements-test.txt
+
+    - name: Install UI dependencies
+      if: ${{ inputs.install-ui == 'true' }}
+      shell: bash
+      working-directory: ui
+      run: npm ci

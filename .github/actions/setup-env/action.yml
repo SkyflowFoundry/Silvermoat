@@ -1,0 +1,17 @@
+name: Setup Python and Node Environment
+description: Setup Python 3.11 and Node.js 24 with npm caching
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Set up Node.js 24
+      uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+        cache: 'npm'
+        cache-dependency-path: ui/package-lock.json
