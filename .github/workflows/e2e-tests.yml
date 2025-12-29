@@ -104,7 +104,38 @@ jobs:
           echo "stack_name=${STACK_NAME}" >> $GITHUB_OUTPUT
           echo "Test stack name: ${STACK_NAME}"
 
+      - name: Check if stack exists
+        id: check-stack
+        run: |
+          STACK_NAME="${{ steps.stack-name.outputs.stack_name }}"
+          echo "Checking if stack ${STACK_NAME} exists..."
+
+          # Check stack status
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+
+          echo "Stack status: ${STACK_STATUS}"
+          echo "stack_status=${STACK_STATUS}" >> $GITHUB_OUTPUT
+
+          # Stack is ready if in a stable complete state
+          if [[ "${STACK_STATUS}" == "CREATE_COMPLETE" ]] || [[ "${STACK_STATUS}" == "UPDATE_COMPLETE" ]]; then
+            echo "✅ Stack exists and is ready"
+            echo "stack_exists=true" >> $GITHUB_OUTPUT
+            echo "skip_deploy=true" >> $GITHUB_OUTPUT
+          elif [[ "${STACK_STATUS}" == "NOT_FOUND" ]]; then
+            echo "Stack does not exist, will create"
+            echo "stack_exists=false" >> $GITHUB_OUTPUT
+            echo "skip_deploy=false" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Stack exists but in state: ${STACK_STATUS}"
+            echo "stack_exists=true" >> $GITHUB_OUTPUT
+            echo "skip_deploy=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy test stack
+        if: steps.check-stack.outputs.skip_deploy != 'true'
         env:
           STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
           APP_NAME: silvermoat-test
@@ -118,6 +149,7 @@ jobs:
           ./scripts/deploy-stack.sh
 
       - name: Wait for stack deployment
+        if: steps.check-stack.outputs.skip_deploy != 'true'
         run: |
           echo "Waiting for stack deployment to complete..."
           aws cloudformation wait stack-create-complete \
@@ -127,13 +159,76 @@ jobs:
             --stack-name ${{ steps.stack-name.outputs.stack_name }} \
             --region us-east-1
 
+      - name: Check if UI needs deployment
+        id: check-ui
+        run: |
+          STACK_NAME="${{ steps.stack-name.outputs.stack_name }}"
+
+          # If stack was just deployed, always deploy UI
+          if [ "${{ steps.check-stack.outputs.skip_deploy }}" != "true" ]; then
+            echo "Stack was just deployed, UI needs deployment"
+            echo "skip_ui=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Get UI bucket from stack outputs
+          UI_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].Outputs[?OutputKey==`UiBucketName`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$UI_BUCKET" ]; then
+            echo "⚠️ Could not find UI bucket, will deploy UI"
+            echo "skip_ui=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check if bucket has index.html
+          if aws s3 ls "s3://${UI_BUCKET}/index.html" >/dev/null 2>&1; then
+            echo "✅ UI already deployed in bucket ${UI_BUCKET}"
+
+            # Calculate hash of UI source to detect changes
+            UI_HASH=$(find ui/src ui/public ui/index.html -type f -exec md5sum {} \; 2>/dev/null | sort | md5sum | cut -d' ' -f1)
+
+            # Try to get stored hash from S3
+            STORED_HASH=$(aws s3 cp "s3://${UI_BUCKET}/.ui-hash" - 2>/dev/null || echo "")
+
+            if [ "${UI_HASH}" = "${STORED_HASH}" ]; then
+              echo "✅ UI source unchanged (hash: ${UI_HASH}), skipping rebuild"
+              echo "skip_ui=true" >> $GITHUB_OUTPUT
+            else
+              echo "UI source changed (${UI_HASH} vs ${STORED_HASH}), will deploy"
+              echo "skip_ui=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "UI not found in bucket, will deploy"
+            echo "skip_ui=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and deploy React UI
+        if: steps.check-ui.outputs.skip_ui != 'true'
         env:
           STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
         run: |
           echo "Building and deploying React UI..."
           chmod +x scripts/deploy-ui.sh
           ./scripts/deploy-ui.sh
+
+      - name: Summary of operations
+        if: always()
+        run: |
+          echo "=== Setup Stack Summary ==="
+          echo "Stack: ${{ steps.stack-name.outputs.stack_name }}"
+          echo "Stack status: ${{ steps.check-stack.outputs.stack_status }}"
+          echo "Stack deployment skipped: ${{ steps.check-stack.outputs.skip_deploy }}"
+          echo "UI deployment skipped: ${{ steps.check-ui.outputs.skip_ui }}"
+          echo ""
+          if [ "${{ steps.check-stack.outputs.skip_deploy }}" = "true" ]; then
+            echo "⚡ Stack already exists and is ready - saved ~10-15 minutes!"
+          fi
+          if [ "${{ steps.check-ui.outputs.skip_ui }}" = "true" ]; then
+            echo "⚡ UI unchanged - saved ~2-3 minutes!"
+          fi
 
       - name: Get stack outputs
         id: stack-outputs

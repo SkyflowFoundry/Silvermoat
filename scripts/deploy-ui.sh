@@ -93,6 +93,11 @@ $AWS_CMD s3 sync "$BUILD_DIR" "s3://$UI_BUCKET/" \
 $AWS_CMD s3 cp "$BUILD_DIR/index.html" "s3://$UI_BUCKET/index.html" \
   --cache-control "no-cache"
 
+# Store UI source hash for change detection in CI
+UI_HASH=$(find "$UI_DIR/src" "$UI_DIR/public" "$UI_DIR/index.html" -type f -exec md5sum {} \; 2>/dev/null | sort | md5sum | cut -d' ' -f1)
+echo "$UI_HASH" | $AWS_CMD s3 cp - "s3://$UI_BUCKET/.ui-hash" --content-type "text/plain"
+echo "UI hash stored: $UI_HASH"
+
 echo ""
 echo "UI deployment complete!"
 echo ""
