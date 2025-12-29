@@ -109,3 +109,16 @@ def sample_payment_data():
         "payment_method": "credit_card",
         "card_last_four": "4242"
     }
+
+
+@pytest.fixture
+def sample_case_data():
+    """Sample case data for testing"""
+    return {
+        "title": "Policy Change Request",
+        "description": "Customer requesting coverage amount increase for home policy",
+        "relatedEntityType": "policy",
+        "relatedEntityId": "test-policy-123",
+        "assignee": "Alice Johnson",
+        "priority": "MEDIUM"
+    }

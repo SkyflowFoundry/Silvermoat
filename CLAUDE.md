@@ -74,19 +74,57 @@ Every plan MUST include:
 
 ## Testing
 
-- Add tests for new functionality when appropriate.
+### General Principles
+
+- **Always add tests for new functionality** that fits existing test categories.
 - Do not create new non-trivial test infrastructure unnecessarily.
-- Match existing test patterns and structure.
+- Match existing test patterns and structure exactly.
 - Simple tests (unit tests, straightforward integration tests) should be added for new functionality.
 - Complex test infrastructure (new test frameworks, new test environments, elaborate mocking) requires justification.
-- Examples of appropriate testing:
-  - New API endpoint → add API test (simple, existing pattern)
-  - New form component → add form test (simple, matches existing patterns)
-  - New page → add E2E smoke test (existing infrastructure)
-- Examples of tests requiring justification:
-  - Setting up Selenium for the first time
-  - Adding new testing framework (Jest, Vitest, etc.)
-  - Creating complex mock infrastructure
+
+### Test Categories (Add to These)
+
+When adding new functionality, check these test categories and add tests where applicable:
+
+**1. JavaScript Unit Tests** (`ui/src/**/*.test.js`)
+- Pure utility functions
+- Data generators
+- Helper functions
+- Pattern: Use Vitest, test all exported functions
+
+**2. E2E Tests** (`tests/e2e/tests/*.py`)
+- User-facing UI interactions
+- Form submissions
+- Navigation flows
+- Pattern: Use Selenium, test all user workflows
+
+**3. API Contract Tests** (`tests/api/test_*.py`)
+- API endpoints (create, read, update, delete)
+- Request/response validation
+- Error handling
+- Pattern: One test file per resource (quote, policy, claim, payment, case)
+- **IMPORTANT**: When adding a new resource/entity, create corresponding API contract tests
+
+### Examples
+
+**Appropriate (DO add tests):**
+- New utility function → unit test in same directory
+- New form component → E2E test in `test_form_*.py`
+- New API endpoint → test in `tests/api/test_<resource>.py`
+- New UI button/feature → E2E test for interaction
+- New data generator → unit test for output validation
+
+**Requires justification (DON'T add without asking):**
+- New test framework (Jest, Mocha, etc.)
+- New test environment (Docker, separate test infra)
+- Complex mocking infrastructure
+
+### Checklist Before Completing Feature
+
+1. Does feature have UI components? → Add E2E tests
+2. Does feature use utility functions? → Add unit tests
+3. Does feature touch API endpoints? → Add/update API contract tests
+4. Do all similar resources have equivalent test coverage? (e.g., if 4/5 forms have tests, add tests for the 5th)
 
 ## Project Overview
 
