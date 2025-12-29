@@ -167,15 +167,12 @@ jobs:
         include:
           - test-type: smoke
             test-dir: smoke
-            pytest-mark: smoke
             needs-chrome: false
           - test-type: api
             test-dir: api
-            pytest-mark: api
             needs-chrome: false
           - test-type: e2e
             test-dir: e2e
-            pytest-mark: e2e
             needs-chrome: true
 
     steps:
@@ -212,7 +209,7 @@ jobs:
           set -o pipefail
           echo "Running ${{ matrix.test-type }} tests..."
           cd tests/${{ matrix.test-dir }}
-          pytest -v -m ${{ matrix.pytest-mark }} --tb=short 2>&1 | tee ../../${{ matrix.test-type }}-tests-output.txt
+          pytest -v --tb=short 2>&1 | tee ../../${{ matrix.test-type }}-tests-output.txt
 
       - name: Upload test output
         if: always()
