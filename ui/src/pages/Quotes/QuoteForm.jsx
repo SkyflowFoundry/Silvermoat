@@ -3,9 +3,10 @@
  * Form for creating new quotes with validation
  */
 
-import { Form, Input, Button, Card } from 'antd';
-import { UserOutlined, EnvironmentOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Card, Space } from 'antd';
+import { UserOutlined, EnvironmentOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { useCreateQuote } from '../../hooks/mutations/useCreateQuote';
+import { generateQuoteSampleData } from '../../utils/formSampleData';
 
 const QuoteForm = ({ onSuccess }) => {
   const [form] = Form.useForm();
@@ -22,6 +23,11 @@ const QuoteForm = ({ onSuccess }) => {
       // Error is handled by the mutation hook
       console.error('Failed to create quote:', error);
     }
+  };
+
+  const handleFillSampleData = () => {
+    const sampleData = generateQuoteSampleData();
+    form.setFieldsValue(sampleData);
   };
 
   return (
@@ -68,15 +74,26 @@ const QuoteForm = ({ onSuccess }) => {
         </Form.Item>
 
         <Form.Item>
-          <Button
-            type="primary"
-            htmlType="submit"
-            loading={createQuoteMutation.isPending}
-            size="large"
-            block
-          >
-            {createQuoteMutation.isPending ? 'Creating Quote...' : 'Create Quote'}
-          </Button>
+          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            <Button
+              type="default"
+              icon={<ThunderboltOutlined />}
+              onClick={handleFillSampleData}
+              size="large"
+              block
+            >
+              Fill with Sample Data
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={createQuoteMutation.isPending}
+              size="large"
+              block
+            >
+              {createQuoteMutation.isPending ? 'Creating Quote...' : 'Create Quote'}
+            </Button>
+          </Space>
         </Form.Item>
       </Form>
     </Card>

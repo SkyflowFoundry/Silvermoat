@@ -72,6 +72,60 @@ Every plan MUST include:
 - Ask.
 - Do not guess.
 
+## Testing
+
+### General Principles
+
+- **Always add tests for new functionality** that fits existing test categories.
+- Do not create new non-trivial test infrastructure unnecessarily.
+- Match existing test patterns and structure exactly.
+- Simple tests (unit tests, straightforward integration tests) should be added for new functionality.
+- Complex test infrastructure (new test frameworks, new test environments, elaborate mocking) requires justification.
+
+### Test Categories (Add to These)
+
+When adding new functionality, check these test categories and add tests where applicable:
+
+**1. JavaScript Unit Tests** (`ui/src/**/*.test.js`)
+- Pure utility functions
+- Data generators
+- Helper functions
+- Pattern: Use Vitest, test all exported functions
+
+**2. E2E Tests** (`tests/e2e/tests/*.py`)
+- User-facing UI interactions
+- Form submissions
+- Navigation flows
+- Pattern: Use Selenium, test all user workflows
+
+**3. API Contract Tests** (`tests/api/test_*.py`)
+- API endpoints (create, read, update, delete)
+- Request/response validation
+- Error handling
+- Pattern: One test file per resource (quote, policy, claim, payment, case)
+- **IMPORTANT**: When adding a new resource/entity, create corresponding API contract tests
+
+### Examples
+
+**Appropriate (DO add tests):**
+- New utility function → unit test in same directory
+- New form component → E2E test in `test_form_*.py`
+- New API endpoint → test in `tests/api/test_<resource>.py`
+- New UI button/feature → E2E test for interaction
+- New data generator → unit test for output validation
+
+**Requires justification (DON'T add without asking):**
+- New test framework (Jest, Mocha, etc.)
+- New test environment (Docker, separate test infra)
+- Complex mocking infrastructure
+
+### Checklist Before Completing Feature
+
+1. Does feature have UI components? → Add E2E tests
+2. Does feature use utility functions? → Add unit tests
+3. Does feature touch API endpoints? → Add/update API contract tests
+4. Do all similar resources have equivalent test coverage? (e.g., if 4/5 forms have tests, add tests for the 5th)
+
 ## Project Overview
 
 Silvermoat is a one-shot deployable insurance MVP demo built on AWS CloudFormation. The entire infrastructure and application can be deployed with a single CloudFormation template, featuring:
@@ -115,7 +169,62 @@ npm run build
 ```bash
 # Run smoke tests against deployed stack
 ./scripts/smoke-test.sh
+
+# Run full E2E test suite
+cd tests/e2e
+pytest -v -m smoke
 ```
+
+## CI/CD & A-B Deployment
+
+Silvermoat uses GitHub Actions for automated testing and deployment.
+
+### Workflows
+
+**1. E2E Tests** (`.github/workflows/e2e-tests.yml`)
+- Trigger: PR to main
+- Creates ephemeral test stack: `silvermoat-test-pr-{NUMBER}`
+- No CloudFront (HTTP S3 only, fast deployment)
+- Runs smoke + API + E2E tests
+- AI-powered test analysis via Claude
+- Stack persists until PR closed
+
+**2. PR Stack Cleanup** (`.github/workflows/pr-stack-cleanup.yml`)
+- Trigger: PR closed/merged
+- Deletes test stack created by E2E workflow
+- Ensures no orphaned stacks
+
+**3. Deploy Production** (`.github/workflows/deploy-production.yml`)
+- Trigger: Push to main
+- Deploys production stack: `silvermoat`
+- CloudFront + custom domain enabled
+- Smart DNS update via Cloudflare (skips if CloudFront domain unchanged)
+- Invalidates CloudFront cache
+- Runs smoke tests
+- Fails if tests fail
+
+**4. Validate CloudFormation** (`.github/workflows/validate-cfn.yml`)
+- Trigger: PR + push to main
+- Lints CloudFormation templates
+
+### GitHub Secrets
+
+Required secrets configured:
+- `AWS_ROLE_ARN` - IAM role for AWS operations (all workflows)
+- `CLOUDFLARE_API_TOKEN` - Cloudflare DNS updates (production only)
+- `CLOUDFLARE_ZONE_ID` - Zone ID for silvermoat.net (production only)
+- `ANTHROPIC_API_KEY_GITHUB_ACTIONS` - E2E test analysis
+
+### Smart DNS Updates
+
+Script: `scripts/update-cloudflare-dns.sh`
+
+- Fetches current DNS from Cloudflare API
+- Fetches target CloudFront domain from stack outputs
+- Only updates if different (optimization)
+- CloudFront domains rarely change (~10% of deploys)
+
+See `docs/ab-deployment-design.md` for complete architecture.
 
 ## Architecture
 
@@ -142,8 +251,8 @@ The Lambda uses AWS_PROXY integration, meaning it must return responses in API G
 
 The UI is located in `ui/` and uses:
 - React 18 with functional components and hooks
+- Ant Design component library
 - Vite for build tooling
-- Simple component structure: `App.jsx` → `QuoteForm.jsx` + `QuoteList.jsx`
 - API client abstraction in `ui/src/services/api.js`
 
 **API Base URL Configuration:**
@@ -151,6 +260,14 @@ The frontend gets the API URL via:
 1. Build-time: `VITE_API_BASE_URL` environment variable (set by `deploy-ui.sh`)
 2. Runtime: `window.API_BASE_URL` (can be injected in `index.html`)
 3. Fallback: `import.meta.env.VITE_API_BASE_URL`
+
+**Form Sample Data:**
+All forms include "Fill with Sample Data" button:
+- Utility: `ui/src/utils/formSampleData.js`
+- Functions: `generateQuoteSampleData()`, `generatePolicySampleData()`, etc.
+- Reuses helpers from `seedData.js` for consistency
+- Forms: Quote, Policy, Claim, Payment, Case
+- Button uses `ThunderboltOutlined` icon, default styling
 
 ### CloudFormation Custom Resources
 

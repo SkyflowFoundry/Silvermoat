@@ -1,0 +1,45 @@
+name: CloudFormation Validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'infra/**/*.yaml'
+      - 'infra/**/*.yml'
+      - 'scripts/deploy-stack.sh'
+      - '.github/workflows/cfn-validate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**/*.yaml'
+      - 'infra/**/*.yml'
+      - 'scripts/deploy-stack.sh'
+      - '.github/workflows/cfn-validate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install cfn-lint
+        run: pip install cfn-lint
+
+      - name: Validate CloudFormation templates
+        run: |
+          echo "Validating CloudFormation templates..."
+          cfn-lint infra/**/*.yaml --format pretty
+          echo "✅ All CloudFormation templates are valid"
