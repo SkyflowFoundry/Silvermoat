@@ -1,0 +1,173 @@
+name: Deploy Production Stack
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - 'ui/**'
+      - 'scripts/**'
+      - '.github/workflows/deploy-production.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install test dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Deploy production stack
+        env:
+          STACK_NAME: silvermoat
+          APP_NAME: silvermoat
+          STAGE_NAME: prod
+          UI_SEEDING_MODE: external
+          CREATE_CLOUDFRONT: true
+          DOMAIN_NAME: silvermoat.net
+        run: |
+          echo "Deploying production stack: silvermoat"
+          chmod +x scripts/deploy-stack.sh
+          ./scripts/deploy-stack.sh
+
+      - name: Wait for stack deployment
+        run: |
+          echo "Waiting for stack deployment to complete..."
+          aws cloudformation wait stack-create-complete \
+            --stack-name silvermoat \
+            --region us-east-1 || \
+          aws cloudformation wait stack-update-complete \
+            --stack-name silvermoat \
+            --region us-east-1
+
+      - name: Update Cloudflare DNS
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          STACK_NAME: silvermoat
+          DOMAIN_NAME: silvermoat.net
+        run: |
+          echo "Running smart DNS update..."
+          chmod +x scripts/update-cloudflare-dns.sh
+          ./scripts/update-cloudflare-dns.sh
+
+      - name: Get CloudFront distribution ID
+        id: cloudfront
+        run: |
+          # Extract distribution ID from UiDistribution resource
+          DISTRIBUTION_ID=$(aws cloudformation describe-stack-resources \
+            --stack-name silvermoat \
+            --logical-resource-id UiDistribution \
+            --query 'StackResources[0].PhysicalResourceId' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -n "$DISTRIBUTION_ID" ] && [ "$DISTRIBUTION_ID" != "None" ]; then
+            echo "distribution_id=${DISTRIBUTION_ID}" >> $GITHUB_OUTPUT
+            echo "CloudFront Distribution ID: ${DISTRIBUTION_ID}"
+          else
+            echo "No CloudFront distribution found (stack may not have CloudFront enabled)"
+          fi
+
+      - name: Build and deploy React UI
+        env:
+          STACK_NAME: silvermoat
+        run: |
+          echo "Building and deploying React UI..."
+          chmod +x scripts/deploy-ui.sh
+          ./scripts/deploy-ui.sh
+
+      - name: Invalidate CloudFront cache
+        if: steps.cloudfront.outputs.distribution_id != ''
+        run: |
+          echo "Invalidating CloudFront cache..."
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.cloudfront.outputs.distribution_id }} \
+            --paths "/*" \
+            --no-cli-pager
+          echo "Cache invalidation submitted"
+
+      - name: Get stack outputs
+        id: stack-outputs
+        run: |
+          # Get all outputs as JSON
+          OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name silvermoat \
+            --query 'Stacks[0].Outputs' \
+            --output json)
+
+          # Extract URLs
+          API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="ApiBaseUrl") | .OutputValue')
+          CF_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="CloudFrontUrl") | .OutputValue')
+          CUSTOM_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="CustomDomainUrl") | .OutputValue')
+
+          echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
+          echo "cf_url=${CF_URL}" >> $GITHUB_OUTPUT
+          echo "custom_url=${CUSTOM_URL}" >> $GITHUB_OUTPUT
+
+          echo "API URL: ${API_URL}"
+          echo "CloudFront URL: ${CF_URL}"
+          echo "Custom Domain URL: ${CUSTOM_URL}"
+
+      - name: Wait for CloudFront propagation
+        if: steps.cloudfront.outputs.distribution_id != ''
+        run: |
+          echo "Waiting 30 seconds for CloudFront cache invalidation to start propagating..."
+          sleep 30
+
+      - name: Run smoke tests
+        id: smoke-tests
+        env:
+          STACK_NAME: silvermoat
+        run: |
+          echo "Running smoke tests against production..."
+          chmod +x scripts/smoke-test.sh
+          ./scripts/smoke-test.sh
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "==================================="
+          echo "Production Deployment Summary"
+          echo "==================================="
+          echo "Stack: silvermoat"
+          echo "API: ${{ steps.stack-outputs.outputs.api_url }}"
+          echo "CloudFront: ${{ steps.stack-outputs.outputs.cf_url }}"
+          echo "Custom Domain: ${{ steps.stack-outputs.outputs.custom_url }}"
+          echo "Smoke Tests: ${{ steps.smoke-tests.outcome }}"
+          echo "==================================="
+
+      - name: Check deployment status
+        if: always()
+        run: |
+          if [ "${{ steps.smoke-tests.outcome }}" = "failure" ]; then
+            echo "Smoke tests failed - deployment may have issues"
+            exit 1
+          fi
+          echo "Production deployment successful"

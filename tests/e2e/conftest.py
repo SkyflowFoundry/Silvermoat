@@ -110,7 +110,8 @@ def mobile_driver():
 
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
-    chrome_options.add_argument('--window-size=375,667')
+    chrome_options.add_argument('--disable-gpu')
+    # Don't set --window-size when using mobileEmulation - deviceMetrics handles viewport
 
     mobile_emulation = {
         "deviceMetrics": {"width": 375, "height": 667, "pixelRatio": 2.0},
