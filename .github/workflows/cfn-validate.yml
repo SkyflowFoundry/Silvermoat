@@ -6,6 +6,8 @@ on:
     paths:
       - 'infra/**/*.yaml'
       - 'infra/**/*.yml'
+      - 'config/**/*.yaml'
+      - 'config/**/*.yml'
       - 'scripts/deploy-stack.sh'
       - '.github/workflows/cfn-validate.yml'
   push:
@@ -13,6 +15,8 @@ on:
     paths:
       - 'infra/**/*.yaml'
       - 'infra/**/*.yml'
+      - 'config/**/*.yaml'
+      - 'config/**/*.yml'
       - 'scripts/deploy-stack.sh'
       - '.github/workflows/cfn-validate.yml'
   workflow_dispatch:
@@ -30,10 +34,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install cfn-lint
         run: pip install cfn-lint
@@ -41,5 +45,16 @@ jobs:
       - name: Validate CloudFormation templates
         run: |
           echo "Validating CloudFormation templates..."
-          cfn-lint infra/**/*.yaml --format pretty
+          cfn-lint infra/**/*.yaml infra/**/*.yml --format pretty
           echo "✅ All CloudFormation templates are valid"
+
+      - name: Validate parameter YAML files
+        run: |
+          echo "Validating parameter files..."
+          for file in config/*.yaml config/*.yml; do
+            if [ -f "$file" ]; then
+              echo "Validating $file..."
+              python -c "import yaml; yaml.safe_load(open('$file'))"
+            fi
+          done
+          echo "✅ All parameter files are valid"

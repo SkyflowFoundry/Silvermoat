@@ -179,14 +179,33 @@ pytest -v -m smoke
 
 Silvermoat uses GitHub Actions for automated testing and deployment.
 
+### Composite Actions
+
+Reusable actions to reduce duplication:
+
+**1. Setup Environment** (`.github/actions/setup-env/action.yml`)
+- Sets up Python 3.11 + Node.js 24
+- Configures npm caching
+- Used by: e2e-tests, deploy-production
+
+**2. Install Dependencies** (`.github/actions/install-deps/action.yml`)
+- Installs Python test dependencies
+- Optionally installs UI dependencies (npm ci)
+- Input: `install-ui` (default: 'true')
+
 ### Workflows
 
 **1. E2E Tests** (`.github/workflows/e2e-tests.yml`)
 - Trigger: PR to main
 - Creates ephemeral test stack: `silvermoat-test-pr-{NUMBER}`
 - No CloudFront (HTTP S3 only, fast deployment)
-- Runs smoke + API + E2E tests
-- AI-powered test analysis via Claude
+- **Matrix strategy**: 5 jobs with parallel test execution
+  - `setup-stack`: Deploy infrastructure + UI (20min)
+  - `test-suite`: Run smoke/API/E2E in parallel (15min max)
+  - `analyze-results`: Aggregate outputs + Claude AI analysis (5min)
+  - `post-to-pr`: Post analysis to PR (2min)
+  - `check-results`: Final pass/fail determination
+- Tests run in parallel, reducing total runtime ~50% (45min → 25min)
 - Stack persists until PR closed
 
 **2. PR Stack Cleanup** (`.github/workflows/pr-stack-cleanup.yml`)
@@ -202,10 +221,13 @@ Silvermoat uses GitHub Actions for automated testing and deployment.
 - Invalidates CloudFront cache
 - Runs smoke tests
 - Fails if tests fail
+- Uses composite actions for setup
 
-**4. Validate CloudFormation** (`.github/workflows/validate-cfn.yml`)
-- Trigger: PR + push to main
-- Lints CloudFormation templates
+**4. Validate CloudFormation** (`.github/workflows/cfn-validate.yml`)
+- Trigger: PR + push to main (infra/**, config/**)
+- Lints CloudFormation templates (cfn-lint)
+- Validates parameter YAML files (config/*.yaml)
+- Python 3.12
 
 ### GitHub Secrets
 
