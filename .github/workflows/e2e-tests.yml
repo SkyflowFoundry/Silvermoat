@@ -175,7 +175,7 @@ jobs:
             needs-chrome: false
           - test-type: e2e
             test-dir: e2e
-            pytest-mark: smoke
+            pytest-mark: e2e
             needs-chrome: true
 
     steps:
