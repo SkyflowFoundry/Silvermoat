@@ -21,7 +21,41 @@ permissions:
   pull-requests: write
 
 jobs:
+  validate-cfn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install cfn-lint
+        run: pip install cfn-lint
+
+      - name: Validate CloudFormation templates
+        run: |
+          echo "Validating CloudFormation templates..."
+          cfn-lint infra/**/*.yaml --format pretty
+          echo "✅ All CloudFormation templates are valid"
+
+      - name: Validate parameter YAML files
+        run: |
+          echo "Validating parameter files..."
+          for file in config/*.yaml config/*.yml; do
+            if [ -f "$file" ]; then
+              echo "Validating $file..."
+              python -c "import yaml; yaml.safe_load(open('$file'))"
+            fi
+          done
+          echo "✅ All parameter files are valid"
+
   setup-stack:
+    needs: validate-cfn
     runs-on: ubuntu-latest
     timeout-minutes: 20
 

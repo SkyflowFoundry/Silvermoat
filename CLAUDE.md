@@ -199,8 +199,9 @@ Reusable actions to reduce duplication:
 - Trigger: PR to main
 - Creates ephemeral test stack: `silvermoat-test-pr-{NUMBER}`
 - No CloudFront (HTTP S3 only, fast deployment)
-- **Matrix strategy**: 5 jobs with parallel test execution
-  - `setup-stack`: Deploy infrastructure + UI (20min)
+- **Matrix strategy**: 6 jobs with parallel test execution
+  - `validate-cfn`: Lint CloudFormation + validate parameter files (5min)
+  - `setup-stack`: Deploy infrastructure + UI (20min, waits for validation)
   - `test-suite`: Run smoke/API/E2E in parallel (15min max)
   - `analyze-results`: Aggregate outputs + Claude AI analysis (5min)
   - `post-to-pr`: Post analysis to PR (2min)
@@ -222,12 +223,6 @@ Reusable actions to reduce duplication:
 - Runs smoke tests
 - Fails if tests fail
 - Uses composite actions for setup
-
-**4. Validate CloudFormation** (`.github/workflows/cfn-validate.yml`)
-- Trigger: PR + push to main (infra/**, config/**)
-- Lints CloudFormation templates (cfn-lint)
-- Validates parameter YAML files (config/*.yaml)
-- Python 3.12
 
 ### GitHub Secrets
 
