@@ -74,14 +74,19 @@ Every plan MUST include:
 
 ## Testing
 
-- Add tests for new functionality when existing test categories exist.
-- Do not create new test categories unnecessarily.
+- Add tests for new functionality when appropriate.
+- Do not create new non-trivial test infrastructure unnecessarily.
 - Match existing test patterns and structure.
-- If there are no tests for similar functionality, skip adding tests.
-- Examples:
-  - API tests exist → add API tests for new endpoints
-  - E2E smoke tests exist → add E2E tests for new pages
-  - No form tests exist → skip adding form tests
+- Simple tests (unit tests, straightforward integration tests) should be added for new functionality.
+- Complex test infrastructure (new test frameworks, new test environments, elaborate mocking) requires justification.
+- Examples of appropriate testing:
+  - New API endpoint → add API test (simple, existing pattern)
+  - New form component → add form test (simple, matches existing patterns)
+  - New page → add E2E smoke test (existing infrastructure)
+- Examples of tests requiring justification:
+  - Setting up Selenium for the first time
+  - Adding new testing framework (Jest, Vitest, etc.)
+  - Creating complex mock infrastructure
 
 ## Project Overview
 
