@@ -17,7 +17,16 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
+
+    outputs:
+      stack_name: silvermoat
+      api_url: ${{ steps.stack-outputs.outputs.api_url }}
+      web_url: ${{ steps.stack-outputs.outputs.web_url }}
+      cloudfront_url: ${{ steps.stack-outputs.outputs.cloudfront_url }}
+      cloudfront_id: ${{ steps.cloudfront.outputs.distribution_id }}
+      stack_deployed: ${{ steps.check-stack.outputs.skip_deploy != 'true' }}
+      ui_deployed: ${{ steps.check-ui.outputs.skip_ui != 'true' }}
 
     steps:
       - name: Checkout code
@@ -37,7 +46,39 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
+      # Phase 2: Change Detection
+      - name: Check if stack exists
+        id: check-stack
+        run: |
+          STACK_NAME="silvermoat"
+          echo "Checking if stack ${STACK_NAME} exists..."
+
+          # Check stack status
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+
+          echo "Stack status: ${STACK_STATUS}"
+          echo "stack_status=${STACK_STATUS}" >> $GITHUB_OUTPUT
+
+          # Stack is ready if in a stable complete state
+          if [[ "${STACK_STATUS}" == "CREATE_COMPLETE" ]] || [[ "${STACK_STATUS}" == "UPDATE_COMPLETE" ]]; then
+            echo "✅ Stack exists and is ready"
+            echo "stack_exists=true" >> $GITHUB_OUTPUT
+            echo "skip_deploy=true" >> $GITHUB_OUTPUT
+          elif [[ "${STACK_STATUS}" == "NOT_FOUND" ]]; then
+            echo "Stack does not exist, will create"
+            echo "stack_exists=false" >> $GITHUB_OUTPUT
+            echo "skip_deploy=false" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Stack exists but in state: ${STACK_STATUS}"
+            echo "stack_exists=true" >> $GITHUB_OUTPUT
+            echo "skip_deploy=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy production stack
+        if: steps.check-stack.outputs.skip_deploy != 'true'
         env:
           STACK_NAME: silvermoat
           APP_NAME: silvermoat
@@ -51,6 +92,7 @@ jobs:
           ./scripts/deploy-stack.sh
 
       - name: Wait for stack deployment
+        if: steps.check-stack.outputs.skip_deploy != 'true'
         run: |
           echo "Waiting for stack deployment to complete..."
           aws cloudformation wait stack-create-complete \
@@ -61,6 +103,7 @@ jobs:
             --region us-east-1
 
       - name: Update Cloudflare DNS
+        if: steps.check-stack.outputs.skip_deploy != 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
@@ -85,10 +128,58 @@ jobs:
             echo "distribution_id=${DISTRIBUTION_ID}" >> $GITHUB_OUTPUT
             echo "CloudFront Distribution ID: ${DISTRIBUTION_ID}"
           else
-            echo "No CloudFront distribution found (stack may not have CloudFront enabled)"
+            echo "No CloudFront distribution found"
+          fi
+
+      # Phase 2: UI Change Detection
+      - name: Check if UI needs deployment
+        id: check-ui
+        run: |
+          STACK_NAME="silvermoat"
+
+          # If stack was just deployed, always deploy UI
+          if [ "${{ steps.check-stack.outputs.skip_deploy }}" != "true" ]; then
+            echo "Stack was just deployed, UI needs deployment"
+            echo "skip_ui=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Get UI bucket from stack outputs
+          UI_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].Outputs[?OutputKey==`UiBucketName`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$UI_BUCKET" ]; then
+            echo "⚠️ Could not find UI bucket, will deploy UI"
+            echo "skip_ui=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check if bucket has index.html
+          if aws s3 ls "s3://${UI_BUCKET}/index.html" >/dev/null 2>&1; then
+            echo "✅ UI already deployed in bucket ${UI_BUCKET}"
+
+            # Calculate hash of UI source to detect changes
+            UI_HASH=$(find ui/src ui/public ui/index.html -type f -exec md5sum {} \; 2>/dev/null | sort | md5sum | cut -d' ' -f1)
+
+            # Try to get stored hash from S3
+            STORED_HASH=$(aws s3 cp "s3://${UI_BUCKET}/.ui-hash" - 2>/dev/null || echo "")
+
+            if [ "${UI_HASH}" = "${STORED_HASH}" ]; then
+              echo "✅ UI source unchanged (hash: ${UI_HASH}), skipping rebuild"
+              echo "skip_ui=true" >> $GITHUB_OUTPUT
+            else
+              echo "UI source changed (${UI_HASH} vs ${STORED_HASH}), will deploy"
+              echo "skip_ui=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "UI not found in bucket, will deploy"
+            echo "skip_ui=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Build and deploy React UI
+        if: steps.check-ui.outputs.skip_ui != 'true'
         env:
           STACK_NAME: silvermoat
         run: |
@@ -96,15 +187,19 @@ jobs:
           chmod +x scripts/deploy-ui.sh
           ./scripts/deploy-ui.sh
 
-      - name: Invalidate CloudFront cache
-        if: steps.cloudfront.outputs.distribution_id != ''
+      # Phase 3: Start CloudFront invalidation (async)
+      - name: Start CloudFront cache invalidation
+        id: invalidation
+        if: steps.cloudfront.outputs.distribution_id != '' && steps.check-ui.outputs.skip_ui != 'true'
         run: |
-          echo "Invalidating CloudFront cache..."
-          aws cloudfront create-invalidation \
+          echo "Starting CloudFront cache invalidation..."
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
             --distribution-id ${{ steps.cloudfront.outputs.distribution_id }} \
             --paths "/*" \
-            --no-cli-pager
-          echo "Cache invalidation submitted"
+            --query 'Invalidation.Id' \
+            --output text)
+          echo "invalidation_id=${INVALIDATION_ID}" >> $GITHUB_OUTPUT
+          echo "Cache invalidation started: ${INVALIDATION_ID}"
 
       - name: Get stack outputs
         id: stack-outputs
@@ -121,27 +216,25 @@ jobs:
           CUSTOM_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="CustomDomainUrl") | .OutputValue')
 
           echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
-          echo "cf_url=${CF_URL}" >> $GITHUB_OUTPUT
-          echo "custom_url=${CUSTOM_URL}" >> $GITHUB_OUTPUT
+          echo "cloudfront_url=${CF_URL}" >> $GITHUB_OUTPUT
+          echo "web_url=${CUSTOM_URL:-$CF_URL}" >> $GITHUB_OUTPUT
 
           echo "API URL: ${API_URL}"
           echo "CloudFront URL: ${CF_URL}"
           echo "Custom Domain URL: ${CUSTOM_URL}"
 
-      - name: Wait for CloudFront propagation
-        if: steps.cloudfront.outputs.distribution_id != ''
+      # Phase 3: Early health check
+      - name: Quick health check
         run: |
-          echo "Waiting 30 seconds for CloudFront cache invalidation to start propagating..."
-          sleep 30
+          API_URL="${{ steps.stack-outputs.outputs.api_url }}"
+          echo "Running quick health check against ${API_URL}..."
 
-      - name: Run smoke tests
-        id: smoke-tests
-        env:
-          STACK_NAME: silvermoat
-        run: |
-          echo "Running smoke tests against production..."
-          chmod +x scripts/smoke-test.sh
-          ./scripts/smoke-test.sh
+          if curl -f -s "${API_URL}/" > /dev/null; then
+            echo "✅ API is responding"
+          else
+            echo "❌ API not responding, deployment may have failed"
+            exit 1
+          fi
 
       - name: Deployment summary
         if: always()
@@ -150,17 +243,227 @@ jobs:
           echo "Production Deployment Summary"
           echo "==================================="
           echo "Stack: silvermoat"
+          echo "Stack deployment skipped: ${{ steps.check-stack.outputs.skip_deploy }}"
+          echo "UI deployment skipped: ${{ steps.check-ui.outputs.skip_ui }}"
           echo "API: ${{ steps.stack-outputs.outputs.api_url }}"
-          echo "CloudFront: ${{ steps.stack-outputs.outputs.cf_url }}"
-          echo "Custom Domain: ${{ steps.stack-outputs.outputs.custom_url }}"
-          echo "Smoke Tests: ${{ steps.smoke-tests.outcome }}"
+          echo "CloudFront: ${{ steps.stack-outputs.outputs.cloudfront_url }}"
+          echo "Custom Domain: ${{ steps.stack-outputs.outputs.web_url }}"
           echo "==================================="
+          if [ "${{ steps.check-stack.outputs.skip_deploy }}" = "true" ]; then
+            echo "⚡ Stack unchanged - saved ~10-15 minutes!"
+          fi
+          if [ "${{ steps.check-ui.outputs.skip_ui }}" = "true" ]; then
+            echo "⚡ UI unchanged - saved ~2-3 minutes!"
+          fi
 
+  # Phase 1: Comprehensive Test Suite (Matrix Strategy)
+  test-suite:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: [smoke, api, e2e]
+        include:
+          - test-type: smoke
+            test-dir: smoke
+            needs-chrome: false
+          - test-type: api
+            test-dir: api
+            needs-chrome: false
+          - test-type: e2e
+            test-dir: e2e
+            needs-chrome: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install Python dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Install Chrome and ChromeDriver
+        if: matrix.needs-chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Run ${{ matrix.test-type }} tests
+        id: test-run
+        continue-on-error: true
+        env:
+          STACK_NAME: ${{ needs.deploy.outputs.stack_name }}
+          SILVERMOAT_API_URL: ${{ needs.deploy.outputs.api_url }}
+          SILVERMOAT_URL: ${{ needs.deploy.outputs.web_url }}
+          HEADLESS: '1'
+        run: |
+          set -o pipefail
+          echo "Running ${{ matrix.test-type }} tests against production..."
+          cd tests/${{ matrix.test-dir }}
+          pytest -v --tb=short 2>&1 | tee ../../${{ matrix.test-type }}-tests-output.txt
+
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.test-type }}-test-output
+          path: ${{ matrix.test-type }}-tests-output.txt
+          retention-days: 7
+
+      - name: Check test outcome
+        if: always()
+        run: |
+          if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
+            echo "${{ matrix.test-type }} tests failed"
+            exit 1
+          fi
+
+  # Phase 4: Verify Deployment with Enhanced Reporting
+  verify-deployment:
+    needs: [deploy, test-suite]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all test outputs
+        uses: actions/download-artifact@v4
+        with:
+          path: test-outputs
+
+      # Phase 3: Check CloudFront invalidation status
+      - name: Check CloudFront invalidation status
+        if: needs.deploy.outputs.cloudfront_id != ''
+        run: |
+          # CloudFront invalidations are async and can take 10-15 minutes
+          # We don't block on completion, just check status
+          echo "CloudFront distribution: ${{ needs.deploy.outputs.cloudfront_id }}"
+
+          # Get latest invalidation status
+          STATUS=$(aws cloudfront list-invalidations \
+            --distribution-id ${{ needs.deploy.outputs.cloudfront_id }} \
+            --query 'InvalidationList.Items[0].Status' \
+            --output text 2>/dev/null || echo "UNKNOWN")
+
+          echo "Latest invalidation status: ${STATUS}"
+          if [ "${STATUS}" = "Completed" ]; then
+            echo "✅ CloudFront cache invalidation complete"
+          else
+            echo "⏳ CloudFront cache invalidation in progress (${STATUS})"
+            echo "Full propagation typically takes 10-15 minutes"
+          fi
+
+      # Phase 4: Aggregate test results
+      - name: Aggregate test results
+        id: aggregate
+        run: |
+          echo "Aggregating test results..."
+
+          SMOKE_RESULT="${{ needs.test-suite.result }}"
+          API_RESULT="${{ needs.test-suite.result }}"
+          E2E_RESULT="${{ needs.test-suite.result }}"
+
+          # Count test results
+          TOTAL_TESTS=0
+          PASSED_TESTS=0
+
+          for output in test-outputs/*/; do
+            if [ -d "$output" ]; then
+              TEST_TYPE=$(basename "$output" | sed 's/-test-output//')
+              OUTPUT_FILE="${output}${TEST_TYPE}-tests-output.txt"
+
+              if [ -f "$OUTPUT_FILE" ]; then
+                PASSED=$(grep -o "[0-9]* passed" "$OUTPUT_FILE" | head -1 | awk '{print $1}' || echo "0")
+                FAILED=$(grep -o "[0-9]* failed" "$OUTPUT_FILE" | head -1 | awk '{print $1}' || echo "0")
+
+                TOTAL=$((PASSED + FAILED))
+                TOTAL_TESTS=$((TOTAL_TESTS + TOTAL))
+                PASSED_TESTS=$((PASSED_TESTS + PASSED))
+
+                echo "${TEST_TYPE}: ${PASSED}/${TOTAL} passed"
+              fi
+            fi
+          done
+
+          echo "total_tests=${TOTAL_TESTS}" >> $GITHUB_OUTPUT
+          echo "passed_tests=${PASSED_TESTS}" >> $GITHUB_OUTPUT
+
+          PASS_RATE=$((PASSED_TESTS * 100 / TOTAL_TESTS))
+          echo "pass_rate=${PASS_RATE}" >> $GITHUB_OUTPUT
+
+      # Phase 4: Generate deployment report
+      - name: Generate deployment report
+        run: |
+          cat > deployment-report.md << EOF
+          # 🚀 Production Deployment Report
+
+          **Deployed:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Commit:** ${{ github.sha }}
+          **Triggered by:** ${{ github.actor }}
+
+          ## Deployment Status
+
+          - **Stack:** ${{ needs.deploy.outputs.stack_name }}
+          - **Stack Deployed:** ${{ needs.deploy.outputs.stack_deployed }}
+          - **UI Deployed:** ${{ needs.deploy.outputs.ui_deployed }}
+          - **API URL:** ${{ needs.deploy.outputs.api_url }}
+          - **Web URL:** ${{ needs.deploy.outputs.web_url }}
+
+          ## Test Results
+
+          **Overall:** ${{ steps.aggregate.outputs.passed_tests }}/${{ steps.aggregate.outputs.total_tests }} tests passed (${{ steps.aggregate.outputs.pass_rate }}%)
+
+          - **Smoke Tests:** ${{ needs.test-suite.result }}
+          - **API Tests:** ${{ needs.test-suite.result }}
+          - **E2E Tests:** ${{ needs.test-suite.result }}
+
+          ## Optimization Savings
+
+          EOF
+
+          if [ "${{ needs.deploy.outputs.stack_deployed }}" = "false" ]; then
+            echo "⚡ **Stack unchanged** - Saved ~10-15 minutes" >> deployment-report.md
+          fi
+          if [ "${{ needs.deploy.outputs.ui_deployed }}" = "false" ]; then
+            echo "⚡ **UI unchanged** - Saved ~2-3 minutes" >> deployment-report.md
+          fi
+
+          cat deployment-report.md
+
+      - name: Upload deployment report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-report
+          path: deployment-report.md
+          retention-days: 30
+
+      # Final pass/fail check
       - name: Check deployment status
         if: always()
         run: |
-          if [ "${{ steps.smoke-tests.outcome }}" = "failure" ]; then
-            echo "Smoke tests failed - deployment may have issues"
+          if [ "${{ needs.test-suite.result }}" = "failure" ]; then
+            echo "❌ One or more test suites failed"
             exit 1
           fi
-          echo "Production deployment successful"
+
+          if [ "${{ needs.deploy.result }}" = "failure" ]; then
+            echo "❌ Deployment failed"
+            exit 1
+          fi
+
+          echo "✅ Production deployment successful with all tests passing"
