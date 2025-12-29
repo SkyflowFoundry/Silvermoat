@@ -121,7 +121,7 @@ npm run build
 
 ### Backend: Single Lambda Pattern
 
-The backend uses a **single Lambda function** (`MvpServiceFunction`) that routes all API requests based on path and HTTP method. This is defined inline in the CloudFormation template at `infra/silvermoat-mvp-s3-website.yaml:236-355`.
+The backend uses a **single Lambda function** (`MvpServiceFunction`) that routes all API requests based on path and HTTP method. The Lambda code is in `lambda/mvp_service/handler.py` and is packaged to S3 during deployment.
 
 **Key routing patterns:**
 - `POST /{domain}` → Create entity (quote, policy, claim, payment, case)
@@ -258,12 +258,41 @@ S3 website endpoint (HTTP) still works for direct access/testing.
 
 ## Development Workflow
 
+### Lambda Code Management
+
+Lambda functions are stored as Python files in the `lambda/` directory and packaged to S3 during deployment:
+
+**Structure**:
+- `lambda/mvp_service/handler.py` - Main API handler (routes all endpoints)
+- `lambda/seeder/handler.py` - Custom Resource handler (seeding/cleanup)
+- `lambda/README.md` - Detailed Lambda documentation
+
+**Deployment flow**:
+1. `./scripts/deploy-stack.sh` calls `./scripts/package-lambda.sh`
+2. Script creates ZIP files: `mvp-service.zip`, `seeder.zip`
+3. Uploads to S3 bucket (same bucket as CloudFormation templates)
+4. CloudFormation references S3 location via `LambdaCodeS3Bucket` + `*CodeS3Key` parameters
+5. Lambda functions updated with new code from S3
+
+**Benefits**:
+- IDE support (autocomplete, linting, type checking)
+- Clear git diffs when code changes
+- Can add unit tests for Lambda functions
+- No code duplication in CloudFormation template
+
+See `lambda/README.md` for detailed documentation.
+
 ### Making Backend Changes
 
-The backend Lambda code is **inline in the CloudFormation template** (YAML ZipFile). To modify:
+The backend Lambda code is in separate Python files and packaged to S3 during deployment. To modify:
 
-1. Edit the Python code in `infra/silvermoat-mvp-s3-website.yaml` (lines 236-355 for `MvpServiceFunction`, lines 481-795 for `SeederFunction`)
+1. Edit the Lambda code:
+   - MVP service: `lambda/mvp_service/handler.py`
+   - Seeder: `lambda/seeder/handler.py`
 2. Redeploy the stack: `./scripts/deploy-stack.sh`
+   - Script automatically packages Lambda code to ZIP files
+   - Uploads to S3 bucket
+   - CloudFormation updates Lambda functions with new S3 code
 3. CloudFormation will update the Lambda function code
 
 **Note**: For API Gateway method changes, increment `API_DEPLOYMENT_TOKEN` parameter to force a new deployment.
@@ -285,11 +314,13 @@ The `deploy-ui.sh` script:
 
 To add a new endpoint to the Lambda function:
 
-1. Locate the `handler` function in the CloudFormation template (line 283)
-2. Parse `path` and `method` to add your route
-3. Add any required environment variables to `MvpServiceFunction.Environment.Variables`
-4. Update IAM permissions in `MvpLambdaRole` if accessing new resources
-5. Redeploy: `./scripts/deploy-stack.sh`
+1. Edit `lambda/mvp_service/handler.py`
+2. Locate the `handler` function and add your route logic
+3. Parse `path` and `method` to add your route
+4. If needed, update environment variables in CloudFormation template:
+   - `infra/silvermoat-mvp-s3-website.yaml` → `MvpServiceFunction.Environment.Variables`
+5. If needed, update IAM permissions in `MvpLambdaRole` (same file)
+6. Redeploy: `./scripts/deploy-stack.sh`
 
 Example route pattern:
 ```python
