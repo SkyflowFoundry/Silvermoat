@@ -67,29 +67,60 @@ else
   echo "S3 bucket already exists"
 fi
 
-# Package Lambda functions
+# Check if Lambda code has changed (optimization)
 echo ""
-echo "Packaging Lambda functions..."
+echo "Checking Lambda code for changes..."
 LAMBDA_DIR="$PROJECT_ROOT/lambda"
 
-# Package mvp_service Lambda
-echo "Packaging mvp_service..."
-cd "$LAMBDA_DIR/mvp_service"
-rm -f mvp-service.zip
-zip -q mvp-service.zip handler.py
-$AWS_CMD s3 cp mvp-service.zip "s3://$S3_BUCKET/lambda/mvp-service.zip"
-echo "✓ Uploaded mvp-service.zip"
+# Calculate hash of all Lambda source files
+if command -v md5sum >/dev/null 2>&1; then
+  LAMBDA_HASH=$(find "$LAMBDA_DIR" -type f -name "*.py" -exec md5sum {} \; 2>/dev/null | sort | md5sum | cut -d' ' -f1)
+else
+  # macOS fallback (uses md5 instead of md5sum)
+  LAMBDA_HASH=$(find "$LAMBDA_DIR" -type f -name "*.py" -exec md5 {} \; 2>/dev/null | sort | md5 | cut -d' ' -f1)
+fi
 
-# Package seeder Lambda
-echo "Packaging seeder..."
-cd "$LAMBDA_DIR/seeder"
-rm -f seeder.zip
-zip -q seeder.zip handler.py
-$AWS_CMD s3 cp seeder.zip "s3://$S3_BUCKET/lambda/seeder.zip"
-echo "✓ Uploaded seeder.zip"
+# Try to get stored hash from S3
+STORED_HASH=$($AWS_CMD s3 cp "s3://$S3_BUCKET/.lambda-hash" - 2>/dev/null || echo "")
 
-cd "$PROJECT_ROOT"
-echo "Lambda packaging complete"
+if [ -n "$LAMBDA_HASH" ] && [ "$LAMBDA_HASH" = "$STORED_HASH" ]; then
+  echo "✅ Lambda code unchanged (hash: $LAMBDA_HASH), skipping repackage"
+  SKIP_LAMBDA_PACKAGING=true
+else
+  echo "Lambda code changed (current: $LAMBDA_HASH, stored: $STORED_HASH)"
+  SKIP_LAMBDA_PACKAGING=false
+fi
+echo ""
+
+# Package Lambda functions (only if code changed)
+if [ "$SKIP_LAMBDA_PACKAGING" = "false" ]; then
+  echo "Packaging Lambda functions..."
+
+  # Package mvp_service Lambda
+  echo "Packaging mvp_service..."
+  cd "$LAMBDA_DIR/mvp_service"
+  rm -f mvp-service.zip
+  zip -q mvp-service.zip handler.py
+  $AWS_CMD s3 cp mvp-service.zip "s3://$S3_BUCKET/lambda/mvp-service.zip"
+  echo "✓ Uploaded mvp-service.zip"
+
+  # Package seeder Lambda
+  echo "Packaging seeder..."
+  cd "$LAMBDA_DIR/seeder"
+  rm -f seeder.zip
+  zip -q seeder.zip handler.py
+  $AWS_CMD s3 cp seeder.zip "s3://$S3_BUCKET/lambda/seeder.zip"
+  echo "✓ Uploaded seeder.zip"
+
+  cd "$PROJECT_ROOT"
+
+  # Save new hash to S3
+  echo "$LAMBDA_HASH" | $AWS_CMD s3 cp - "s3://$S3_BUCKET/.lambda-hash"
+  echo "✓ Saved Lambda hash to S3"
+  echo "Lambda packaging complete"
+else
+  echo "Skipping Lambda packaging (code unchanged)"
+fi
 echo ""
 
 # Deploy stack

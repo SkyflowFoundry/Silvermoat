@@ -60,8 +60,29 @@ jobs:
           done
           echo "✅ All parameter files are valid"
 
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install UI dependencies
+        uses: ./.github/actions/install-deps
+        with:
+          install-ui: 'true'
+
+      - name: Run JavaScript unit tests
+        run: |
+          cd ui
+          npm test -- --run
+
   setup-stack:
-    needs: validate-cfn
+    needs: [validate-cfn, unit-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -79,11 +100,6 @@ jobs:
 
       - name: Install dependencies
         uses: ./.github/actions/install-deps
-
-      - name: Run JavaScript unit tests
-        run: |
-          cd ui
-          npm test -- --run
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -323,6 +339,16 @@ jobs:
         uses: browser-actions/setup-chrome@v1
         with:
           chrome-version: stable
+          install-chromedriver: true
+
+      - name: Cache ChromeDriver
+        if: matrix.needs-chrome
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/chromedriver
+          key: ${{ runner.os }}-chromedriver-${{ hashFiles('**/requirements-test.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-chromedriver-
 
       - name: Run ${{ matrix.test-type }} tests
         id: test-run
@@ -694,6 +720,32 @@ jobs:
               }
             }
 
+            // Fetch per-test-type results from matrix jobs
+            let smokeResult = 'unknown';
+            let apiResult = 'unknown';
+            let e2eResult = 'unknown';
+
+            try {
+              const { data: workflowJobs } = await github.rest.actions.listJobsForWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: context.runId
+              });
+
+              // Find test-suite matrix jobs and extract results
+              for (const job of workflowJobs.jobs) {
+                if (job.name.includes('test-suite (smoke)')) {
+                  smokeResult = job.conclusion || job.status;
+                } else if (job.name.includes('test-suite (api)')) {
+                  apiResult = job.conclusion || job.status;
+                } else if (job.name.includes('test-suite (e2e)')) {
+                  e2eResult = job.conclusion || job.status;
+                }
+              }
+            } catch (error) {
+              console.log('Failed to fetch test-suite results:', error);
+            }
+
             // Build stack status section
             const cfnOutcome = '${{ needs.validate-cfn.result }}';
             const setupOutcome = '${{ needs.setup-stack.result }}';
@@ -706,6 +758,14 @@ jobs:
               statusEmoji = '⚠️';
             }
 
+            // Helper function for result emoji
+            const getEmoji = (result) => {
+              if (result === 'success') return '✅';
+              if (result === 'failure') return '❌';
+              if (result === 'skipped' || result === 'cancelled') return '⏭️';
+              return '❓';
+            };
+
             const body = `## ${statusEmoji} Pipeline Results
 
             **Test Stack:** \`${stackName}\`
@@ -715,6 +775,11 @@ jobs:
             - CloudFormation Validation: ${cfnOutcome === 'success' ? '✅' : '❌'} \`${cfnOutcome}\`
             - Stack Deployment: ${setupOutcome === 'success' ? '✅' : '❌'} \`${setupOutcome}\`
             - Test Suite: ${testsOutcome === 'success' ? '✅' : testsOutcome === 'skipped' ? '⏭️' : '❌'} \`${testsOutcome}\`
+
+            **Test Results:**
+            - Smoke Tests: ${getEmoji(smokeResult)} \`${smokeResult}\`
+            - API Tests: ${getEmoji(apiResult)} \`${apiResult}\`
+            - E2E Tests: ${getEmoji(e2eResult)} \`${e2eResult}\`
 
             ---
 
