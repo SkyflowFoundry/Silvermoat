@@ -374,7 +374,7 @@ jobs:
           fi
 
   analyze-results:
-    needs: [validate-cfn, setup-stack, test-suite]
+    needs: [validate-cdk, setup-stack, test-suite]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -402,7 +402,7 @@ jobs:
           fi
 
           # Collect job outcomes
-          CFN_OUTCOME="${{ needs.validate-cfn.result }}"
+          CFN_OUTCOME="${{ needs.validate-cdk.result }}"
           SETUP_OUTCOME="${{ needs.setup-stack.result }}"
           TESTS_OUTCOME="${{ needs.test-suite.result }}"
 
@@ -731,9 +731,9 @@ jobs:
             }
 
             // Build stack status section
-            const cfnOutcome = '${{ needs.validate-cfn.result }}';
+            const cfnOutcome = '${{ needs.analyze-results.result }}';
             const setupOutcome = '${{ needs.setup-stack.result }}';
-            const testsOutcome = '${{ needs.test-suite.result }}';
+            const testsOutcome = '${{ needs.analyze-results.result }}';
 
             let statusEmoji = '✅';
             if (cfnOutcome === 'failure' || setupOutcome === 'failure') {
