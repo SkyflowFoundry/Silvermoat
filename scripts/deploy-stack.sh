@@ -73,13 +73,16 @@ echo "Checking Lambda code for changes..."
 LAMBDA_DIR="$PROJECT_ROOT/lambda"
 
 # Calculate hash of Lambda sources + packaging scripts so packaging reruns when scripts change
-HASH_INPUTS=$(find "$LAMBDA_DIR" -type f -name "*.py" 2>/dev/null; printf "%s\n" "$SCRIPT_DIR/deploy-stack.sh" "$SCRIPT_DIR/package-lambda.sh")
+HASH_INPUTS=$(find "$LAMBDA_DIR" -type f -name "*.py" 2>/dev/null; printf "%s\n" "$SCRIPT_DIR/deploy-stack.sh" "$SCRIPT_DIR/package-lambda.sh" "$TEMPLATE_FILE")
 if command -v md5sum >/dev/null 2>&1; then
   LAMBDA_HASH=$(printf "%s\n" "$HASH_INPUTS" | xargs md5sum 2>/dev/null | sort | md5sum | cut -d' ' -f1)
 else
   # macOS fallback (uses md5 instead of md5sum)
   LAMBDA_HASH=$(printf "%s\n" "$HASH_INPUTS" | xargs md5 2>/dev/null | sort | md5 | cut -d' ' -f1)
 fi
+
+# Track deploy hash (lambda + template + packaging scripts)
+DEPLOY_HASH="$LAMBDA_HASH"
 
 # Try to get stored hash from S3
 STORED_HASH=$($AWS_CMD s3 cp "s3://$S3_BUCKET/.lambda-hash" - 2>/dev/null || echo "")
@@ -151,6 +154,9 @@ $AWS_CMD cloudformation deploy \
     MvpServiceCodeS3Key="lambda/mvp-service.zip" \
     SeederCodeS3Key="lambda/seeder.zip" \
   --no-fail-on-empty-changeset
+
+echo "$DEPLOY_HASH" | $AWS_CMD s3 cp - "s3://$S3_BUCKET/.deploy-hash"
+echo "✓ Saved deploy hash to S3"
 
 echo ""
 echo "Stack deployment complete!"
