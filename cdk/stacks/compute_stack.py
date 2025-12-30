@@ -29,7 +29,7 @@ class ComputeStack(Construct):
         self.mvp_function = PythonFunction(
             self,
             "MvpServiceFunction",
-            entry="lambda/mvp_service",
+            entry="../lambda/mvp_service",
             index="handler.py",
             handler="handler",
             runtime=lambda_.Runtime.PYTHON_3_12,
@@ -77,7 +77,7 @@ class ComputeStack(Construct):
         self.seeder_function = PythonFunction(
             self,
             "SeederFunction",
-            entry="lambda/seeder",
+            entry="../lambda/seeder",
             index="handler.py",
             handler="handler",
             runtime=lambda_.Runtime.PYTHON_3_12,
