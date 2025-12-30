@@ -92,6 +92,25 @@ cd "$PROJECT_ROOT"
 echo "Lambda packaging complete"
 echo ""
 
+# Build and upload psycopg2 layer
+echo "Building psycopg2 Lambda layer..."
+if [ -f "./scripts/build-psycopg2-layer.sh" ]; then
+  chmod +x ./scripts/build-psycopg2-layer.sh
+  ./scripts/build-psycopg2-layer.sh
+
+  if [ -f "./psycopg2-layer.zip" ]; then
+    $AWS_CMD s3 cp psycopg2-layer.zip "s3://$S3_BUCKET/lambda/psycopg2-layer.zip"
+    echo "✓ Uploaded psycopg2-layer.zip"
+    rm -f psycopg2-layer.zip lambda-layer.tar.gz
+    rm -rf lambda-layer
+  else
+    echo "⚠️ Warning: psycopg2-layer.zip not created, skipping layer upload"
+  fi
+else
+  echo "⚠️ Warning: build-psycopg2-layer.sh not found, skipping layer build"
+fi
+echo ""
+
 # Deploy stack
 $AWS_CMD cloudformation deploy \
   --stack-name "$STACK_NAME" \
