@@ -53,28 +53,17 @@ class FrontendStack(Construct):
             protocol_policy=cloudfront.OriginProtocolPolicy.HTTP_ONLY,
         )
 
-        viewer_certificate = None
-        if self.certificate and domain_name:
-            viewer_certificate = cloudfront.ViewerCertificate.from_acm_certificate(
-                self.certificate,
-                aliases=[domain_name],
-                security_policy=cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
-            )
-        else:
-            viewer_certificate = cloudfront.ViewerCertificate.from_cloudfront_default_certificate()
-
-        self.distribution = cloudfront.Distribution(
-            self,
-            "UiDistribution",
-            default_behavior=cloudfront.BehaviorOptions(
+        # Build distribution properties based on whether we have a custom domain
+        distribution_props = {
+            "default_behavior": cloudfront.BehaviorOptions(
                 origin=origin,
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
                 allowed_methods=cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
                 cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
                 compress=True,
             ),
-            default_root_object="index.html",
-            error_responses=[
+            "default_root_object": "index.html",
+            "error_responses": [
                 cloudfront.ErrorResponse(
                     http_status=404,
                     response_http_status=200,
@@ -88,8 +77,17 @@ class FrontendStack(Construct):
                     ttl=Duration.minutes(5),
                 ),
             ],
-            price_class=cloudfront.PriceClass.PRICE_CLASS_100,
-            certificate=viewer_certificate,
+            "price_class": cloudfront.PriceClass.PRICE_CLASS_100,
+        }
+
+        # Add certificate and domain if provided
+        if self.certificate and domain_name:
+            distribution_props["certificate"] = self.certificate
+            distribution_props["domain_names"] = [domain_name]
+            distribution_props["minimum_protocol_version"] = cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021
+
+        self.distribution = cloudfront.Distribution(
+            self, "UiDistribution", **distribution_props
         )
 
         # Outputs (conditional)
