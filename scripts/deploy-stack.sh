@@ -100,7 +100,17 @@ if [ "$SKIP_LAMBDA_PACKAGING" = "false" ]; then
   echo "Packaging mvp_service..."
   cd "$LAMBDA_DIR/mvp_service"
   rm -f mvp-service.zip
-  zip -q mvp-service.zip handler.py
+
+  TMP_DIR=$(mktemp -d)
+  cp handler.py chatbot.py "$TMP_DIR/"
+  cp -R ../shared "$TMP_DIR/shared"
+  (
+    cd "$TMP_DIR"
+    zip -q -r mvp-service.zip handler.py chatbot.py shared
+  )
+  mv "$TMP_DIR/mvp-service.zip" .
+  rm -rf "$TMP_DIR"
+
   $AWS_CMD s3 cp mvp-service.zip "s3://$S3_BUCKET/lambda/mvp-service.zip"
   echo "✓ Uploaded mvp-service.zip"
 
@@ -149,4 +159,3 @@ echo "  ./scripts/get-outputs.sh"
 echo ""
 echo "To deploy the UI, run:"
 echo "  ./scripts/deploy-ui.sh"
-

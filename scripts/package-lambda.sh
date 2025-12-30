@@ -31,8 +31,14 @@ echo ""
 echo "Packaging mvp_service Lambda..."
 cd "${LAMBDA_DIR}"
 rm -f mvp_service/mvp-service.zip
-# Package handler and chatbot from mvp_service/, plus shared/ directory
-zip -r mvp_service/mvp-service.zip mvp_service/handler.py mvp_service/chatbot.py shared/
+
+TMP_DIR=$(mktemp -d)
+cp mvp_service/handler.py mvp_service/chatbot.py "$TMP_DIR/"
+cp -R shared "$TMP_DIR/shared"
+(cd "$TMP_DIR" && zip -q -r mvp-service.zip handler.py chatbot.py shared)
+mv "$TMP_DIR/mvp-service.zip" mvp_service/mvp-service.zip
+rm -rf "$TMP_DIR"
+
 echo "Created mvp-service.zip ($(du -h mvp_service/mvp-service.zip | cut -f1))"
 
 echo "Uploading mvp-service.zip to s3://${LAMBDA_BUCKET}/"
