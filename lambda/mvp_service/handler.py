@@ -5,6 +5,15 @@ import time
 from decimal import Decimal
 import boto3
 
+# Import database modules for PostgreSQL
+try:
+    from .db import initialize_schema
+    from . import customers
+    DB_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: PostgreSQL modules not available: {e}")
+    DB_AVAILABLE = False
+
 ddb = boto3.resource("dynamodb")
 s3 = boto3.client("s3")
 eb = boto3.client("events")
@@ -244,9 +253,76 @@ def execute_tool(tool_name, tool_input):
     return {"error": "Unknown tool"}
 
 
+def handle_customer_request(path, method, raw_body, parts):
+    """Handle customer API requests (PostgreSQL backend)"""
+    if not DB_AVAILABLE:
+        return _resp(503, {"error": "database_unavailable", "message": "PostgreSQL modules not loaded"})
+
+    try:
+        # Parse body
+        body = {}
+        if raw_body:
+            try:
+                body = json.loads(raw_body)
+            except Exception:
+                body = {"raw": raw_body}
+
+        # POST /customer - Create
+        if method == "POST" and len(parts) == 1:
+            customer = customers.create_customer(body)
+            if customer:
+                return _resp(201, {"id": customer['id'], "item": customer})
+            return _resp(500, {"error": "failed_to_create"})
+
+        # GET /customer - List all
+        if method == "GET" and len(parts) == 1:
+            items = customers.list_customers()
+            return _resp(200, {"items": items, "count": len(items)})
+
+        # GET /customer/{id} - Read
+        if method == "GET" and len(parts) == 2:
+            customer_id = parts[1]
+            customer = customers.get_customer(customer_id)
+            if customer:
+                return _resp(200, customer)
+            return _resp(404, {"error": "not_found", "id": customer_id})
+
+        # PUT /customer/{id} - Update
+        if method == "PUT" and len(parts) == 2:
+            customer_id = parts[1]
+            customer = customers.update_customer(customer_id, body)
+            if customer:
+                return _resp(200, customer)
+            return _resp(404, {"error": "not_found", "id": customer_id})
+
+        # DELETE /customer/{id} - Delete
+        if method == "DELETE" and len(parts) == 2:
+            customer_id = parts[1]
+            success = customers.delete_customer(customer_id)
+            if success:
+                return _resp(200, {"id": customer_id, "deleted": True})
+            return _resp(404, {"error": "not_found", "id": customer_id})
+
+        # Unsupported operation
+        return _resp(400, {"error": "unsupported_operation", "path": path, "method": method})
+
+    except Exception as e:
+        print(f"Error handling customer request: {e}")
+        import traceback
+        traceback.print_exc()
+        return _resp(500, {"error": "internal_error", "message": str(e)})
+
+
 def handler(event, context):
     path = (event.get("path") or "/").strip("/")
     method = (event.get("httpMethod") or "GET").upper()
+
+    # Initialize PostgreSQL schema on cold start
+    if DB_AVAILABLE:
+        try:
+            initialize_schema()
+        except Exception as e:
+            print(f"Warning: Failed to initialize database schema: {e}")
 
     # Handle CORS preflight
     if method == "OPTIONS":
@@ -349,10 +425,15 @@ def handler(event, context):
     if not parts:
         return _resp(200, {
             "name": "Silvermoat MVP",
-            "endpoints": ["/quote", "/policy", "/claim", "/payment", "/case", "/chat"]
+            "endpoints": ["/quote", "/policy", "/claim", "/payment", "/case", "/customer", "/chat"]
         })
 
     domain = parts[0]
+
+    # Route to PostgreSQL for customer resource
+    if domain == "customer":
+        return handle_customer_request(path, method, event.get("body"), parts)
+
     if domain not in T:
         return _resp(404, {"error": "unknown_domain", "domain": domain})
 
