@@ -59,10 +59,39 @@ jobs:
           cd cdk
           pip install -r requirements.txt
 
-      - name: Bootstrap CDK (if needed)
+      - name: Bootstrap CDK (with recovery)
         run: |
-          echo "Bootstrapping CDK environment (idempotent)..."
-          cdk bootstrap aws://571930033416/us-east-1
+          echo "Checking CDK bootstrap status..."
+
+          # Try bootstrap first
+          if ! cdk bootstrap aws://571930033416/us-east-1 2>&1 | tee bootstrap.log; then
+            echo "⚠️ Bootstrap failed, checking for corrupted stack..."
+
+            # Check if error is about existing resources
+            if grep -q "already exists" bootstrap.log; then
+              echo "Detected corrupted bootstrap stack. Attempting recovery..."
+
+              # Delete the corrupted CDKToolkit stack
+              echo "Deleting CDKToolkit stack..."
+              aws cloudformation delete-stack --stack-name CDKToolkit || true
+
+              # Wait for deletion
+              echo "Waiting for stack deletion..."
+              aws cloudformation wait stack-delete-complete --stack-name CDKToolkit || {
+                echo "Stack deletion timed out or failed, but continuing anyway..."
+              }
+
+              # Re-bootstrap
+              echo "Re-bootstrapping CDK environment..."
+              cdk bootstrap aws://571930033416/us-east-1
+            else
+              echo "Bootstrap failed for a different reason. Exiting."
+              cat bootstrap.log
+              exit 1
+            fi
+          else
+            echo "✅ CDK bootstrap successful"
+          fi
 
       - name: Deploy production stack
         env:
