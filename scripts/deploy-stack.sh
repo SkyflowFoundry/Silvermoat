@@ -72,13 +72,17 @@ echo ""
 echo "Checking Lambda code for changes..."
 LAMBDA_DIR="$PROJECT_ROOT/lambda"
 
-# Calculate hash of all Lambda source files
+# Calculate hash of Lambda sources + packaging scripts + template so packaging reruns when inputs change
+HASH_INPUTS=$(find "$LAMBDA_DIR" -type f -name "*.py" 2>/dev/null; printf "%s\n" "$SCRIPT_DIR/deploy-stack.sh" "$SCRIPT_DIR/package-lambda.sh" "$TEMPLATE_FILE")
 if command -v md5sum >/dev/null 2>&1; then
-  LAMBDA_HASH=$(find "$LAMBDA_DIR" -type f -name "*.py" -exec md5sum {} \; 2>/dev/null | sort | md5sum | cut -d' ' -f1)
+  LAMBDA_HASH=$(printf "%s\n" "$HASH_INPUTS" | xargs md5sum 2>/dev/null | sort | md5sum | cut -d' ' -f1)
 else
   # macOS fallback (uses md5 instead of md5sum)
-  LAMBDA_HASH=$(find "$LAMBDA_DIR" -type f -name "*.py" -exec md5 {} \; 2>/dev/null | sort | md5 | cut -d' ' -f1)
+  LAMBDA_HASH=$(printf "%s\n" "$HASH_INPUTS" | xargs md5 2>/dev/null | sort | md5 | cut -d' ' -f1)
 fi
+
+# Track deploy hash (lambda + template + packaging scripts)
+DEPLOY_HASH="$LAMBDA_HASH"
 
 # Try to get stored hash from S3
 STORED_HASH=$($AWS_CMD s3 cp "s3://$S3_BUCKET/.lambda-hash" - 2>/dev/null || echo "")
@@ -100,7 +104,17 @@ if [ "$SKIP_LAMBDA_PACKAGING" = "false" ]; then
   echo "Packaging mvp_service..."
   cd "$LAMBDA_DIR/mvp_service"
   rm -f mvp-service.zip
-  zip -q mvp-service.zip handler.py
+
+  TMP_DIR=$(mktemp -d)
+  cp handler.py chatbot.py "$TMP_DIR/"
+  cp -R ../shared "$TMP_DIR/shared"
+  (
+    cd "$TMP_DIR"
+    zip -q -r mvp-service.zip handler.py chatbot.py shared
+  )
+  mv "$TMP_DIR/mvp-service.zip" .
+  rm -rf "$TMP_DIR"
+
   $AWS_CMD s3 cp mvp-service.zip "s3://$S3_BUCKET/lambda/mvp-service.zip"
   echo "✓ Uploaded mvp-service.zip"
 
@@ -123,7 +137,7 @@ else
 fi
 echo ""
 
-# Upload nested stack templates to S3
+# Upload nested stack templates to S3 (if present)
 echo "Uploading nested stack templates to S3..."
 NESTED_TEMPLATE_DIR="$PROJECT_ROOT/infra/nested"
 if [ -d "$NESTED_TEMPLATE_DIR" ]; then
@@ -152,6 +166,9 @@ $AWS_CMD cloudformation deploy \
     SeederCodeS3Key="lambda/seeder.zip" \
   --no-fail-on-empty-changeset
 
+echo "$DEPLOY_HASH" | $AWS_CMD s3 cp - "s3://$S3_BUCKET/.deploy-hash"
+echo "✓ Saved deploy hash to S3"
+
 echo ""
 echo "Stack deployment complete!"
 echo ""
@@ -160,4 +177,3 @@ echo "  ./scripts/get-outputs.sh"
 echo ""
 echo "To deploy the UI, run:"
 echo "  ./scripts/deploy-ui.sh"
-
