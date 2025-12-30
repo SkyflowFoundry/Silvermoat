@@ -1,0 +1,146 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Silvermoat Data Stack - DynamoDB tables and SNS topic
+
+Parameters:
+  AppName:
+    Type: String
+    Description: "Short app name used in resource naming"
+
+  StageName:
+    Type: String
+    Description: "Stage name for the application"
+
+Resources:
+  # ----------------------------
+  # DynamoDB Tables (PAY_PER_REQUEST)
+  # ----------------------------
+  QuotesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  PoliciesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  ClaimsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  PaymentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  CasesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  # ----------------------------
+  # SNS Topic (Demo notifications)
+  # ----------------------------
+  DemoNotificationsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "${AppName}-${StageName}-demo-notifications"
+
+Outputs:
+  QuotesTableName:
+    Description: "Name of the Quotes DynamoDB table"
+    Value: !Ref QuotesTable
+    Export:
+      Name: !Sub "${AWS::StackName}-QuotesTableName"
+
+  QuotesTableArn:
+    Description: "ARN of the Quotes DynamoDB table"
+    Value: !GetAtt QuotesTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-QuotesTableArn"
+
+  PoliciesTableName:
+    Description: "Name of the Policies DynamoDB table"
+    Value: !Ref PoliciesTable
+    Export:
+      Name: !Sub "${AWS::StackName}-PoliciesTableName"
+
+  PoliciesTableArn:
+    Description: "ARN of the Policies DynamoDB table"
+    Value: !GetAtt PoliciesTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-PoliciesTableArn"
+
+  ClaimsTableName:
+    Description: "Name of the Claims DynamoDB table"
+    Value: !Ref ClaimsTable
+    Export:
+      Name: !Sub "${AWS::StackName}-ClaimsTableName"
+
+  ClaimsTableArn:
+    Description: "ARN of the Claims DynamoDB table"
+    Value: !GetAtt ClaimsTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ClaimsTableArn"
+
+  PaymentsTableName:
+    Description: "Name of the Payments DynamoDB table"
+    Value: !Ref PaymentsTable
+    Export:
+      Name: !Sub "${AWS::StackName}-PaymentsTableName"
+
+  PaymentsTableArn:
+    Description: "ARN of the Payments DynamoDB table"
+    Value: !GetAtt PaymentsTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-PaymentsTableArn"
+
+  CasesTableName:
+    Description: "Name of the Cases DynamoDB table"
+    Value: !Ref CasesTable
+    Export:
+      Name: !Sub "${AWS::StackName}-CasesTableName"
+
+  CasesTableArn:
+    Description: "ARN of the Cases DynamoDB table"
+    Value: !GetAtt CasesTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-CasesTableArn"
+
+  SnsTopicArn:
+    Description: "ARN of the SNS topic"
+    Value: !Ref DemoNotificationsTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-SnsTopicArn"

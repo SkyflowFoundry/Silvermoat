@@ -1,0 +1,128 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Silvermoat Frontend Stack - CloudFront distribution and ACM certificate
+
+Parameters:
+  DomainName:
+    Type: String
+    Description: "Custom domain for CloudFront (set to empty string to disable)"
+
+  CreateCloudFront:
+    Type: String
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: "Create CloudFront distribution (set to false for test stacks)"
+
+  UiBucketWebsiteDomain:
+    Type: String
+    Description: "Website domain of the UI S3 bucket (for CloudFront origin)"
+
+Conditions:
+  HasDomainName: !Not [!Equals [!Ref DomainName, ""]]
+  ShouldCreateCloudFront: !Equals [!Ref CreateCloudFront, "true"]
+  ShouldCreateCertificate: !And
+    - !Condition ShouldCreateCloudFront
+    - !Condition HasDomainName
+
+Resources:
+  # ----------------------------
+  # SSL Certificate for CloudFront (only if DomainName provided)
+  # ----------------------------
+  UiCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Condition: ShouldCreateCertificate
+    Properties:
+      DomainName: !Ref DomainName
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          ValidationDomain: !Ref DomainName
+
+  # ----------------------------
+  # CloudFront Distribution
+  # ----------------------------
+  UiDistribution:
+    Type: AWS::CloudFront::Distribution
+    Condition: ShouldCreateCloudFront
+    Properties:
+      DistributionConfig:
+        # Custom domain aliases (only if DomainName provided)
+        Aliases: !If
+          - HasDomainName
+          - - !Ref DomainName
+          - !Ref "AWS::NoValue"
+
+        # HTTPS certificate
+        ViewerCertificate: !If
+          - HasDomainName
+          - AcmCertificateArn: !Ref UiCertificate
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+
+        # Origin: S3 website endpoint (not REST API endpoint)
+        Origins:
+          - Id: S3Origin
+            DomainName: !Ref UiBucketWebsiteDomain
+            CustomOriginConfig:
+              HTTPPort: 80
+              OriginProtocolPolicy: http-only
+
+        # Default cache behavior
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          Compress: true
+          # Use managed caching policy optimized for SPAs
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          # Use managed origin request policy for CORS
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
+
+        # SPA routing: serve index.html for 404/403 errors
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+
+        # Distribution settings
+        Enabled: true
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: PriceClass_100
+        Comment: !Sub "${AWS::StackName} UI Distribution"
+
+Outputs:
+  CloudFrontUrl:
+    Condition: ShouldCreateCloudFront
+    Description: "CloudFront distribution URL (HTTPS)"
+    Value: !Sub "https://${UiDistribution.DomainName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudFrontUrl"
+
+  CloudFrontDomain:
+    Condition: ShouldCreateCloudFront
+    Description: "CloudFront domain name (for DNS CNAME record)"
+    Value: !GetAtt UiDistribution.DomainName
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudFrontDomain"
+
+  CustomDomainUrl:
+    Condition: ShouldCreateCertificate
+    Description: "Custom domain URL (if DomainName parameter provided)"
+    Value: !Sub "https://${DomainName}"
+
+  CertificateArn:
+    Condition: ShouldCreateCertificate
+    Description: "ACM certificate ARN"
+    Value: !Ref UiCertificate
+    Export:
+      Name: !Sub "${AWS::StackName}-CertificateArn"

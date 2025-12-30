@@ -123,6 +123,17 @@ else
 fi
 echo ""
 
+# Upload nested stack templates to S3
+echo "Uploading nested stack templates to S3..."
+NESTED_TEMPLATE_DIR="$PROJECT_ROOT/infra/nested"
+if [ -d "$NESTED_TEMPLATE_DIR" ]; then
+  $AWS_CMD s3 cp "$NESTED_TEMPLATE_DIR/" "s3://$S3_BUCKET/nested/" --recursive --exclude ".*"
+  echo "✓ Nested templates uploaded to s3://$S3_BUCKET/nested/"
+else
+  echo "Warning: Nested template directory not found: $NESTED_TEMPLATE_DIR"
+fi
+echo ""
+
 # Deploy stack
 $AWS_CMD cloudformation deploy \
   --stack-name "$STACK_NAME" \
