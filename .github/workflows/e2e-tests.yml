@@ -119,19 +119,41 @@ jobs:
           echo "Stack status: ${STACK_STATUS}"
           echo "stack_status=${STACK_STATUS}" >> $GITHUB_OUTPUT
 
+          # Handle failed rollback states - delete stack before redeploying
+          if [[ "${STACK_STATUS}" == "ROLLBACK_COMPLETE" ]] || \
+             [[ "${STACK_STATUS}" == "ROLLBACK_FAILED" ]] || \
+             [[ "${STACK_STATUS}" == "UPDATE_ROLLBACK_COMPLETE" ]] || \
+             [[ "${STACK_STATUS}" == "UPDATE_ROLLBACK_FAILED" ]]; then
+            echo "🗑️ Stack in failed state (${STACK_STATUS}), deleting before redeployment..."
+            aws cloudformation delete-stack --stack-name "${STACK_NAME}"
+            echo "Waiting for stack deletion..."
+            aws cloudformation wait stack-delete-complete --stack-name "${STACK_NAME}" || true
+            echo "✅ Stack deleted"
+            echo "stack_exists=false" >> $GITHUB_OUTPUT
+            echo "skip_deploy=false" >> $GITHUB_OUTPUT
+            echo "stack_deleted=true" >> $GITHUB_OUTPUT
           # Stack is ready if in a stable complete state
-          if [[ "${STACK_STATUS}" == "CREATE_COMPLETE" ]] || [[ "${STACK_STATUS}" == "UPDATE_COMPLETE" ]]; then
+          elif [[ "${STACK_STATUS}" == "CREATE_COMPLETE" ]] || [[ "${STACK_STATUS}" == "UPDATE_COMPLETE" ]]; then
             echo "✅ Stack exists and is ready"
             echo "stack_exists=true" >> $GITHUB_OUTPUT
             echo "skip_deploy=true" >> $GITHUB_OUTPUT
+            echo "stack_deleted=false" >> $GITHUB_OUTPUT
           elif [[ "${STACK_STATUS}" == "NOT_FOUND" ]]; then
             echo "Stack does not exist, will create"
             echo "stack_exists=false" >> $GITHUB_OUTPUT
             echo "skip_deploy=false" >> $GITHUB_OUTPUT
+            echo "stack_deleted=false" >> $GITHUB_OUTPUT
+          # Handle in-progress states
+          elif [[ "${STACK_STATUS}" == *"IN_PROGRESS"* ]]; then
+            echo "⚠️ Stack operation in progress (${STACK_STATUS}), waiting..."
+            echo "stack_exists=true" >> $GITHUB_OUTPUT
+            echo "skip_deploy=true" >> $GITHUB_OUTPUT
+            echo "stack_deleted=false" >> $GITHUB_OUTPUT
           else
-            echo "⚠️ Stack exists but in state: ${STACK_STATUS}"
+            echo "⚠️ Stack exists but in unexpected state: ${STACK_STATUS}"
             echo "stack_exists=true" >> $GITHUB_OUTPUT
             echo "skip_deploy=false" >> $GITHUB_OUTPUT
+            echo "stack_deleted=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Deploy test stack
@@ -220,9 +242,13 @@ jobs:
           echo "=== Setup Stack Summary ==="
           echo "Stack: ${{ steps.stack-name.outputs.stack_name }}"
           echo "Stack status: ${{ steps.check-stack.outputs.stack_status }}"
+          echo "Stack deleted: ${{ steps.check-stack.outputs.stack_deleted }}"
           echo "Stack deployment skipped: ${{ steps.check-stack.outputs.skip_deploy }}"
           echo "UI deployment skipped: ${{ steps.check-ui.outputs.skip_ui }}"
           echo ""
+          if [ "${{ steps.check-stack.outputs.stack_deleted }}" = "true" ]; then
+            echo "🗑️ Previous failed stack was deleted before redeployment"
+          fi
           if [ "${{ steps.check-stack.outputs.skip_deploy }}" = "true" ]; then
             echo "⚡ Stack already exists and is ready - saved ~10-15 minutes!"
           fi
@@ -338,7 +364,7 @@ jobs:
           fi
 
   analyze-results:
-    needs: test-suite
+    needs: [validate-cfn, setup-stack, test-suite]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -365,6 +391,13 @@ jobs:
             exit 0
           fi
 
+          # Collect job outcomes
+          CFN_OUTCOME="${{ needs.validate-cfn.result }}"
+          SETUP_OUTCOME="${{ needs.setup-stack.result }}"
+          TESTS_OUTCOME="${{ needs.test-suite.result }}"
+
+          echo "Job outcomes: CFN=$CFN_OUTCOME, SETUP=$SETUP_OUTCOME, TESTS=$TESTS_OUTCOME"
+
           # Collect test outputs (escape for JSON, limit to 2000 lines each)
           SMOKE_OUTPUT=$(cat test-outputs/smoke-test-output/smoke-tests-output.txt 2>/dev/null | head -2000 | jq -Rs . || echo '"No output captured"')
           API_OUTPUT=$(cat test-outputs/api-test-output/api-tests-output.txt 2>/dev/null | head -2000 | jq -Rs . || echo '"No output captured"')
@@ -382,13 +415,16 @@ jobs:
           fi
           E2E_ARTIFACTS_JSON=$(echo "$E2E_ARTIFACTS" | jq -Rs . || echo '""')
 
-          # Determine outcomes from job results (will be set in check-results job)
+          # Determine outcomes from job results
           SMOKE_OUTCOME="${{ needs.test-suite.result }}"
           API_OUTCOME="${{ needs.test-suite.result }}"
           E2E_OUTCOME="${{ needs.test-suite.result }}"
 
           # Build JSON request with proper escaping
           jq -n \
+            --arg cfn_outcome "$CFN_OUTCOME" \
+            --arg setup_outcome "$SETUP_OUTCOME" \
+            --arg tests_outcome "$TESTS_OUTCOME" \
             --arg smoke_outcome "$SMOKE_OUTCOME" \
             --arg api_outcome "$API_OUTCOME" \
             --arg e2e_outcome "$E2E_OUTCOME" \
@@ -401,7 +437,7 @@ jobs:
               "max_tokens": 4096,
               "messages": [{
                 "role": "user",
-                "content": "You are analyzing test results from an E2E test suite for the Silvermoat insurance MVP application. Review the test outputs below and generate a concise PR comment summarizing:\n\n1. Overall status (✅ passed / ⚠️ partial / ❌ failed)\n2. Key findings for each test suite\n3. Critical failures that need immediate attention\n4. Recommendations for fixes (if failures exist)\n\nFormat as GitHub-flavored markdown. Be specific about which tests failed and why. Limit to 500 words.\n\n## Test Outcomes\n- Smoke tests: \($smoke_outcome)\n- API tests: \($api_outcome)\n- E2E tests: \($e2e_outcome)\n\n## Deployment Smoke Tests\n```\n\($smoke_output)\n```\n\n## API Contract Tests\n```\n\($api_output)\n```\n\n## E2E Smoke Tests\n```\n\($e2e_output)\n```\n\n## E2E Debug Artifacts\nThese contain DOM state, console errors, and diagnostic info for failed tests:\n```\n\($e2e_artifacts)\n```"
+                "content": "You are analyzing GitHub Actions workflow results for the Silvermoat insurance MVP application. Review ALL job outcomes and outputs below, then generate a concise PR comment summarizing:\n\n1. Overall pipeline status (✅ passed / ⚠️ partial / ❌ failed)\n2. Key findings for EACH job (CloudFormation validation, stack deployment, tests)\n3. Root cause analysis for any failures (check CFN validation and stack deployment FIRST)\n4. Critical failures that need immediate attention\n5. Recommendations for fixes\n\nFormat as GitHub-flavored markdown. Be specific about which jobs/tests failed and why. Limit to 500 words.\n\n## Pipeline Job Outcomes\n- CloudFormation Validation: \($cfn_outcome)\n- Stack Deployment: \($setup_outcome)\n- Test Suite: \($tests_outcome)\n\n## Test Suite Outcomes (if tests ran)\n- Smoke tests: \($smoke_outcome)\n- API tests: \($api_outcome)\n- E2E tests: \($e2e_outcome)\n\n## Test Outputs\n\n### Deployment Smoke Tests\n```\n\($smoke_output)\n```\n\n### API Contract Tests\n```\n\($api_output)\n```\n\n### E2E Smoke Tests\n```\n\($e2e_output)\n```\n\n### E2E Debug Artifacts\nThese contain DOM state, console errors, and diagnostic info for failed tests:\n```\n\($e2e_artifacts)\n```\n\n## Analysis Instructions\n\n**IMPORTANT**: If CFN validation or stack deployment failed, focus on that as the root cause. Tests cannot run without a deployed stack. Check for:\n- CFN template syntax errors (cfn-lint output)\n- Stack deployment failures (missing resources, circular dependencies, parameter issues)\n- Rollback states (ROLLBACK_COMPLETE, ROLLBACK_FAILED)\n\nOnly analyze test failures if the stack deployed successfully."
               }]
             }' > analysis-request.json
 
@@ -629,7 +665,7 @@ jobs:
             const fs = require('fs');
             const prNumber = context.payload.pull_request.number;
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const stackName = '${{ needs.setup-stack.outputs.stack_name }}';
+            const stackName = '${{ needs.setup-stack.outputs.stack_name }}' || 'unknown';
 
             // Read AI-generated analysis
             let analysis = "Test analysis not available";
@@ -658,10 +694,27 @@ jobs:
               }
             }
 
-            const body = `## 🤖 E2E Test Analysis
+            // Build stack status section
+            const cfnOutcome = '${{ needs.validate-cfn.result }}';
+            const setupOutcome = '${{ needs.setup-stack.result }}';
+            const testsOutcome = '${{ needs.test-suite.result }}';
+
+            let statusEmoji = '✅';
+            if (cfnOutcome === 'failure' || setupOutcome === 'failure') {
+              statusEmoji = '❌';
+            } else if (testsOutcome === 'failure') {
+              statusEmoji = '⚠️';
+            }
+
+            const body = `## ${statusEmoji} Pipeline Results
 
             **Test Stack:** \`${stackName}\`
             **Run:** [View Full Logs](${runUrl})
+
+            **Job Results:**
+            - CloudFormation Validation: ${cfnOutcome === 'success' ? '✅' : '❌'} \`${cfnOutcome}\`
+            - Stack Deployment: ${setupOutcome === 'success' ? '✅' : '❌'} \`${setupOutcome}\`
+            - Test Suite: ${testsOutcome === 'success' ? '✅' : testsOutcome === 'skipped' ? '⏭️' : '❌'} \`${testsOutcome}\`
 
             ---
 
@@ -669,7 +722,7 @@ jobs:
 
             ---
 
-            <sub>Stack \`${stackName}\` is running and will be cleaned up when this PR is closed. Analysis generated by Claude Sonnet 4.</sub>
+            <sub>Stack \`${stackName}\` ${setupOutcome === 'success' ? 'is running and will be cleaned up when this PR is closed' : 'may not have deployed successfully - check logs above'}. Analysis generated by Claude Sonnet 4.</sub>
             `;
 
             await github.rest.issues.createComment({
