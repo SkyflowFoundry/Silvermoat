@@ -340,10 +340,6 @@ Resources:
       VpcId: !Ref VPC
       SecurityGroupEgress:
         - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          DestinationSecurityGroupId: !Ref RDSSecurityGroup
-        - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
           CidrIp: 0.0.0.0/0
@@ -357,15 +353,30 @@ Resources:
     Properties:
       GroupDescription: Security group for RDS Aurora cluster
       VpcId: !Ref VPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          SourceSecurityGroupId: !Ref LambdaSecurityGroup
-          Description: Allow PostgreSQL from Lambda
       Tags:
         - Key: Name
           Value: !Sub "${AppName}-${StageName}-rds-sg"
+
+  # Security group rules (separate to avoid circular dependency)
+  LambdaToRDSEgressRule:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref LambdaSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      DestinationSecurityGroupId: !Ref RDSSecurityGroup
+      Description: Allow Lambda to connect to RDS on PostgreSQL port
+
+  RDSFromLambdaIngressRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref RDSSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref LambdaSecurityGroup
+      Description: Allow PostgreSQL from Lambda
 
   # DB Subnet Group (required for RDS)
   DBSubnetGroup:
@@ -398,7 +409,7 @@ Resources:
     Type: AWS::RDS::DBCluster
     Properties:
       Engine: aurora-postgresql
-      EngineVersion: "17.2"
+      EngineVersion: "17"
       DatabaseName: silvermoat
       MasterUsername: !Sub "{{resolve:secretsmanager:${DBSecret}:SecretString:username}}"
       MasterUserPassword: !Sub "{{resolve:secretsmanager:${DBSecret}:SecretString:password}}"
