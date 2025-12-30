@@ -70,6 +70,11 @@ Parameters:
     Default: "lambda/seeder.zip"
     Description: S3 key for seeder Lambda deployment package
 
+  Psycopg2LayerS3Key:
+    Type: String
+    Default: "lambda/psycopg2-layer.zip"
+    Description: S3 key for psycopg2 Lambda layer package
+
 Conditions:
   HasDomainName: !Not [!Equals [!Ref DomainName, ""]]
   ShouldCreateCloudFront: !Equals [!Ref CreateCloudFront, "true"]
@@ -265,6 +270,195 @@ Resources:
           KeyType: HASH
 
   # ----------------------------
+  # VPC for RDS Aurora (PostgreSQL)
+  # ----------------------------
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${AppName}-${StageName}-vpc"
+
+  # Private Subnets (2 AZs required for Aurora)
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub "${AppName}-${StageName}-private-subnet-1"
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub "${AppName}-${StageName}-private-subnet-2"
+
+  # Route Tables for Private Subnets
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${AppName}-${StageName}-private-rt-1"
+
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${AppName}-${StageName}-private-rt-2"
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable1
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable2
+
+  # Security Groups
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Lambda functions accessing RDS
+      VpcId: !Ref VPC
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          DestinationSecurityGroupId: !Ref RDSSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: Allow HTTPS for VPC endpoints
+      Tags:
+        - Key: Name
+          Value: !Sub "${AppName}-${StageName}-lambda-sg"
+
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for RDS Aurora cluster
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+          Description: Allow PostgreSQL from Lambda
+      Tags:
+        - Key: Name
+          Value: !Sub "${AppName}-${StageName}-rds-sg"
+
+  # DB Subnet Group (required for RDS)
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for Aurora PostgreSQL cluster
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub "${AppName}-${StageName}-db-subnet-group"
+
+  # Secrets Manager (database credentials)
+  DBSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Database credentials for Aurora PostgreSQL cluster
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "silvermoat_admin"}'
+        GenerateStringKey: "password"
+        PasswordLength: 32
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: Name
+          Value: !Sub "${AppName}-${StageName}-db-secret"
+
+  # Aurora Serverless v2 Cluster (PostgreSQL 17)
+  AuroraCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: aurora-postgresql
+      EngineVersion: "17.2"
+      DatabaseName: silvermoat
+      MasterUsername: !Sub "{{resolve:secretsmanager:${DBSecret}:SecretString:username}}"
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${DBSecret}:SecretString:password}}"
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref RDSSecurityGroup
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: 0.5
+        MaxCapacity: 1.0
+      EnableHttpEndpoint: false
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: "03:00-04:00"
+      PreferredMaintenanceWindow: "mon:04:00-mon:05:00"
+      Tags:
+        - Key: Name
+          Value: !Sub "${AppName}-${StageName}-aurora-cluster"
+
+  DBSecretAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref DBSecret
+      TargetId: !Ref AuroraCluster
+      TargetType: AWS::RDS::DBCluster
+
+  AuroraInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceClass: db.serverless
+      Engine: aurora-postgresql
+      DBClusterIdentifier: !Ref AuroraCluster
+      PubliclyAccessible: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${AppName}-${StageName}-aurora-instance"
+
+  # VPC Endpoints (for Lambda to access AWS services from within VPC)
+  DynamoDBVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.dynamodb"
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PrivateRouteTable1
+        - !Ref PrivateRouteTable2
+
+  SecretsManagerVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.secretsmanager"
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref LambdaSecurityGroup
+      PrivateDnsEnabled: true
+
+  # ----------------------------
   # SNS Topic (Demo notifications)
   # ----------------------------
   DemoNotificationsTopic:
@@ -342,6 +536,34 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0"
 
+              - Sid: SecretsManagerRead
+                Effect: Allow
+                Action:
+                  - "secretsmanager:GetSecretValue"
+                Resource: !Ref DBSecret
+
+              - Sid: VPCNetworkInterfaces
+                Effect: Allow
+                Action:
+                  - "ec2:CreateNetworkInterface"
+                  - "ec2:DescribeNetworkInterfaces"
+                  - "ec2:DeleteNetworkInterface"
+                Resource: "*"
+
+  # ----------------------------
+  # Lambda Layer (psycopg2 for PostgreSQL access)
+  # ----------------------------
+  Psycopg2Layer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub "${AppName}-${StageName}-psycopg2"
+      Description: psycopg2 library for PostgreSQL access from Lambda
+      Content:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref Psycopg2LayerS3Key
+      CompatibleRuntimes:
+        - python3.12
+
   # ----------------------------
   # MVP Service Lambda (single function; routes by path)
   # ----------------------------
@@ -353,6 +575,14 @@ Resources:
       Role: !GetAtt MvpLambdaRole.Arn
       Timeout: 30
       MemorySize: 256
+      Layers:
+        - !Ref Psycopg2Layer
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
       Environment:
         Variables:
           QUOTES_TABLE: !Ref QuotesTable
@@ -364,6 +594,9 @@ Resources:
           SNS_TOPIC_ARN: !Ref DemoNotificationsTopic
           BEDROCK_MODEL_ID: anthropic.claude-3-5-sonnet-20240620-v1:0
           BEDROCK_REGION: !Ref AWS::Region
+          DB_SECRET_ARN: !Ref DBSecret
+          DB_CLUSTER_ENDPOINT: !GetAtt AuroraCluster.Endpoint.Address
+          DB_NAME: silvermoat
       Code:
         S3Bucket: !Ref LambdaCodeS3Bucket
         S3Key: !Ref MvpServiceCodeS3Key
@@ -593,3 +826,25 @@ Outputs:
 
   DemoNotificationsTopicArn:
     Value: !Ref DemoNotificationsTopic
+
+  DatabaseEndpoint:
+    Description: "Aurora PostgreSQL cluster endpoint"
+    Value: !GetAtt AuroraCluster.Endpoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-DatabaseEndpoint"
+
+  DatabasePort:
+    Description: "Aurora PostgreSQL cluster port"
+    Value: !GetAtt AuroraCluster.Endpoint.Port
+    Export:
+      Name: !Sub "${AWS::StackName}-DatabasePort"
+
+  DatabaseName:
+    Description: "Database name"
+    Value: silvermoat
+
+  DatabaseSecretArn:
+    Description: "ARN of database credentials secret"
+    Value: !Ref DBSecret
+    Export:
+      Name: !Sub "${AWS::StackName}-DatabaseSecretArn"
