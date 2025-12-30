@@ -112,3 +112,38 @@ export const generateCaseSampleData = () => {
     status: 'OPEN',
   };
 };
+
+/**
+ * Generate sample data for Customer form
+ * @returns {Object} Sample customer data matching CustomerForm fields
+ */
+export const generateCustomerSampleData = () => {
+  const firstName = randomItem(FIRST_NAMES);
+  const lastName = randomItem(LAST_NAMES);
+  const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`;
+  const phone = `${randomNumber(200, 999)}-${randomNumber(200, 999)}-${randomNumber(1000, 9999)}`;
+  const streetNum = randomNumber(100, 9999);
+  const streets = ['Main St', 'Oak Ave', 'Maple Dr', 'Cedar Ln', 'Pine Rd', 'Elm St'];
+  const city = randomItem(CITIES);
+  const state = randomItem(STATES);
+  const zip = randomZip();
+
+  // Generate a random date of birth (18-70 years ago)
+  const now = new Date();
+  const yearsAgo = randomNumber(18, 70);
+  const birthYear = now.getFullYear() - yearsAgo;
+  const birthMonth = randomNumber(0, 11);
+  const birthDay = randomNumber(1, 28); // Safe day for any month
+  const dateOfBirth = new Date(birthYear, birthMonth, birthDay);
+
+  return {
+    name: `${firstName} ${lastName}`,
+    email,
+    phone,
+    address: `${streetNum} ${randomItem(streets)}`,
+    city,
+    state,
+    zip,
+    dateOfBirth,
+  };
+};

@@ -148,6 +148,12 @@ export const NAV_ITEMS = [
     path: '/cases',
     icon: 'CustomerServiceOutlined',
   },
+  {
+    key: 'customers',
+    label: 'Customers',
+    path: '/customers',
+    icon: 'UserOutlined',
+  },
 ];
 
 // Date Formats

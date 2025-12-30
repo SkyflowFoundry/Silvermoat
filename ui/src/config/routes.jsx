@@ -32,6 +32,10 @@ const PaymentDetail = lazy(() => import('../pages/Payments/PaymentDetail'));
 const CaseList = lazy(() => import('../pages/Cases/CaseList'));
 const CaseDetail = lazy(() => import('../pages/Cases/CaseDetail'));
 
+// Customers
+const CustomerList = lazy(() => import('../pages/Customers/CustomerList'));
+const CustomerDetail = lazy(() => import('../pages/Customers/CustomerDetail'));
+
 /**
  * Route Configuration Array
  * Each route can have:
@@ -120,6 +124,21 @@ export const routes = [
     path: '/cases/:id',
     element: <CaseDetail />,
     breadcrumb: 'Case Detail',
+  },
+  {
+    path: '/customers',
+    element: <CustomerList />,
+    breadcrumb: 'Customers',
+  },
+  {
+    path: '/customers/new',
+    element: <CustomerList />,  // List page handles "new" state
+    breadcrumb: 'New Customer',
+  },
+  {
+    path: '/customers/:id',
+    element: <CustomerDetail />,
+    breadcrumb: 'Customer Detail',
   },
   {
     path: '*',
