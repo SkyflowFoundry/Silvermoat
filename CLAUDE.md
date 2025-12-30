@@ -128,18 +128,21 @@ When adding new functionality, check these test categories and add tests where a
 
 ## Project Overview
 
-Silvermoat is a one-shot deployable insurance MVP demo built on AWS CloudFormation. The entire infrastructure and application can be deployed with a single CloudFormation template, featuring:
+Silvermoat is a one-shot deployable insurance MVP demo built on AWS CDK (Python). The entire infrastructure and application can be deployed with a single CDK command, featuring:
 
 - **Frontend**: React SPA (Vite) hosted on S3 website
 - **Backend**: Single Lambda function handling all API routes via AWS_PROXY integration
-- **Infrastructure**: All AWS resources defined in CloudFormation (no Terraform, CDK, or other tools)
+- **Infrastructure**: All AWS resources defined in CDK (Python), synthesizes to CloudFormation
 
 ## Key Commands
 
 ### Infrastructure Deployment
 ```bash
-# Deploy CloudFormation stack
+# Deploy CDK stack
 ./scripts/deploy-stack.sh
+
+# Or use CDK CLI directly
+cd cdk && cdk deploy silvermoat
 
 # Deploy with custom parameters
 STACK_NAME=my-silvermoat APP_NAME=silvermoat STAGE_NAME=prod ./scripts/deploy-stack.sh
@@ -149,6 +152,11 @@ STACK_NAME=my-silvermoat APP_NAME=silvermoat STAGE_NAME=prod ./scripts/deploy-st
 
 # Delete entire stack
 ./scripts/delete-stack.sh
+
+# CDK-specific commands
+cd cdk
+cdk synth silvermoat          # View synthesized CloudFormation
+cdk diff silvermoat           # Compare with deployed stack
 ```
 
 ### UI Development
@@ -200,7 +208,7 @@ Reusable actions to reduce duplication:
 - Creates ephemeral test stack: `silvermoat-test-pr-{NUMBER}`
 - No CloudFront (HTTP S3 only, fast deployment)
 - **Matrix strategy**: 6 jobs with parallel test execution
-  - `validate-cfn`: Lint CloudFormation + validate parameter files (5min)
+  - `validate-cdk`: Validate CDK stacks via synthesis (5min)
   - `setup-stack`: Deploy infrastructure + UI (20min, waits for validation)
   - `test-suite`: Run smoke/API/E2E in parallel (15min max)
   - `analyze-results`: Aggregate outputs + Claude AI analysis (5min)
@@ -247,6 +255,28 @@ See `docs/ab-deployment-design.md` for complete architecture.
 
 ## Architecture
 
+### CDK Project Structure
+
+Infrastructure defined in `cdk/`:
+```
+cdk/
+├── app.py                          # CDK entry point
+├── cdk.json                        # CDK configuration
+├── requirements.txt                # CDK dependencies
+├── config/
+│   ├── base.py                     # Config dataclass
+│   └── environments.py             # Per-environment config
+├── stacks/
+│   ├── silvermoat_stack.py        # Parent orchestrator
+│   ├── data_stack.py              # DynamoDB + SNS
+│   ├── storage_stack.py           # S3 buckets
+│   ├── compute_stack.py           # Lambda + IAM
+│   ├── api_stack.py               # API Gateway
+│   └── frontend_stack.py          # CloudFront + ACM
+└── constructs/
+    └── seeder_custom_resource.py  # Custom resources
+```
+
 ### Backend: Single Lambda Pattern
 
 The backend uses a **single Lambda function** (`MvpServiceFunction`) that routes all API requests based on path and HTTP method. The Lambda code is in `lambda/mvp_service/handler.py` and is packaged to S3 during deployment.
@@ -288,9 +318,9 @@ All forms include "Fill with Sample Data" button:
 - Forms: Quote, Policy, Claim, Payment, Case
 - Button uses `ThunderboltOutlined` icon, default styling
 
-### CloudFormation Custom Resources
+### CDK Custom Resources
 
-The stack includes two Custom Resources powered by a single `SeederFunction` Lambda:
+The stack includes custom resources powered by a single `SeederFunction` Lambda, defined in `cdk/constructs/seeder_custom_resource.py`:
 
 1. **SeedCustomResource** (`Mode: seed`): Runs on CREATE/UPDATE to:
    - Upload initial `index.html` if `UiSeedingMode=seeded`
@@ -300,9 +330,8 @@ The stack includes two Custom Resources powered by a single `SeederFunction` Lam
 2. **CleanupCustomResource** (`Mode: cleanup`): Runs on DELETE to:
    - Empty both S3 buckets (handles versioned objects and delete markers)
    - Wipe all DynamoDB table items
-   - Ensures buckets are empty before CloudFormation deletion
 
-The cleanup Lambda is critical for successful stack deletion. Check CloudWatch logs at `/aws/lambda/<stack-name>-SeederFunction-*` if deletion fails.
+**Note**: CDK's `auto_delete_objects` handles S3 cleanup automatically. Cleanup Lambda primarily needed for DynamoDB. Check CloudWatch logs at `/aws/lambda/<stack-name>-SeederFunction-*` if deletion fails.
 
 ### DynamoDB Schema
 
@@ -396,40 +425,41 @@ S3 website endpoint (HTTP) still works for direct access/testing.
 
 ### Lambda Code Management
 
-Lambda functions are stored as Python files in the `lambda/` directory and packaged to S3 during deployment:
+Lambda functions are stored as Python files in the `lambda/` directory and bundled automatically by CDK:
 
 **Structure**:
 - `lambda/mvp_service/handler.py` - Main API handler (routes all endpoints)
 - `lambda/seeder/handler.py` - Custom Resource handler (seeding/cleanup)
+- `lambda/shared/` - Shared utilities (automatically bundled with both functions)
 - `lambda/README.md` - Detailed Lambda documentation
 
-**Deployment flow**:
-1. `./scripts/deploy-stack.sh` calls `./scripts/package-lambda.sh`
-2. Script creates ZIP files: `mvp-service.zip`, `seeder.zip`
-3. Uploads to S3 bucket (same bucket as CloudFormation templates)
-4. CloudFormation references S3 location via `LambdaCodeS3Bucket` + `*CodeS3Key` parameters
-5. Lambda functions updated with new code from S3
+**CDK Deployment flow**:
+1. CDK `PythonFunction` construct automatically bundles Lambda code
+2. Includes shared/ directory with both functions
+3. CDK calculates code hash and only redeploys if changed
+4. No manual packaging needed (removed `scripts/package-lambda.sh`)
 
 **Benefits**:
 - IDE support (autocomplete, linting, type checking)
+- Automatic bundling via CDK (no manual ZIP creation)
+- CDK handles code hashing and change detection
 - Clear git diffs when code changes
 - Can add unit tests for Lambda functions
-- No code duplication in CloudFormation template
 
-See `lambda/README.md` for detailed documentation.
+Lambda definitions in `cdk/stacks/compute_stack.py`. See `lambda/README.md` for detailed documentation.
 
 ### Making Backend Changes
 
-The backend Lambda code is in separate Python files and packaged to S3 during deployment. To modify:
+The backend Lambda code is in separate Python files and bundled automatically by CDK. To modify:
 
 1. Edit the Lambda code:
    - MVP service: `lambda/mvp_service/handler.py`
    - Seeder: `lambda/seeder/handler.py`
 2. Redeploy the stack: `./scripts/deploy-stack.sh`
-   - Script automatically packages Lambda code to ZIP files
-   - Uploads to S3 bucket
-   - CloudFormation updates Lambda functions with new S3 code
-3. CloudFormation will update the Lambda function code
+   - CDK automatically detects code changes via content hashing
+   - Bundles Lambda code with shared dependencies
+   - Only redeploys changed functions
+3. No manual packaging needed
 
 **Note**: For API Gateway method changes, increment `API_DEPLOYMENT_TOKEN` parameter to force a new deployment.
 
@@ -477,7 +507,7 @@ When you modify API Gateway resources (methods, integrations), you must change t
 API_DEPLOYMENT_TOKEN=v2 ./scripts/deploy-stack.sh
 ```
 
-Without this, API Gateway may not reflect your changes even though CloudFormation shows `UPDATE_COMPLETE`.
+Without this, API Gateway may not reflect your changes even though CDK shows no updates needed.
 
 ### S3 Website Hosting (HTTP Only)
 
@@ -486,7 +516,7 @@ The S3 website endpoint is HTTP, not HTTPS. This is intentional for the MVP to a
 ### Custom Resource Behavior
 
 - The `SeederFunction` handles both seeding and cleanup using the `Mode` property
-- On stack deletion, the cleanup Lambda empties S3 buckets before CloudFormation tries to delete them
+- CDK's `auto_delete_objects` handles S3 cleanup automatically. Cleanup Lambda primarily for DynamoDB.
 - If stack deletion fails with "bucket not empty", check `/aws/lambda/<stack-name>-SeederFunction-*` logs
 - The Lambda has a 120-second timeout to handle large bucket cleanups
 
