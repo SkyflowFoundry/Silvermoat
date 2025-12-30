@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Silvermoat API Stack - API Gateway REST API
+
+Parameters:
+  AppName:
+    Type: String
+    Description: "Short app name used in resource naming"
+
+  StageName:
+    Type: String
+    Description: "API Gateway stage name"
+
+  ApiDeploymentToken:
+    Type: String
+    Description: "Change this value to force a new API Gateway deployment"
+
+  MvpServiceFunctionArn:
+    Type: String
+    Description: "ARN of the MVP service Lambda function"
+
+  MvpServiceFunctionName:
+    Type: String
+    Description: "Name of the MVP service Lambda function"
+
+Resources:
+  # ----------------------------
+  # API Gateway (REST proxy to Lambda)
+  # ----------------------------
+  Api:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "${AppName}-${StageName}-api"
+      EndpointConfiguration:
+        Types: [REGIONAL]
+
+  ApiRootMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !GetAtt Api.RootResourceId
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MvpServiceFunctionArn}/invocations"
+
+  ApiProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref Api
+      ParentId: !GetAtt Api.RootResourceId
+      PathPart: "{proxy+}"
+
+  ApiProxyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref ApiProxyResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.proxy: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MvpServiceFunctionArn}/invocations"
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiRootMethod
+      - ApiProxyMethod
+    Properties:
+      RestApiId: !Ref Api
+      Description: !Sub "Deployment token: ${ApiDeploymentToken}"
+
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref Api
+      DeploymentId: !Ref ApiDeployment
+      StageName: !Ref StageName
+
+  ApiInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !Ref MvpServiceFunctionName
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/*/*"
+
+Outputs:
+  ApiBaseUrl:
+    Description: "API base URL (HTTPS)"
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiBaseUrl"
+
+  ApiId:
+    Description: "API Gateway REST API ID"
+    Value: !Ref Api
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiId"
+
+  ApiStageArn:
+    Description: "API Gateway stage ARN"
+    Value: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}::/restapis/${Api}/stages/${StageName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiStageArn"

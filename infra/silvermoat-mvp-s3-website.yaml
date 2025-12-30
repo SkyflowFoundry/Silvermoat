@@ -1,8 +1,8 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  Silvermoat Insurance - One-shot deployable MVP (CloudFormation only).
-  S3 Website-hosted UI with CloudFront CDN (HTTPS), API Gateway REST -> single Lambda (AWS_PROXY),
-  DynamoDB tables, S3 docs, optional custom domain via ACM, and Custom Resources for seeding/cleanup.
+  Silvermoat Insurance - One-shot deployable MVP (CloudFormation with nested stacks).
+  Parent stack orchestrates data, storage, compute, API, and frontend nested stacks.
+  Custom Resources for seeding/cleanup remain in parent stack.
 
 Parameters:
   AppName:
@@ -57,7 +57,7 @@ Parameters:
   LambdaCodeS3Bucket:
     Type: String
     Description: >
-      S3 bucket containing Lambda deployment packages.
+      S3 bucket containing Lambda deployment packages and nested stack templates.
       Typically the same bucket used for CloudFormation templates.
 
   MvpServiceCodeS3Key:
@@ -71,525 +71,171 @@ Parameters:
     Description: S3 key for seeder Lambda deployment package
 
 Conditions:
-  HasDomainName: !Not [!Equals [!Ref DomainName, ""]]
   ShouldCreateCloudFront: !Equals [!Ref CreateCloudFront, "true"]
-  ShouldCreateCertificate: !And
-    - !Condition ShouldCreateCloudFront
-    - !Condition HasDomainName
 
 Resources:
-
   # ----------------------------
-  # S3 Buckets (UI Website + Docs)
+  # Nested Stack: Data Layer (DynamoDB + SNS)
   # ----------------------------
-  UiBucket:
-    Type: AWS::S3::Bucket
+  DataStack:
+    Type: AWS::CloudFormation::Stack
     Properties:
-      # Public website hosting requires public access.
-      # Keep this ONLY for demo environments.
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-        BlockPublicPolicy: false
-        IgnorePublicAcls: false
-        RestrictPublicBuckets: false
-      OwnershipControls:
-        Rules:
-          - ObjectOwnership: BucketOwnerPreferred
-      WebsiteConfiguration:
-        IndexDocument: index.html
-        ErrorDocument: index.html
-      VersioningConfiguration:
-        Status: Suspended
-
-  UiBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref UiBucket
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Sid: PublicReadForWebsite
-            Effect: Allow
-            Principal: "*"
-            Action: "s3:GetObject"
-            Resource: !Sub "${UiBucket.Arn}/*"
+      TemplateURL: !Sub "https://${LambdaCodeS3Bucket}.s3.amazonaws.com/nested/data-stack.yaml"
+      Parameters:
+        AppName: !Ref AppName
+        StageName: !Ref StageName
+      Tags:
+        - Key: NestedStack
+          Value: DataStack
 
   # ----------------------------
-  # SSL Certificate for CloudFront (only if DomainName provided)
+  # Nested Stack: Storage Layer (S3 Buckets)
   # ----------------------------
-
-  UiCertificate:
-    Type: AWS::CertificateManager::Certificate
-    Condition: ShouldCreateCertificate
+  StorageStack:
+    Type: AWS::CloudFormation::Stack
     Properties:
-      DomainName: !Ref DomainName
-      ValidationMethod: DNS
-      DomainValidationOptions:
-        - DomainName: !Ref DomainName
-          ValidationDomain: !Ref DomainName
+      TemplateURL: !Sub "https://${LambdaCodeS3Bucket}.s3.amazonaws.com/nested/storage-stack.yaml"
+      Tags:
+        - Key: NestedStack
+          Value: StorageStack
 
   # ----------------------------
-  # CloudFront Distribution
+  # Nested Stack: Compute Layer (Lambda Functions + IAM)
   # ----------------------------
-
-  UiDistribution:
-    Type: AWS::CloudFront::Distribution
-    Condition: ShouldCreateCloudFront
-    Properties:
-      DistributionConfig:
-        # Custom domain aliases (only if DomainName provided)
-        Aliases: !If
-          - HasDomainName
-          - - !Ref DomainName
-          - !Ref "AWS::NoValue"
-
-        # HTTPS certificate
-        ViewerCertificate: !If
-          - HasDomainName
-          - AcmCertificateArn: !Ref UiCertificate
-            SslSupportMethod: sni-only
-            MinimumProtocolVersion: TLSv1.2_2021
-          - CloudFrontDefaultCertificate: true
-
-        # Origin: S3 website endpoint (not REST API endpoint)
-        Origins:
-          - Id: S3Origin
-            DomainName: !Select [2, !Split ["/", !GetAtt UiBucket.WebsiteURL]]
-            CustomOriginConfig:
-              HTTPPort: 80
-              OriginProtocolPolicy: http-only
-
-        # Default cache behavior
-        DefaultCacheBehavior:
-          TargetOriginId: S3Origin
-          ViewerProtocolPolicy: redirect-to-https
-          AllowedMethods: [GET, HEAD, OPTIONS]
-          CachedMethods: [GET, HEAD, OPTIONS]
-          Compress: true
-          # Use managed caching policy optimized for SPAs
-          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
-          # Use managed origin request policy for CORS
-          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
-
-        # SPA routing: serve index.html for 404/403 errors
-        CustomErrorResponses:
-          - ErrorCode: 404
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 300
-          - ErrorCode: 403
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 300
-
-        # Distribution settings
-        Enabled: true
-        DefaultRootObject: index.html
-        HttpVersion: http2and3
-        IPV6Enabled: true
-        PriceClass: PriceClass_100
-        Comment: !Sub "${AWS::StackName} UI Distribution"
-
-  # ----------------------------
-  # S3 Buckets (Docs)
-  # ----------------------------
-
-  DocsBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      # Docs/media should remain private (Lambda only)
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      VersioningConfiguration:
-        Status: Suspended
-
-  # ----------------------------
-  # DynamoDB Tables (PAY_PER_REQUEST)
-  # ----------------------------
-  QuotesTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: id
-          KeyType: HASH
-
-  PoliciesTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: id
-          KeyType: HASH
-
-  ClaimsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: id
-          KeyType: HASH
-
-  PaymentsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: id
-          KeyType: HASH
-
-  CasesTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: id
-          KeyType: HASH
-
-  # ----------------------------
-  # SNS Topic (Demo notifications)
-  # ----------------------------
-  DemoNotificationsTopic:
-    Type: AWS::SNS::Topic
-    Properties:
-      DisplayName: !Sub "${AppName}-${StageName}-demo-notifications"
-
-  # ----------------------------
-  # IAM Role for MVP Lambda
-  # ----------------------------
-  MvpLambdaRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal: { Service: lambda.amazonaws.com }
-            Action: "sts:AssumeRole"
-      Policies:
-        - PolicyName: !Sub "${AppName}-${StageName}-mvp-policy"
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Sid: Logs
-                Effect: Allow
-                Action:
-                  - "logs:CreateLogGroup"
-                  - "logs:CreateLogStream"
-                  - "logs:PutLogEvents"
-                Resource: "*"
-
-              - Sid: DynamoRW
-                Effect: Allow
-                Action:
-                  - "dynamodb:GetItem"
-                  - "dynamodb:PutItem"
-                  - "dynamodb:UpdateItem"
-                  - "dynamodb:DeleteItem"
-                  - "dynamodb:Scan"
-                Resource:
-                  - !GetAtt QuotesTable.Arn
-                  - !GetAtt PoliciesTable.Arn
-                  - !GetAtt ClaimsTable.Arn
-                  - !GetAtt PaymentsTable.Arn
-                  - !GetAtt CasesTable.Arn
-
-              - Sid: S3DocsList
-                Effect: Allow
-                Action: "s3:ListBucket"
-                Resource: !GetAtt DocsBucket.Arn
-
-              - Sid: S3DocsObjRW
-                Effect: Allow
-                Action:
-                  - "s3:GetObject"
-                  - "s3:PutObject"
-                  - "s3:DeleteObject"
-                Resource: !Sub "${DocsBucket.Arn}/*"
-
-              - Sid: PutEvents
-                Effect: Allow
-                Action: "events:PutEvents"
-                Resource: "*"
-
-              - Sid: PublishSNS
-                Effect: Allow
-                Action: "sns:Publish"
-                Resource: !Ref DemoNotificationsTopic
-
-              - Sid: BedrockInvoke
-                Effect: Allow
-                Action:
-                  - "bedrock:InvokeModel"
-                Resource:
-                  - !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0"
-
-  # ----------------------------
-  # MVP Service Lambda (single function; routes by path)
-  # ----------------------------
-  MvpServiceFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      Runtime: python3.12
-      Handler: handler.handler
-      Role: !GetAtt MvpLambdaRole.Arn
-      Timeout: 30
-      MemorySize: 256
-      Environment:
-        Variables:
-          QUOTES_TABLE: !Ref QuotesTable
-          POLICIES_TABLE: !Ref PoliciesTable
-          CLAIMS_TABLE: !Ref ClaimsTable
-          PAYMENTS_TABLE: !Ref PaymentsTable
-          CASES_TABLE: !Ref CasesTable
-          DOCS_BUCKET: !Ref DocsBucket
-          SNS_TOPIC_ARN: !Ref DemoNotificationsTopic
-          BEDROCK_MODEL_ID: anthropic.claude-3-5-sonnet-20240620-v1:0
-          BEDROCK_REGION: !Ref AWS::Region
-      Code:
-        S3Bucket: !Ref LambdaCodeS3Bucket
-        S3Key: !Ref MvpServiceCodeS3Key
-
-  # ----------------------------
-  # API Gateway (REST proxy to Lambda)
-  # ----------------------------
-  Api:
-    Type: AWS::ApiGateway::RestApi
-    Properties:
-      Name: !Sub "${AppName}-${StageName}-api"
-      EndpointConfiguration:
-        Types: [REGIONAL]
-
-  ApiRootMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref Api
-      ResourceId: !GetAtt Api.RootResourceId
-      HttpMethod: ANY
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MvpServiceFunction.Arn}/invocations"
-
-  ApiProxyResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref Api
-      ParentId: !GetAtt Api.RootResourceId
-      PathPart: "{proxy+}"
-
-  ApiProxyMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref Api
-      ResourceId: !Ref ApiProxyResource
-      HttpMethod: ANY
-      AuthorizationType: NONE
-      RequestParameters:
-        method.request.path.proxy: true
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MvpServiceFunction.Arn}/invocations"
-
-  ApiDeployment:
-    Type: AWS::ApiGateway::Deployment
+  ComputeStack:
+    Type: AWS::CloudFormation::Stack
     DependsOn:
-      - ApiRootMethod
-      - ApiProxyMethod
+      - DataStack
+      - StorageStack
     Properties:
-      RestApiId: !Ref Api
-      Description: !Sub "Deployment token: ${ApiDeploymentToken}"
-
-  ApiStage:
-    Type: AWS::ApiGateway::Stage
-    Properties:
-      RestApiId: !Ref Api
-      DeploymentId: !Ref ApiDeployment
-      StageName: !Ref StageName
-
-  ApiInvokePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: "lambda:InvokeFunction"
-      FunctionName: !Ref MvpServiceFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/*/*"
+      TemplateURL: !Sub "https://${LambdaCodeS3Bucket}.s3.amazonaws.com/nested/compute-stack.yaml"
+      Parameters:
+        AppName: !Ref AppName
+        StageName: !Ref StageName
+        QuotesTableArn: !GetAtt DataStack.Outputs.QuotesTableArn
+        PoliciesTableArn: !GetAtt DataStack.Outputs.PoliciesTableArn
+        ClaimsTableArn: !GetAtt DataStack.Outputs.ClaimsTableArn
+        PaymentsTableArn: !GetAtt DataStack.Outputs.PaymentsTableArn
+        CasesTableArn: !GetAtt DataStack.Outputs.CasesTableArn
+        QuotesTableName: !GetAtt DataStack.Outputs.QuotesTableName
+        PoliciesTableName: !GetAtt DataStack.Outputs.PoliciesTableName
+        ClaimsTableName: !GetAtt DataStack.Outputs.ClaimsTableName
+        PaymentsTableName: !GetAtt DataStack.Outputs.PaymentsTableName
+        CasesTableName: !GetAtt DataStack.Outputs.CasesTableName
+        UiBucketArn: !GetAtt StorageStack.Outputs.UiBucketArn
+        UiBucketName: !GetAtt StorageStack.Outputs.UiBucketName
+        DocsBucketArn: !GetAtt StorageStack.Outputs.DocsBucketArn
+        DocsBucketName: !GetAtt StorageStack.Outputs.DocsBucketName
+        SnsTopicArn: !GetAtt DataStack.Outputs.SnsTopicArn
+        LambdaCodeS3Bucket: !Ref LambdaCodeS3Bucket
+        MvpServiceCodeS3Key: !Ref MvpServiceCodeS3Key
+        SeederCodeS3Key: !Ref SeederCodeS3Key
+        UiBucketWebsiteURL: !GetAtt StorageStack.Outputs.UiBucketWebsiteURL
+      Tags:
+        - Key: NestedStack
+          Value: ComputeStack
 
   # ----------------------------
-  # Seeder Lambda (Custom Resource): seeds UI + demo data; cleans on delete
+  # Nested Stack: API Gateway
   # ----------------------------
-  SeederLambdaRole:
-    Type: AWS::IAM::Role
+  ApiStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: ComputeStack
     Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal: { Service: lambda.amazonaws.com }
-            Action: "sts:AssumeRole"
-      Policies:
-        - PolicyName: !Sub "${AppName}-${StageName}-seeder-policy"
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Sid: Logs
-                Effect: Allow
-                Action:
-                  - "logs:CreateLogGroup"
-                  - "logs:CreateLogStream"
-                  - "logs:PutLogEvents"
-                Resource: "*"
+      TemplateURL: !Sub "https://${LambdaCodeS3Bucket}.s3.amazonaws.com/nested/api-stack.yaml"
+      Parameters:
+        AppName: !Ref AppName
+        StageName: !Ref StageName
+        ApiDeploymentToken: !Ref ApiDeploymentToken
+        MvpServiceFunctionArn: !GetAtt ComputeStack.Outputs.MvpServiceFunctionArn
+        MvpServiceFunctionName: !GetAtt ComputeStack.Outputs.MvpServiceFunctionName
+      Tags:
+        - Key: NestedStack
+          Value: ApiStack
 
-              - Sid: S3ListBuckets
-                Effect: Allow
-                Action:
-                  - "s3:ListBucket"
-                  - "s3:ListBucketVersions"
-                Resource:
-                  - !GetAtt UiBucket.Arn
-                  - !GetAtt DocsBucket.Arn
-
-              - Sid: S3Objects
-                Effect: Allow
-                Action:
-                  - "s3:PutObject"
-                  - "s3:GetObject"
-                  - "s3:DeleteObject"
-                  - "s3:DeleteObjectVersion"
-                Resource:
-                  - !Sub "${UiBucket.Arn}/*"
-                  - !Sub "${DocsBucket.Arn}/*"
-
-              - Sid: DynamoSeedAndCleanup
-                Effect: Allow
-                Action:
-                  - "dynamodb:PutItem"
-                  - "dynamodb:Scan"
-                  - "dynamodb:DeleteItem"
-                Resource:
-                  - !GetAtt QuotesTable.Arn
-                  - !GetAtt PoliciesTable.Arn
-                  - !GetAtt ClaimsTable.Arn
-                  - !GetAtt PaymentsTable.Arn
-                  - !GetAtt CasesTable.Arn
-
-  SeederFunction:
-    Type: AWS::Lambda::Function
+  # ----------------------------
+  # Nested Stack: Frontend (CloudFront + ACM)
+  # ----------------------------
+  FrontendStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: StorageStack
     Properties:
-      Runtime: python3.12
-      Handler: handler.handler
-      Role: !GetAtt SeederLambdaRole.Arn
-      Timeout: 120
-      MemorySize: 256
-      Environment:
-        Variables:
-          UI_BUCKET: !Ref UiBucket
-          DOCS_BUCKET: !Ref DocsBucket
-          QUOTES_TABLE: !Ref QuotesTable
-          POLICIES_TABLE: !Ref PoliciesTable
-          CLAIMS_TABLE: !Ref ClaimsTable
-          PAYMENTS_TABLE: !Ref PaymentsTable
-          CASES_TABLE: !Ref CasesTable
-          API_BASE: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
-          WEB_BASE: !GetAtt UiBucket.WebsiteURL
-      Code:
-        S3Bucket: !Ref LambdaCodeS3Bucket
-        S3Key: !Ref SeederCodeS3Key
+      TemplateURL: !Sub "https://${LambdaCodeS3Bucket}.s3.amazonaws.com/nested/frontend-stack.yaml"
+      Parameters:
+        DomainName: !Ref DomainName
+        CreateCloudFront: !Ref CreateCloudFront
+        UiBucketWebsiteDomain: !GetAtt StorageStack.Outputs.UiBucketWebsiteDomain
+      Tags:
+        - Key: NestedStack
+          Value: FrontendStack
 
   # ----------------------------
   # Custom Resources (seeding and cleanup)
+  # Remain in parent stack for orchestration
   # ----------------------------
-
   SeedCustomResource:
     Type: AWS::CloudFormation::CustomResource
     DependsOn:
-      - ApiStage
-      - UiBucket
-      - DocsBucket
-      - UiBucketPolicy
+      - ApiStack
+      - StorageStack
     Properties:
-      ServiceToken: !GetAtt SeederFunction.Arn
+      ServiceToken: !GetAtt ComputeStack.Outputs.SeederFunctionArn
       Mode: seed
       UiSeedingMode: !Ref UiSeedingMode
+      ApiBaseUrl: !GetAtt ApiStack.Outputs.ApiBaseUrl
 
   CleanupCustomResource:
     Type: AWS::CloudFormation::CustomResource
-    DependsOn:
-      - UiBucket
-      - DocsBucket
+    DependsOn: StorageStack
     Properties:
-      ServiceToken: !GetAtt SeederFunction.Arn
+      ServiceToken: !GetAtt ComputeStack.Outputs.SeederFunctionArn
       Mode: cleanup
 
 Outputs:
   WebUrl:
     Description: "S3 Website URL (HTTP) - Use CloudFrontUrl for production, or this for test stacks"
-    Value: !GetAtt UiBucket.WebsiteURL
+    Value: !GetAtt StorageStack.Outputs.UiBucketWebsiteURL
 
   CloudFrontUrl:
     Condition: ShouldCreateCloudFront
     Description: "CloudFront distribution URL (HTTPS) - Primary access method"
-    Value: !Sub "https://${UiDistribution.DomainName}"
-    Export:
-      Name: !Sub "${AWS::StackName}-CloudFrontUrl"
+    Value: !GetAtt FrontendStack.Outputs.CloudFrontUrl
 
   CloudFrontDomain:
     Condition: ShouldCreateCloudFront
     Description: "CloudFront domain name (for DNS CNAME record)"
-    Value: !GetAtt UiDistribution.DomainName
-    Export:
-      Name: !Sub "${AWS::StackName}-CloudFrontDomain"
+    Value: !GetAtt FrontendStack.Outputs.CloudFrontDomain
 
   CustomDomainUrl:
-    Condition: ShouldCreateCertificate
+    Condition: ShouldCreateCloudFront
     Description: "Custom domain URL (if DomainName parameter provided and CloudFront enabled)"
-    Value: !Sub "https://${DomainName}"
+    Value: !GetAtt FrontendStack.Outputs.CustomDomainUrl
 
   CertificateArn:
-    Condition: ShouldCreateCertificate
+    Condition: ShouldCreateCloudFront
     Description: "ACM certificate ARN (for reference)"
-    Value: !Ref UiCertificate
+    Value: !GetAtt FrontendStack.Outputs.CertificateArn
 
   ApiBaseUrl:
     Description: "API base URL (HTTPS)"
-    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
+    Value: !GetAtt ApiStack.Outputs.ApiBaseUrl
 
   UiBucketName:
-    Value: !Ref UiBucket
+    Value: !GetAtt StorageStack.Outputs.UiBucketName
 
   DocsBucketName:
-    Value: !Ref DocsBucket
+    Value: !GetAtt StorageStack.Outputs.DocsBucketName
 
   QuotesTableName:
-    Value: !Ref QuotesTable
+    Value: !GetAtt DataStack.Outputs.QuotesTableName
   PoliciesTableName:
-    Value: !Ref PoliciesTable
+    Value: !GetAtt DataStack.Outputs.PoliciesTableName
   ClaimsTableName:
-    Value: !Ref ClaimsTable
+    Value: !GetAtt DataStack.Outputs.ClaimsTableName
   PaymentsTableName:
-    Value: !Ref PaymentsTable
+    Value: !GetAtt DataStack.Outputs.PaymentsTableName
   CasesTableName:
-    Value: !Ref CasesTable
+    Value: !GetAtt DataStack.Outputs.CasesTableName
 
   DemoNotificationsTopicArn:
-    Value: !Ref DemoNotificationsTopic
+    Value: !GetAtt DataStack.Outputs.SnsTopicArn

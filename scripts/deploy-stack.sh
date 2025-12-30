@@ -72,7 +72,7 @@ echo ""
 echo "Checking Lambda code for changes..."
 LAMBDA_DIR="$PROJECT_ROOT/lambda"
 
-# Calculate hash of Lambda sources + packaging scripts so packaging reruns when scripts change
+# Calculate hash of Lambda sources + packaging scripts + template so packaging reruns when inputs change
 HASH_INPUTS=$(find "$LAMBDA_DIR" -type f -name "*.py" 2>/dev/null; printf "%s\n" "$SCRIPT_DIR/deploy-stack.sh" "$SCRIPT_DIR/package-lambda.sh" "$TEMPLATE_FILE")
 if command -v md5sum >/dev/null 2>&1; then
   LAMBDA_HASH=$(printf "%s\n" "$HASH_INPUTS" | xargs md5sum 2>/dev/null | sort | md5sum | cut -d' ' -f1)
@@ -134,6 +134,17 @@ if [ "$SKIP_LAMBDA_PACKAGING" = "false" ]; then
   echo "Lambda packaging complete"
 else
   echo "Skipping Lambda packaging (code unchanged)"
+fi
+echo ""
+
+# Upload nested stack templates to S3 (if present)
+echo "Uploading nested stack templates to S3..."
+NESTED_TEMPLATE_DIR="$PROJECT_ROOT/infra/nested"
+if [ -d "$NESTED_TEMPLATE_DIR" ]; then
+  $AWS_CMD s3 cp "$NESTED_TEMPLATE_DIR/" "s3://$S3_BUCKET/nested/" --recursive --exclude ".*"
+  echo "✓ Nested templates uploaded to s3://$S3_BUCKET/nested/"
+else
+  echo "Warning: Nested template directory not found: $NESTED_TEMPLATE_DIR"
 fi
 echo ""
 
