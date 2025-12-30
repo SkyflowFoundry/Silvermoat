@@ -19,9 +19,10 @@ mkdir -p "$LAYER_DIR/python"
 # Use Docker to build for Lambda environment (Amazon Linux 2023)
 echo "Building psycopg2 using Docker (Amazon Linux 2023)..."
 docker run --rm \
+  --entrypoint /bin/bash \
   -v "$LAYER_DIR:/layer" \
   public.ecr.aws/lambda/python:3.12 \
-  bash -c "
+  -c "
     yum install -y postgresql15-devel gcc python3-devel
     pip3 install psycopg2-binary -t /layer/python
     chown -R $(id -u):$(id -g) /layer
