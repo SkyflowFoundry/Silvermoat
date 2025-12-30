@@ -55,6 +55,11 @@ jobs:
           pip install -r requirements.txt
 
       - name: Validate CDK stacks (synth)
+        env:
+          STACK_NAME: silvermoat-test-pr-123
+          STAGE_NAME: test
+          CREATE_CLOUDFRONT: "false"
+          DOMAIN_NAME: ""
         run: |
           echo "Validating CDK stacks via synthesis..."
           cd cdk
