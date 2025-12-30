@@ -1,9 +1,7 @@
 from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_sns as sns,
-    CfnOutput,
     RemovalPolicy,
-    Stack,
 )
 from constructs import Construct
 
@@ -30,21 +28,6 @@ class DataStack(Construct):
             )
             self.tables[table_type.lower()] = table
 
-            # Outputs (exact match to CloudFormation)
-            CfnOutput(
-                self,
-                f"{table_type}TableName",
-                value=table.table_name,
-                export_name=f"{Stack.of(self).stack_name}-{table_type}TableName",
-            )
-
-            CfnOutput(
-                self,
-                f"{table_type}TableArn",
-                value=table.table_arn,
-                export_name=f"{Stack.of(self).stack_name}-{table_type}TableArn",
-            )
-
         # SNS Topic
         self.topic = sns.Topic(
             self,
@@ -52,9 +35,4 @@ class DataStack(Construct):
             display_name=f"{app_name}-{stage_name}-demo-notifications",
         )
 
-        CfnOutput(
-            self,
-            "SnsTopicArn",
-            value=self.topic.topic_arn,
-            export_name=f"{Stack.of(self).stack_name}-SnsTopicArn",
-        )
+        # Note: Outputs must be defined in parent Stack, not here in Construct

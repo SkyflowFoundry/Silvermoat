@@ -3,9 +3,7 @@ from aws_cdk import (
     aws_cloudfront_origins as origins,
     aws_certificatemanager as acm,
     aws_s3 as s3,
-    CfnOutput,
     Duration,
-    Stack,
 )
 from constructs import Construct
 
@@ -39,12 +37,7 @@ class FrontendStack(Construct):
                 validation=acm.CertificateValidation.from_dns(),
             )
 
-            CfnOutput(
-                self,
-                "CertificateArn",
-                value=self.certificate.certificate_arn,
-                export_name=f"{Stack.of(self).stack_name}-CertificateArn",
-            )
+            # Note: Outputs defined in parent Stack
 
         # CloudFront Distribution
         # Use HTTP origin for S3 website endpoint (not S3 origin)
@@ -90,25 +83,4 @@ class FrontendStack(Construct):
             self, "UiDistribution", **distribution_props
         )
 
-        # Outputs (conditional)
-        CfnOutput(
-            self,
-            "CloudFrontUrl",
-            value=f"https://{self.distribution.distribution_domain_name}",
-            export_name=f"{Stack.of(self).stack_name}-CloudFrontUrl",
-        )
-
-        CfnOutput(
-            self,
-            "CloudFrontDomain",
-            value=self.distribution.distribution_domain_name,
-            export_name=f"{Stack.of(self).stack_name}-CloudFrontDomain",
-        )
-
-        if domain_name:
-            CfnOutput(
-                self,
-                "CustomDomainUrl",
-                value=f"https://{domain_name}",
-                export_name=f"{Stack.of(self).stack_name}-CustomDomainUrl",
-            )
+        # Note: Outputs must be defined in parent Stack, not here in Construct

@@ -1,8 +1,6 @@
 from aws_cdk import (
     aws_s3 as s3,
-    CfnOutput,
     RemovalPolicy,
-    Stack,
 )
 from constructs import Construct
 
@@ -39,45 +37,4 @@ class StorageStack(Construct):
             auto_delete_objects=True,
         )
 
-        # Outputs (exact match to CloudFormation)
-        CfnOutput(
-            self,
-            "UiBucketName",
-            value=self.ui_bucket.bucket_name,
-            export_name=f"{Stack.of(self).stack_name}-UiBucketName",
-        )
-
-        CfnOutput(
-            self,
-            "UiBucketArn",
-            value=self.ui_bucket.bucket_arn,
-            export_name=f"{Stack.of(self).stack_name}-UiBucketArn",
-        )
-
-        CfnOutput(
-            self,
-            "UiBucketWebsiteURL",
-            value=self.ui_bucket.bucket_website_url,
-            export_name=f"{Stack.of(self).stack_name}-UiBucketWebsiteURL",
-        )
-
-        CfnOutput(
-            self,
-            "UiBucketWebsiteDomain",
-            value=self.ui_bucket.bucket_website_domain_name,
-            export_name=f"{Stack.of(self).stack_name}-UiBucketWebsiteDomain",
-        )
-
-        CfnOutput(
-            self,
-            "DocsBucketName",
-            value=self.docs_bucket.bucket_name,
-            export_name=f"{Stack.of(self).stack_name}-DocsBucketName",
-        )
-
-        CfnOutput(
-            self,
-            "DocsBucketArn",
-            value=self.docs_bucket.bucket_arn,
-            export_name=f"{Stack.of(self).stack_name}-DocsBucketArn",
-        )
+        # Note: Outputs must be defined in parent Stack, not here in Construct

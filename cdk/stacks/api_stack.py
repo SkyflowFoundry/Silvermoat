@@ -1,8 +1,6 @@
 from aws_cdk import (
     aws_apigateway as apigw,
     aws_lambda as lambda_,
-    CfnOutput,
-    Stack,
 )
 from constructs import Construct
 
@@ -47,17 +45,4 @@ class ApiStack(Construct):
         # API URL (exact match to CloudFormation)
         self.api_url = self.api.url
 
-        # Outputs
-        CfnOutput(
-            self,
-            "ApiBaseUrl",
-            value=self.api_url,
-            export_name=f"{Stack.of(self).stack_name}-ApiBaseUrl",
-        )
-
-        CfnOutput(
-            self,
-            "ApiId",
-            value=self.api.rest_api_id,
-            export_name=f"{Stack.of(self).stack_name}-ApiId",
-        )
+        # Note: Outputs must be defined in parent Stack, not here in Construct

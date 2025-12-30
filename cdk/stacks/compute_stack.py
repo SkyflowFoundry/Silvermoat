@@ -1,7 +1,6 @@
 from aws_cdk import (
     aws_lambda as lambda_,
     aws_iam as iam,
-    CfnOutput,
     Duration,
     Stack,
 )
@@ -116,24 +115,4 @@ class ComputeStack(Construct):
         for table in data_stack.tables.values():
             table.grant_read_write_data(self.seeder_function)
 
-        # Outputs (exact match to CloudFormation)
-        CfnOutput(
-            self,
-            "MvpServiceFunctionArn",
-            value=self.mvp_function.function_arn,
-            export_name=f"{Stack.of(self).stack_name}-MvpServiceFunctionArn",
-        )
-
-        CfnOutput(
-            self,
-            "MvpServiceFunctionName",
-            value=self.mvp_function.function_name,
-            export_name=f"{Stack.of(self).stack_name}-MvpServiceFunctionName",
-        )
-
-        CfnOutput(
-            self,
-            "SeederFunctionArn",
-            value=self.seeder_function.function_arn,
-            export_name=f"{Stack.of(self).stack_name}-SeederFunctionArn",
-        )
+        # Note: Outputs must be defined in parent Stack, not here in Construct
