@@ -1,9 +1,10 @@
 #!/bin/bash
-# Delete CloudFormation stack for Silvermoat MVP
+# Delete CDK stack for Silvermoat MVP
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Load AWS CLI check utility
 source "$SCRIPT_DIR/lib/check-aws.sh"
@@ -27,13 +28,7 @@ done
 # Check AWS CLI and credentials
 check_aws_configured
 
-# Build AWS command with profile if set
-AWS_CMD="aws"
-if [ -n "${AWS_PROFILE:-}" ]; then
-  AWS_CMD="aws --profile $AWS_PROFILE"
-fi
-
-echo "Deleting CloudFormation stack: $STACK_NAME"
+echo "Deleting CDK stack: $STACK_NAME"
 echo ""
 echo "WARNING: This will delete all resources in the stack, including:"
 echo "  - S3 buckets (will be emptied automatically)"
@@ -54,15 +49,18 @@ else
   echo "Skipping confirmation (non-interactive or --yes flag)"
 fi
 
+# Check if CDK CLI is installed
+if ! command -v cdk >/dev/null 2>&1; then
+  echo "Error: AWS CDK CLI not found. Install with:"
+  echo "  npm install -g aws-cdk"
+  exit 1
+fi
+
 echo ""
 echo "Deleting stack..."
 
-$AWS_CMD cloudformation delete-stack --stack-name "$STACK_NAME"
-
-echo "Stack deletion initiated."
-echo "Waiting for deletion to complete..."
-
-$AWS_CMD cloudformation wait stack-delete-complete --stack-name "$STACK_NAME"
+cd "$PROJECT_ROOT/cdk"
+cdk destroy "$STACK_NAME" --force
 
 echo ""
 echo "Stack deletion complete!"
