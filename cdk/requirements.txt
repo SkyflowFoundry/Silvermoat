@@ -1,3 +1,4 @@
-aws-cdk-lib==2.172.0
+aws-cdk-lib==2.233.0
 constructs>=10.0.0,<11.0.0
-aws-cdk.aws-lambda-python-alpha==2.172.0a0
+typeguard==2.13.3
+aws-cdk.aws-lambda-python-alpha==2.233.0a0
