@@ -29,13 +29,14 @@ echo "Lambda code bucket: ${LAMBDA_BUCKET}"
 # Package mvp_service Lambda
 echo ""
 echo "Packaging mvp_service Lambda..."
-cd "${LAMBDA_DIR}/mvp_service"
-rm -f mvp-service.zip
-zip -r mvp-service.zip handler.py
-echo "Created mvp-service.zip ($(du -h mvp-service.zip | cut -f1))"
+cd "${LAMBDA_DIR}"
+rm -f mvp_service/mvp-service.zip
+# Package handler and chatbot from mvp_service/, plus shared/ directory
+zip -r mvp_service/mvp-service.zip mvp_service/handler.py mvp_service/chatbot.py shared/
+echo "Created mvp-service.zip ($(du -h mvp_service/mvp-service.zip | cut -f1))"
 
 echo "Uploading mvp-service.zip to s3://${LAMBDA_BUCKET}/"
-aws s3 cp mvp-service.zip "s3://${LAMBDA_BUCKET}/mvp-service.zip"
+aws s3 cp mvp_service/mvp-service.zip "s3://${LAMBDA_BUCKET}/mvp-service.zip"
 echo "✓ Uploaded mvp-service.zip"
 
 # Package seeder Lambda
