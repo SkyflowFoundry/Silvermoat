@@ -72,12 +72,13 @@ echo ""
 echo "Checking Lambda code for changes..."
 LAMBDA_DIR="$PROJECT_ROOT/lambda"
 
-# Calculate hash of all Lambda source files
+# Calculate hash of Lambda sources + packaging scripts so packaging reruns when scripts change
+HASH_INPUTS=$(find "$LAMBDA_DIR" -type f -name "*.py" 2>/dev/null; printf "%s\n" "$SCRIPT_DIR/deploy-stack.sh" "$SCRIPT_DIR/package-lambda.sh")
 if command -v md5sum >/dev/null 2>&1; then
-  LAMBDA_HASH=$(find "$LAMBDA_DIR" -type f -name "*.py" -exec md5sum {} \; 2>/dev/null | sort | md5sum | cut -d' ' -f1)
+  LAMBDA_HASH=$(printf "%s\n" "$HASH_INPUTS" | xargs md5sum 2>/dev/null | sort | md5sum | cut -d' ' -f1)
 else
   # macOS fallback (uses md5 instead of md5sum)
-  LAMBDA_HASH=$(find "$LAMBDA_DIR" -type f -name "*.py" -exec md5 {} \; 2>/dev/null | sort | md5 | cut -d' ' -f1)
+  LAMBDA_HASH=$(printf "%s\n" "$HASH_INPUTS" | xargs md5 2>/dev/null | sort | md5 | cut -d' ' -f1)
 fi
 
 # Try to get stored hash from S3
