@@ -469,6 +469,31 @@ Resources:
         - !Ref LambdaSecurityGroup
       PrivateDnsEnabled: true
 
+  # S3 Gateway Endpoint (for document storage from Lambda in VPC)
+  S3VpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PrivateRouteTable1
+        - !Ref PrivateRouteTable2
+
+  # SNS Interface Endpoint (for notifications from Lambda in VPC)
+  SnsVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.sns"
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref LambdaSecurityGroup
+      PrivateDnsEnabled: true
+
   # ----------------------------
   # SNS Topic (Demo notifications)
   # ----------------------------
