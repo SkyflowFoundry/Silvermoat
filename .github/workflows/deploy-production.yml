@@ -59,6 +59,11 @@ jobs:
           cd cdk
           pip install -r requirements.txt
 
+      - name: Bootstrap CDK (if needed)
+        run: |
+          echo "Bootstrapping CDK environment (idempotent)..."
+          cdk bootstrap aws://571930033416/us-east-1
+
       - name: Deploy production stack
         env:
           STACK_NAME: silvermoat
