@@ -89,7 +89,7 @@ class FrontendStack(Construct):
                 ),
             ],
             price_class=cloudfront.PriceClass.PRICE_CLASS_100,
-            viewer_certificate=viewer_certificate,
+            certificate=viewer_certificate,
         )
 
         # Outputs (conditional)
