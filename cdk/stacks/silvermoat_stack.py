@@ -6,7 +6,7 @@ from .storage_stack import StorageStack
 from .compute_stack import ComputeStack
 from .api_stack import ApiStack
 from .frontend_stack import FrontendStack
-from constructs.seeder_custom_resource import SeederCustomResource
+from custom_constructs.seeder_custom_resource import SeederCustomResource
 
 
 class SilvermoatStack(Stack):
