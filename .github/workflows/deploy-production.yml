@@ -101,10 +101,10 @@ jobs:
           STAGE_NAME: prod
           UI_SEEDING_MODE: external
           CREATE_CLOUDFRONT: true
-          DOMAIN_NAME: silvermoat.net
+          DOMAIN_NAME: ""  # Temporarily empty to avoid CNAME conflict during migration
         run: |
           echo "Deploying production stack: silvermoat"
-          echo "Note: CDK automatically detects changes and skips unchanged resources"
+          echo "Note: Deploying without custom domain to resolve CNAME conflict"
           chmod +x scripts/deploy-stack.sh
           ./scripts/deploy-stack.sh
 
