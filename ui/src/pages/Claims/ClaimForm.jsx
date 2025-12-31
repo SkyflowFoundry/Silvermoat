@@ -88,6 +88,7 @@ const ClaimForm = ({ onSuccess }) => {
           rules={[{ required: true, message: 'Please select the incident date' }]}
         >
           <DatePicker
+            id="incidentDate"
             size="large"
             style={{ width: '100%' }}
             format="MM/DD/YYYY"

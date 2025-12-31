@@ -32,6 +32,11 @@ const PaymentDetail = lazy(() => import('../pages/Payments/PaymentDetail'));
 const CaseList = lazy(() => import('../pages/Cases/CaseList'));
 const CaseDetail = lazy(() => import('../pages/Cases/CaseDetail'));
 
+// Customer Portal
+const CustomerLogin = lazy(() => import('../pages/Customer/CustomerLogin'));
+const CustomerDashboard = lazy(() => import('../pages/Customer/CustomerDashboard'));
+const CustomerClaimForm = lazy(() => import('../pages/Customer/CustomerClaimForm'));
+
 /**
  * Route Configuration Array
  * Each route can have:
@@ -120,6 +125,21 @@ export const routes = [
     path: '/cases/:id',
     element: <CaseDetail />,
     breadcrumb: 'Case Detail',
+  },
+  {
+    path: '/customer/login',
+    element: <CustomerLogin />,
+    breadcrumb: 'Customer Login',
+  },
+  {
+    path: '/customer/dashboard',
+    element: <CustomerDashboard />,
+    breadcrumb: 'Customer Dashboard',
+  },
+  {
+    path: '/customer/claims/new',
+    element: <CustomerClaimForm />,
+    breadcrumb: 'Submit Claim',
   },
   {
     path: '*',
