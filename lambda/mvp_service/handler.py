@@ -215,6 +215,14 @@ def handler(event, context):
 
     domain = parts[0]
 
+    # Parse request body (needed by all endpoints)
+    body = {}
+    if event.get("body"):
+        try:
+            body = json.loads(event["body"])
+        except Exception:
+            body = {"raw": event["body"]}
+
     # Customer portal endpoints (before domain validation)
     if domain == "customer":
         return handle_customer_request(parts, method, body, event, storage)
@@ -223,14 +231,6 @@ def handler(event, context):
     valid_domains = ["quote", "policy", "claim", "payment", "case"]
     if domain not in valid_domains:
         return _resp(404, {"error": "unknown_domain", "domain": domain})
-
-    # Parse request body
-    body = {}
-    if event.get("body"):
-        try:
-            body = json.loads(event["body"])
-        except Exception:
-            body = {"raw": event["body"]}
 
     # GET /{domain} -> list all items
     if method == "GET" and len(parts) == 1:
