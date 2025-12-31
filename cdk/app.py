@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# CDK Application Entry Point - v1.0.0
 import os
 from aws_cdk import App, Environment
 from stacks.silvermoat_stack import SilvermoatStack
