@@ -230,6 +230,70 @@ export const uploadClaimDocument = async (claimId, text) => {
 };
 
 /**
+ * Generic POST request
+ * @param {string} path - API path (e.g., '/customer/auth')
+ * @param {object} data - Request body
+ * @returns {Promise<object>} Response data
+ */
+export const post = async (path, data) => {
+  const apiBase = getApiBaseUrl();
+  const url = `${apiBase}${path}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    let errorMessage = `Request failed: ${response.statusText}`;
+    try {
+      const errorData = JSON.parse(errorText);
+      errorMessage = errorData.message || errorData.error || errorMessage;
+    } catch (e) {
+      // Use default error message
+    }
+    throw new ApiError(errorMessage, response.status, errorText);
+  }
+
+  return response.json();
+};
+
+/**
+ * Generic GET request
+ * @param {string} path - API path (e.g., '/customer/policies?policyNumber=XXX')
+ * @returns {Promise<object>} Response data
+ */
+export const get = async (path) => {
+  const apiBase = getApiBaseUrl();
+  const url = `${apiBase}${path}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    let errorMessage = `Request failed: ${response.statusText}`;
+    try {
+      const errorData = JSON.parse(errorText);
+      errorMessage = errorData.message || errorData.error || errorMessage;
+    } catch (e) {
+      // Use default error message
+    }
+    throw new ApiError(errorMessage, response.status, errorText);
+  }
+
+  return response.json();
+};
+
+/**
  * Backwards compatibility: Keep old function names for quotes
  */
 export const createQuote = (data) => createEntity('quote', data);
@@ -245,5 +309,7 @@ export default {
   uploadClaimDocument,
   createQuote,
   getQuote,
+  post,
+  get,
   ApiError,
 };
