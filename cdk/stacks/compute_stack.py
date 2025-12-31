@@ -24,6 +24,15 @@ class ComputeStack(Construct):
     ):
         super().__init__(scope, id)
 
+        # Shared Lambda Layer (contains shared/ directory used by both Lambdas)
+        shared_layer = lambda_.LayerVersion(
+            self,
+            "SharedLayer",
+            code=lambda_.Code.from_asset("../lambda/shared"),
+            compatible_runtimes=[lambda_.Runtime.PYTHON_3_12],
+            description="Shared utilities for Lambda functions",
+        )
+
         # MVP Service Lambda
         self.mvp_function = PythonFunction(
             self,
@@ -34,6 +43,7 @@ class ComputeStack(Construct):
             runtime=lambda_.Runtime.PYTHON_3_12,
             timeout=Duration.seconds(30),
             memory_size=256,
+            layers=[shared_layer],
             environment={
                 "QUOTES_TABLE": data_stack.tables["quotes"].table_name,
                 "POLICIES_TABLE": data_stack.tables["policies"].table_name,
@@ -82,6 +92,7 @@ class ComputeStack(Construct):
             runtime=lambda_.Runtime.PYTHON_3_12,
             timeout=Duration.seconds(120),
             memory_size=256,
+            layers=[shared_layer],
             environment={
                 "UI_BUCKET": storage_stack.ui_bucket.bucket_name,
                 "DOCS_BUCKET": storage_stack.docs_bucket.bucket_name,
