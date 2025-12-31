@@ -4,6 +4,9 @@
 pytest==8.3.4
 pytest-xdist==3.6.1  # Parallel test execution
 
+# Data generation
+Faker==31.8.0
+
 # API testing
 requests==2.32.3
 

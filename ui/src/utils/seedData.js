@@ -1,8 +1,10 @@
 /**
  * Seed Demo Data Utility
  * Creates realistic demo data across all entity types with relationships
+ * Uses Faker.js for realistic data generation
  */
 
+import { faker } from '@faker-js/faker';
 import { createQuote } from '../services/quotes';
 import { createPolicy } from '../services/policies';
 import { createClaim, updateStatus as updateClaimStatus } from '../services/claims';
@@ -10,11 +12,7 @@ import { createPayment } from '../services/payments';
 import { createCase } from '../services/cases';
 import { deleteAllEntities } from '../services/api';
 
-// Helper data for realistic demo generation
-const FIRST_NAMES = ['John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily', 'Robert', 'Jessica', 'William', 'Jennifer', 'James', 'Linda', 'Richard', 'Patricia', 'Joseph', 'Mary', 'Thomas', 'Barbara', 'Charles', 'Elizabeth', 'Daniel', 'Susan', 'Matthew', 'Karen', 'Christopher'];
-const LAST_NAMES = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin', 'Lee', 'Thompson', 'White', 'Harris', 'Clark'];
-const CITIES = ['Miami', 'Tampa', 'Orlando', 'Atlanta', 'Charlotte', 'New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'Austin'];
-const STATES = ['FL', 'GA', 'NC', 'NY', 'CA', 'IL', 'TX', 'AZ', 'PA'];
+// Insurance-specific constants
 const COVERAGE_TYPES = ['AUTO', 'HOME', 'LIFE', 'HEALTH'];
 const QUOTE_STATUSES = ['PENDING', 'ACCEPTED', 'DECLINED', 'EXPIRED'];
 const POLICY_STATUSES = ['ACTIVE', 'EXPIRED', 'CANCELLED', 'SUSPENDED'];
@@ -29,40 +27,18 @@ const CASE_STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 const ASSIGNEES = ['Alice Johnson', 'Bob Smith', 'Charlie Brown', 'Diana Prince', 'Eve Adams', 'Frank Miller'];
 const DEPARTMENTS = ['CUSTOMER_SERVICE', 'CLAIMS', 'BILLING', 'UNDERWRITING'];
-const VEHICLE_MAKES = ['Honda', 'Toyota', 'Ford', 'Chevrolet', 'Nissan', 'BMW', 'Mercedes', 'Audi', 'Lexus', 'Mazda'];
-const VEHICLE_MODELS = ['Civic', 'Accord', 'Camry', 'Corolla', 'F-150', 'Silverado', 'Altima', 'Maxima', '3 Series', 'C-Class'];
 
 // Helper functions
-const randomItem = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const randomNumber = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-const randomName = () => `${randomItem(FIRST_NAMES)} ${randomItem(LAST_NAMES)}`;
-const randomEmail = (name) => {
-  const domains = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com'];
-  const safeName = name.toLowerCase().replace(' ', '.');
-  return `${safeName}${randomNumber(1, 999)}@${randomItem(domains)}`;
-};
-const randomPhone = () => `${randomNumber(200, 999)}${randomNumber(200, 999)}${randomNumber(1000, 9999)}`;
-const randomAddress = () => {
-  const streets = ['Main St', 'Oak Ave', 'Maple Dr', 'Park Blvd', 'Lake Rd', 'Hill Ct', 'Pine St', 'Cedar Ln'];
-  return `${randomNumber(100, 9999)} ${randomItem(streets)}`;
-};
-const randomZip = () => `${randomNumber(10000, 99999)}`;
-const randomDOB = () => {
-  const year = randomNumber(1950, 2000);
-  const month = randomNumber(1, 12);
-  const day = randomNumber(1, 28);
-  return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-};
-const randomVIN = () => {
-  const chars = 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789';
-  return Array.from({ length: 17 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-};
+export const randomItem = (arr) => arr[Math.floor(Math.random() * arr.length)];
+export const randomNumber = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
 const randomDateWithinDays = (days) => {
   const now = new Date();
   const past = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
   const randomTime = past.getTime() + Math.random() * (now.getTime() - past.getTime());
   return new Date(randomTime).toISOString().split('T')[0];
 };
+
 const futureDateWithinDays = (startDate, days) => {
   const start = new Date(startDate);
   const future = new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
@@ -91,17 +67,17 @@ export const seedDemoData = async (onProgress, count = 25) => {
     // Step 1: Create Quotes with rich data
     onProgress?.('Creating demo quotes...', step, totalSteps);
     for (let i = 0; i < count; i++) {
-      const name = randomName();
+      const name = faker.person.fullName();
       const coverage = randomItem(COVERAGE_TYPES);
       const quoteData = {
         name,
-        email: randomEmail(name),
-        phone: randomPhone(),
-        address: randomAddress(),
-        city: randomItem(CITIES),
-        state: randomItem(STATES),
-        zip: randomZip(),
-        dateOfBirth: randomDOB(),
+        email: faker.internet.email({ firstName: name.split(' ')[0], lastName: name.split(' ')[1] }),
+        phone: faker.phone.number('##########'),
+        address: faker.location.streetAddress(),
+        city: faker.location.city(),
+        state: faker.location.state({ abbreviated: true }),
+        zip: faker.location.zipCode('#####'),
+        dateOfBirth: faker.date.birthdate({ min: 18, max: 75, mode: 'age' }).toISOString().split('T')[0],
         premium_cents: randomNumber(50000, 300000),
         coverageType: coverage,
         coverageLimit_cents: randomNumber(10000000, 100000000),
@@ -112,10 +88,10 @@ export const seedDemoData = async (onProgress, count = 25) => {
 
       if (coverage === 'AUTO') {
         quoteData.vehicleInfo = {
-          year: randomNumber(2015, 2024),
-          make: randomItem(VEHICLE_MAKES),
-          model: randomItem(VEHICLE_MODELS),
-          vin: randomVIN()
+          year: faker.date.past({ years: 10 }).getFullYear() + 10,
+          make: faker.vehicle.manufacturer(),
+          model: faker.vehicle.model(),
+          vin: faker.vehicle.vin()
         };
       }
 
@@ -135,7 +111,7 @@ export const seedDemoData = async (onProgress, count = 25) => {
         quoteId: results.quotes[i]?.id,
         policyNumber: `POL-2024-${(1000 + i).toString().padStart(6, '0')}`,
         status: Math.random() < 0.8 ? 'ACTIVE' : randomItem(POLICY_STATUSES),
-        holderName: randomName(),
+        holderName: faker.person.fullName(),
         effectiveDate,
         expirationDate: futureDateWithinDays(effectiveDate, 365),
         expiryDate: futureDateWithinDays(effectiveDate, 365),
@@ -182,7 +158,7 @@ export const seedDemoData = async (onProgress, count = 25) => {
       const claimData = {
         policyId: results.policies[i % results.policies.length]?.id,
         claimNumber: `CLM-2024-${(1000 + i).toString().padStart(6, '0')}`,
-        claimantName: randomName(),
+        claimantName: faker.person.fullName(),
         loss: `${randomItem(LOSS_TYPES).replace('_', ' ')} incident`,
         lossType: randomItem(LOSS_TYPES),
         incidentDate,
@@ -194,7 +170,7 @@ export const seedDemoData = async (onProgress, count = 25) => {
         paidAmount_cents: paid,
         status,
         description: `Claim for ${randomItem(LOSS_TYPES).replace('_', ' ').toLowerCase()} with estimated damage`,
-        location: randomItem(['I-95 northbound', 'I-75 southbound', 'US-1', 'Downtown', 'Residential area', 'Parking lot']),
+        location: faker.location.streetAddress(),
         adjusterName: randomItem(ASSIGNEES),
         adjusterNotes: ['PENDING', 'REVIEW'].includes(status) ? 'Under review' : 'Claim processed'
       };
@@ -252,7 +228,7 @@ export const seedDemoData = async (onProgress, count = 25) => {
         priority: Math.random() < 0.7 ? 'MEDIUM' : randomItem(PRIORITIES),
         assignee: randomItem(ASSIGNEES),
         department: randomItem(DEPARTMENTS),
-        customerName: randomName(),
+        customerName: faker.person.fullName(),
         policyId: Math.random() < 0.7 ? results.policies[i % results.policies.length]?.id : null,
         relatedEntityType: relatedType,
         description: `Customer inquiry regarding ${topic.replace('_', ' ').toLowerCase()}`,
