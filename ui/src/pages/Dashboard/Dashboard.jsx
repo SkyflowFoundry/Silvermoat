@@ -14,6 +14,7 @@ import {
   CustomerServiceOutlined,
   ThunderboltOutlined,
   DeleteOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import DashboardStats from './DashboardStats';
@@ -120,6 +121,12 @@ const Dashboard = () => {
       label: 'New Case',
       icon: <CustomerServiceOutlined />,
       path: '/cases/new',
+      type: 'default',
+    },
+    {
+      label: 'Customer Portal',
+      icon: <UserOutlined />,
+      path: '/customer/login',
       type: 'default',
     },
   ];

@@ -6,13 +6,16 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Form, Input, Button, Card, Typography, message } from 'antd';
-import { LockOutlined, SafetyOutlined } from '@ant-design/icons';
+import { LockOutlined, SafetyOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { authenticateCustomer } from '../../services/customer';
+import { getApiBase } from '../../App';
 
 const { Title, Text } = Typography;
 
 const CustomerLogin = () => {
   const [loading, setLoading] = useState(false);
+  const [autoFillLoading, setAutoFillLoading] = useState(false);
+  const [form] = Form.useForm();
   const navigate = useNavigate();
 
   const onFinish = async (values) => {
@@ -34,6 +37,39 @@ const CustomerLogin = () => {
       message.error(error.message || 'Invalid policy number or ZIP code');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAutoFill = async () => {
+    setAutoFillLoading(true);
+    try {
+      // Fetch a valid policy from the backend
+      const apiBase = getApiBase();
+      const response = await fetch(`${apiBase}/policy`);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch policies');
+      }
+
+      const data = await response.json();
+
+      if (data.length === 0) {
+        message.warning('No policies found. Please seed demo data first.');
+        return;
+      }
+
+      // Use the first policy
+      const policy = data[0];
+      form.setFieldsValue({
+        policyNumber: policy.policyNumber,
+        zip: policy.zip,
+      });
+
+      message.success('Demo credentials loaded!');
+    } catch (error) {
+      message.error('Failed to load demo credentials');
+    } finally {
+      setAutoFillLoading(false);
     }
   };
 
@@ -59,8 +95,20 @@ const CustomerLogin = () => {
           <Text type="secondary">Access your insurance information</Text>
         </div>
 
+        <Button
+          type="dashed"
+          icon={<ThunderboltOutlined />}
+          onClick={handleAutoFill}
+          loading={autoFillLoading}
+          block
+          style={{ marginBottom: 24, borderColor: '#722ed1', color: '#722ed1' }}
+        >
+          Load Demo Credentials
+        </Button>
+
         <Form
           name="customer_login"
+          form={form}
           onFinish={onFinish}
           layout="vertical"
           size="large"
