@@ -53,13 +53,13 @@ const CustomerLogin = () => {
 
       const data = await response.json();
 
-      if (data.length === 0) {
+      if (!data.items || data.items.length === 0) {
         message.warning('No policies found. Please seed demo data first.');
         return;
       }
 
       // Use the first policy
-      const policy = data[0];
+      const policy = data.items[0];
       form.setFieldsValue({
         policyNumber: policy.policyNumber,
         zip: policy.zip,

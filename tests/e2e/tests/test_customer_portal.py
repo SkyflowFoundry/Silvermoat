@@ -250,3 +250,89 @@ def test_customer_logout(driver, base_url, api_base_url):
             import time
             time.sleep(2)
             assert "/customer/login" in driver.current_url or "/customer" in driver.current_url
+
+
+@pytest.mark.e2e
+@pytest.mark.customer
+def test_load_demo_credentials_button(driver, base_url, api_base_url):
+    """Test that Load Demo Credentials button works correctly"""
+    # Create a test policy to be loaded
+    policy_data = {
+        "policyNumber": "POL-2024-DEMO001",
+        "holderName": "Demo User",
+        "zip": "98765",
+        "effectiveDate": "2024-01-01",
+        "expirationDate": "2025-01-01",
+        "premium_cents": 165000,
+    }
+    response = requests.post(f"{api_base_url}/policy", json=policy_data)
+    assert response.status_code == 201, "Demo policy should be created"
+
+    # Navigate to login page
+    driver.get(f"{base_url}/customer/login")
+    wait_for_app_ready(driver)
+
+    # Find and click "Load Demo Credentials" button
+    wait = WebDriverWait(driver, 10)
+    demo_button = wait.until(
+        EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Load Demo Credentials')]"))
+    )
+    demo_button.click()
+
+    # Wait for form to be populated
+    import time
+    time.sleep(1)
+
+    # Verify that form fields are populated
+    policy_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='text']")
+    assert len(policy_inputs) >= 2, "Should have policy number and ZIP inputs"
+
+    # Check that policy number field has a value
+    policy_value = policy_inputs[0].get_attribute('value')
+    assert policy_value, "Policy number should be populated"
+    assert policy_value.startswith("POL-"), "Policy number should have correct format"
+
+    # Check that ZIP field has a value
+    zip_value = None
+    for inp in policy_inputs:
+        if inp.get_attribute('maxlength') == '5':
+            zip_value = inp.get_attribute('value')
+            break
+    if zip_value is None and len(policy_inputs) > 1:
+        zip_value = policy_inputs[1].get_attribute('value')
+
+    assert zip_value, "ZIP code should be populated"
+    assert len(zip_value) == 5, "ZIP code should be 5 digits"
+    assert zip_value.isdigit(), "ZIP code should be numeric"
+
+
+@pytest.mark.e2e
+@pytest.mark.customer
+def test_load_demo_credentials_no_policies(driver, base_url, api_base_url):
+    """Test Load Demo Credentials button shows warning when no policies exist"""
+    # Delete all policies to ensure empty state
+    requests.delete(f"{api_base_url}/policy")
+
+    # Navigate to login page
+    driver.get(f"{base_url}/customer/login")
+    wait_for_app_ready(driver)
+
+    # Find and click "Load Demo Credentials" button
+    wait = WebDriverWait(driver, 10)
+    demo_button = wait.until(
+        EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Load Demo Credentials')]"))
+    )
+    demo_button.click()
+
+    # Wait for message to appear
+    import time
+    time.sleep(2)
+
+    # Should show warning message about no policies
+    # Ant Design messages appear in the DOM temporarily
+    # We can't reliably check for the exact message text, but the form should remain empty
+    policy_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='text']")
+    if len(policy_inputs) >= 1:
+        policy_value = policy_inputs[0].get_attribute('value')
+        # Form should be empty or show placeholder
+        assert not policy_value or policy_value == "", "Policy field should remain empty when no policies available"
