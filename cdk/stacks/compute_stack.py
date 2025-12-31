@@ -28,7 +28,7 @@ class ComputeStack(Construct):
         shared_layer = lambda_.LayerVersion(
             self,
             "SharedLayer",
-            code=lambda_.Code.from_asset("../lambda/shared"),
+            code=lambda_.Code.from_asset("../lambda/layer"),
             compatible_runtimes=[lambda_.Runtime.PYTHON_3_12],
             description="Shared utilities for Lambda functions",
         )
