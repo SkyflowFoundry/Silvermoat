@@ -61,6 +61,7 @@ jobs:
 
       - name: Bootstrap CDK (with recovery)
         run: |
+          cd cdk
           echo "Checking CDK bootstrap status..."
 
           # Try bootstrap first
