@@ -186,19 +186,6 @@ const CustomerDashboard = () => {
     },
   ];
 
-  if (loading) {
-    return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-      }}>
-        <Spin size="large" tip="Loading your information..." />
-      </div>
-    );
-  }
-
   return (
     <div style={{ padding: '24px', background: '#f0f2f5', minHeight: '100vh' }}>
       <Card style={{ marginBottom: 24 }}>
@@ -272,7 +259,11 @@ const CustomerDashboard = () => {
                   Policies
                 </span>
               ),
-              children: (
+              children: loading ? (
+                <div style={{ textAlign: 'center', padding: '40px' }}>
+                  <Spin size="large" />
+                </div>
+              ) : (
                 <Table
                   columns={policyColumns}
                   dataSource={policies}
@@ -289,7 +280,11 @@ const CustomerDashboard = () => {
                   Claims
                 </span>
               ),
-              children: (
+              children: loading ? (
+                <div style={{ textAlign: 'center', padding: '40px' }}>
+                  <Spin size="large" />
+                </div>
+              ) : (
                 <div>
                   <div style={{ marginBottom: 16 }}>
                     <Button
@@ -317,7 +312,11 @@ const CustomerDashboard = () => {
                   Payments
                 </span>
               ),
-              children: (
+              children: loading ? (
+                <div style={{ textAlign: 'center', padding: '40px' }}>
+                  <Spin size="large" />
+                </div>
+              ) : (
                 <Table
                   columns={paymentColumns}
                   dataSource={payments}
