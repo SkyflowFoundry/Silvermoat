@@ -392,6 +392,7 @@ def handler(event, context):
                             "policyNumber": f"POL-2024-{i:06d}",
                             "status": choice(policy_statuses) if random() < 0.2 else "ACTIVE",
                             "holderName": random_name(),
+                            "zip": random_zip(),
                             "effectiveDate": random_date_string(3650),
                             "expiryDate": random_date_string_future(300),
                             "renewalDate": random_date_string_future(15),
