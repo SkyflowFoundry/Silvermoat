@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'infra/**'
+      - 'cdk/**'
+      - 'lambda/**'
       - 'ui/**'
       - 'scripts/**'
       - '.github/workflows/deploy-production.yml'
@@ -25,7 +26,6 @@ jobs:
       web_url: ${{ steps.stack-outputs.outputs.web_url }}
       cloudfront_url: ${{ steps.stack-outputs.outputs.cloudfront_url }}
       cloudfront_id: ${{ steps.cloudfront.outputs.distribution_id }}
-      stack_deployed: ${{ steps.check-stack.outputs.skip_deploy != 'true' }}
       ui_deployed: ${{ steps.check-ui.outputs.skip_ui != 'true' }}
 
     steps:
@@ -46,39 +46,54 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
-      # Phase 2: Change Detection
-      - name: Check if stack exists
-        id: check-stack
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install AWS CDK
+        run: npm install -g aws-cdk
+
+      - name: Install CDK dependencies
         run: |
-          STACK_NAME="silvermoat"
-          echo "Checking if stack ${STACK_NAME} exists..."
+          cd cdk
+          pip install -r requirements.txt
 
-          # Check stack status
-          STACK_STATUS=$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query 'Stacks[0].StackStatus' \
-            --output text 2>/dev/null || echo "NOT_FOUND")
+      - name: Bootstrap CDK (with recovery)
+        run: |
+          echo "Checking CDK bootstrap status..."
 
-          echo "Stack status: ${STACK_STATUS}"
-          echo "stack_status=${STACK_STATUS}" >> $GITHUB_OUTPUT
+          # Try bootstrap first
+          if ! cdk bootstrap aws://571930033416/us-east-1 2>&1 | tee bootstrap.log; then
+            echo "⚠️ Bootstrap failed, checking for corrupted stack..."
 
-          # Stack is ready if in a stable complete state
-          if [[ "${STACK_STATUS}" == "CREATE_COMPLETE" ]] || [[ "${STACK_STATUS}" == "UPDATE_COMPLETE" ]]; then
-            echo "✅ Stack exists and is ready"
-            echo "stack_exists=true" >> $GITHUB_OUTPUT
-            echo "skip_deploy=true" >> $GITHUB_OUTPUT
-          elif [[ "${STACK_STATUS}" == "NOT_FOUND" ]]; then
-            echo "Stack does not exist, will create"
-            echo "stack_exists=false" >> $GITHUB_OUTPUT
-            echo "skip_deploy=false" >> $GITHUB_OUTPUT
+            # Check if error is about existing resources
+            if grep -q "already exists" bootstrap.log; then
+              echo "Detected corrupted bootstrap stack. Attempting recovery..."
+
+              # Delete the corrupted CDKToolkit stack
+              echo "Deleting CDKToolkit stack..."
+              aws cloudformation delete-stack --stack-name CDKToolkit || true
+
+              # Wait for deletion
+              echo "Waiting for stack deletion..."
+              aws cloudformation wait stack-delete-complete --stack-name CDKToolkit || {
+                echo "Stack deletion timed out or failed, but continuing anyway..."
+              }
+
+              # Re-bootstrap
+              echo "Re-bootstrapping CDK environment..."
+              cdk bootstrap aws://571930033416/us-east-1
+            else
+              echo "Bootstrap failed for a different reason. Exiting."
+              cat bootstrap.log
+              exit 1
+            fi
           else
-            echo "⚠️ Stack exists but in state: ${STACK_STATUS}"
-            echo "stack_exists=true" >> $GITHUB_OUTPUT
-            echo "skip_deploy=false" >> $GITHUB_OUTPUT
+            echo "✅ CDK bootstrap successful"
           fi
 
       - name: Deploy production stack
-        if: steps.check-stack.outputs.skip_deploy != 'true'
         env:
           STACK_NAME: silvermoat
           APP_NAME: silvermoat
@@ -88,22 +103,11 @@ jobs:
           DOMAIN_NAME: silvermoat.net
         run: |
           echo "Deploying production stack: silvermoat"
+          echo "Note: CDK automatically detects changes and skips unchanged resources"
           chmod +x scripts/deploy-stack.sh
           ./scripts/deploy-stack.sh
 
-      - name: Wait for stack deployment
-        if: steps.check-stack.outputs.skip_deploy != 'true'
-        run: |
-          echo "Waiting for stack deployment to complete..."
-          aws cloudformation wait stack-create-complete \
-            --stack-name silvermoat \
-            --region us-east-1 || \
-          aws cloudformation wait stack-update-complete \
-            --stack-name silvermoat \
-            --region us-east-1
-
       - name: Update Cloudflare DNS
-        if: steps.check-stack.outputs.skip_deploy != 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
@@ -131,18 +135,10 @@ jobs:
             echo "No CloudFront distribution found"
           fi
 
-      # Phase 2: UI Change Detection
       - name: Check if UI needs deployment
         id: check-ui
         run: |
           STACK_NAME="silvermoat"
-
-          # If stack was just deployed, always deploy UI
-          if [ "${{ steps.check-stack.outputs.skip_deploy }}" != "true" ]; then
-            echo "Stack was just deployed, UI needs deployment"
-            echo "skip_ui=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
 
           # Get UI bucket from stack outputs
           UI_BUCKET=$(aws cloudformation describe-stacks \

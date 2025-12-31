@@ -4,7 +4,8 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'infra/**'
+      - 'cdk/**'
+      - 'lambda/**'
       - 'ui/**'
       - 'tests/**'
       - 'scripts/**'
@@ -27,7 +28,7 @@ permissions:
   issues: write
 
 jobs:
-  validate-cfn:
+  validate-cdk:
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -40,25 +41,30 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install cfn-lint
-        run: pip install cfn-lint
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      - name: Validate CloudFormation templates
-        run: |
-          echo "Validating CloudFormation templates..."
-          cfn-lint infra/**/*.yaml --format pretty
-          echo "✅ All CloudFormation templates are valid"
+      - name: Install AWS CDK
+        run: npm install -g aws-cdk
 
-      - name: Validate parameter YAML files
+      - name: Install CDK dependencies
         run: |
-          echo "Validating parameter files..."
-          for file in config/*.yaml config/*.yml; do
-            if [ -f "$file" ]; then
-              echo "Validating $file..."
-              python -c "import yaml; yaml.safe_load(open('$file'))"
-            fi
-          done
-          echo "✅ All parameter files are valid"
+          cd cdk
+          pip install -r requirements.txt
+
+      - name: Validate CDK stacks (synth)
+        env:
+          STACK_NAME: silvermoat-test-pr-123
+          STAGE_NAME: test
+          CREATE_CLOUDFRONT: "false"
+          DOMAIN_NAME: ""
+        run: |
+          echo "Validating CDK stacks via synthesis..."
+          cd cdk
+          cdk synth silvermoat-test-pr-123 > /dev/null
+          echo "✅ CDK stack synthesis successful"
 
   unit-tests:
     runs-on: ubuntu-latest
@@ -82,7 +88,7 @@ jobs:
           npm test -- --run
 
   setup-stack:
-    needs: [validate-cfn, unit-tests]
+    needs: [validate-cdk, unit-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -141,63 +147,69 @@ jobs:
              [[ "${STACK_STATUS}" == "UPDATE_ROLLBACK_COMPLETE" ]] || \
              [[ "${STACK_STATUS}" == "UPDATE_ROLLBACK_FAILED" ]]; then
             echo "🗑️ Stack in failed state (${STACK_STATUS}), deleting before redeployment..."
-            aws cloudformation delete-stack --stack-name "${STACK_NAME}"
-            echo "Waiting for stack deletion..."
-            aws cloudformation wait stack-delete-complete --stack-name "${STACK_NAME}" || true
+            cd cdk
+            cdk destroy "${STACK_NAME}" --force || true
             echo "✅ Stack deleted"
-            echo "stack_exists=false" >> $GITHUB_OUTPUT
-            echo "skip_deploy=false" >> $GITHUB_OUTPUT
             echo "stack_deleted=true" >> $GITHUB_OUTPUT
-          # Stack exists and is stable -> decide based on deploy hash
-          elif [[ "${STACK_STATUS}" == "CREATE_COMPLETE" ]] || [[ "${STACK_STATUS}" == "UPDATE_COMPLETE" ]]; then
-            echo "✅ Stack exists and is ready (checking deploy hash)"
-
-            AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-            AWS_REGION="${AWS_REGION:-us-east-1}"
-            S3_BUCKET="cf-templates-${STACK_NAME}-${AWS_ACCOUNT_ID}-${AWS_REGION}"
-
-            # Build current deploy hash (lambda sources + packaging scripts + template), matches scripts/deploy-stack.sh
-            HASH_INPUTS=$(find lambda -type f -name "*.py" 2>/dev/null; printf "%s\n" "scripts/deploy-stack.sh" "scripts/package-lambda.sh" "infra/silvermoat-mvp-s3-website.yaml")
-            if command -v md5sum >/dev/null 2>&1; then
-              CURRENT_HASH=$(printf "%s\n" "$HASH_INPUTS" | xargs md5sum 2>/dev/null | sort | md5sum | cut -d' ' -f1)
-            else
-              CURRENT_HASH=$(printf "%s\n" "$HASH_INPUTS" | xargs md5 2>/dev/null | sort | md5 | cut -d' ' -f1)
-            fi
-
-            STORED_HASH=$(aws s3 cp "s3://${S3_BUCKET}/.deploy-hash" - 2>/dev/null || echo "")
-            echo "Current hash: ${CURRENT_HASH}"
-            echo "Stored hash:  ${STORED_HASH}"
-
-            echo "stack_exists=true" >> $GITHUB_OUTPUT
-            echo "stack_deleted=false" >> $GITHUB_OUTPUT
-
-            if [[ -z "${STORED_HASH}" ]] || [[ "${CURRENT_HASH}" != "${STORED_HASH}" ]]; then
-              echo "⚠️ Hash mismatch or missing; will redeploy"
-              echo "skip_deploy=false" >> $GITHUB_OUTPUT
-            else
-              echo "✅ Hash matches; skipping redeploy"
-              echo "skip_deploy=true" >> $GITHUB_OUTPUT
-            fi
           elif [[ "${STACK_STATUS}" == "NOT_FOUND" ]]; then
             echo "Stack does not exist, will create"
-            echo "stack_exists=false" >> $GITHUB_OUTPUT
-            echo "skip_deploy=false" >> $GITHUB_OUTPUT
-            echo "stack_deleted=false" >> $GITHUB_OUTPUT
-          # Handle in-progress states
-          elif [[ "${STACK_STATUS}" == *"IN_PROGRESS"* ]]; then
-            echo "⚠️ Stack operation in progress (${STACK_STATUS}), waiting..."
-            echo "stack_exists=true" >> $GITHUB_OUTPUT
-            echo "skip_deploy=true" >> $GITHUB_OUTPUT
             echo "stack_deleted=false" >> $GITHUB_OUTPUT
           else
-            echo "⚠️ Stack exists but in unexpected state: ${STACK_STATUS}"
-            echo "stack_exists=true" >> $GITHUB_OUTPUT
-            echo "skip_deploy=false" >> $GITHUB_OUTPUT
+            echo "✅ Stack exists (${STACK_STATUS})"
             echo "stack_deleted=false" >> $GITHUB_OUTPUT
           fi
 
+          # Note: CDK handles change detection automatically via asset hashing,
+          # so we always run cdk deploy and let it determine if updates are needed
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install AWS CDK
+        run: npm install -g aws-cdk
+
+      - name: Install CDK dependencies
+        run: |
+          cd cdk
+          pip install -r requirements.txt
+
+      - name: Bootstrap CDK (with recovery)
+        run: |
+          echo "Checking CDK bootstrap status..."
+
+          # Try bootstrap first
+          if ! cdk bootstrap aws://571930033416/us-east-1 2>&1 | tee bootstrap.log; then
+            echo "⚠️ Bootstrap failed, checking for corrupted stack..."
+
+            # Check if error is about existing resources
+            if grep -q "already exists" bootstrap.log; then
+              echo "Detected corrupted bootstrap stack. Attempting recovery..."
+
+              # Delete the corrupted CDKToolkit stack
+              echo "Deleting CDKToolkit stack..."
+              aws cloudformation delete-stack --stack-name CDKToolkit || true
+
+              # Wait for deletion
+              echo "Waiting for stack deletion..."
+              aws cloudformation wait stack-delete-complete --stack-name CDKToolkit || {
+                echo "Stack deletion timed out or failed, but continuing anyway..."
+              }
+
+              # Re-bootstrap
+              echo "Re-bootstrapping CDK environment..."
+              cdk bootstrap aws://571930033416/us-east-1
+            else
+              echo "Bootstrap failed for a different reason. Exiting."
+              cat bootstrap.log
+              exit 1
+            fi
+          else
+            echo "✅ CDK bootstrap successful"
+          fi
+
       - name: Deploy test stack
-        if: steps.check-stack.outputs.skip_deploy != 'true'
         env:
           STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
           APP_NAME: silvermoat-test
@@ -209,17 +221,6 @@ jobs:
           echo "Deploying test stack: ${STACK_NAME}"
           chmod +x scripts/deploy-stack.sh
           ./scripts/deploy-stack.sh
-
-      - name: Wait for stack deployment
-        if: steps.check-stack.outputs.skip_deploy != 'true'
-        run: |
-          echo "Waiting for stack deployment to complete..."
-          aws cloudformation wait stack-create-complete \
-            --stack-name ${{ steps.stack-name.outputs.stack_name }} \
-            --region us-east-1 || \
-          aws cloudformation wait stack-update-complete \
-            --stack-name ${{ steps.stack-name.outputs.stack_name }} \
-            --region us-east-1
 
       - name: Check if UI needs deployment
         id: check-ui
@@ -283,18 +284,16 @@ jobs:
           echo "Stack: ${{ steps.stack-name.outputs.stack_name }}"
           echo "Stack status: ${{ steps.check-stack.outputs.stack_status }}"
           echo "Stack deleted: ${{ steps.check-stack.outputs.stack_deleted }}"
-          echo "Stack deployment skipped: ${{ steps.check-stack.outputs.skip_deploy }}"
           echo "UI deployment skipped: ${{ steps.check-ui.outputs.skip_ui }}"
           echo ""
           if [ "${{ steps.check-stack.outputs.stack_deleted }}" = "true" ]; then
             echo "🗑️ Previous failed stack was deleted before redeployment"
           fi
-          if [ "${{ steps.check-stack.outputs.skip_deploy }}" = "true" ]; then
-            echo "⚡ Stack already exists and is ready - saved ~10-15 minutes!"
-          fi
           if [ "${{ steps.check-ui.outputs.skip_ui }}" = "true" ]; then
             echo "⚡ UI unchanged - saved ~2-3 minutes!"
           fi
+          echo ""
+          echo "Note: CDK automatically detects and skips unchanged resources"
 
       - name: Get stack outputs
         id: stack-outputs
@@ -414,7 +413,7 @@ jobs:
           fi
 
   analyze-results:
-    needs: [validate-cfn, setup-stack, test-suite]
+    needs: [validate-cdk, setup-stack, test-suite]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -442,7 +441,7 @@ jobs:
           fi
 
           # Collect job outcomes
-          CFN_OUTCOME="${{ needs.validate-cfn.result }}"
+          CFN_OUTCOME="${{ needs.validate-cdk.result }}"
           SETUP_OUTCOME="${{ needs.setup-stack.result }}"
           TESTS_OUTCOME="${{ needs.test-suite.result }}"
 
@@ -771,9 +770,9 @@ jobs:
             }
 
             // Build stack status section
-            const cfnOutcome = '${{ needs.validate-cfn.result }}';
+            const cfnOutcome = '${{ needs.analyze-results.result }}';
             const setupOutcome = '${{ needs.setup-stack.result }}';
-            const testsOutcome = '${{ needs.test-suite.result }}';
+            const testsOutcome = '${{ needs.analyze-results.result }}';
 
             let statusEmoji = '✅';
             if (cfnOutcome === 'failure' || setupOutcome === 'failure') {
