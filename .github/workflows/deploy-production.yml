@@ -108,6 +108,16 @@ jobs:
           chmod +x scripts/deploy-stack.sh
           ./scripts/deploy-stack.sh
 
+      - name: Setup ACM validation (automatic)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          STACK_NAME: silvermoat
+        run: |
+          echo "Setting up ACM certificate DNS validation..."
+          chmod +x scripts/setup-acm-validation.sh
+          ./scripts/setup-acm-validation.sh || echo "⚠️ ACM validation setup failed or not needed"
+
       - name: Update Cloudflare DNS
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
