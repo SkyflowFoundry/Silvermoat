@@ -4,6 +4,12 @@ on:
   pull_request:
     types: [closed]
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to clean up (e.g., 39)'
+        required: true
+        type: string
 
 permissions:
   id-token: write
@@ -40,7 +46,12 @@ jobs:
       - name: Determine stack name
         id: stack-name
         run: |
-          STACK_NAME="silvermoat-test-pr-${{ github.event.pull_request.number }}"
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            PR_NUM="${{ github.event.pull_request.number }}"
+          else
+            PR_NUM="${{ inputs.pr_number }}"
+          fi
+          STACK_NAME="silvermoat-test-pr-${PR_NUM}"
           echo "stack_name=${STACK_NAME}" >> $GITHUB_OUTPUT
           echo "Cleaning up stack: ${STACK_NAME}"
 
