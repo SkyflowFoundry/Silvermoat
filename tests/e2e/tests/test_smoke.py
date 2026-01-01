@@ -8,7 +8,7 @@ Infrastructure-agnostic tests focusing on user-facing functionality.
 import pytest
 import requests
 from selenium.webdriver.common.by import By
-from ..pages.home_page import HomePage
+from ..pages.home_page import DashboardPage
 from ..conftest import wait_for_app_ready
 
 
@@ -40,14 +40,14 @@ def test_api_connectivity(api_base_url):
 @pytest.mark.smoke
 def test_navigation_links_work(driver, base_url):
     """Test that navigation menu items are present and clickable"""
-    home_page = HomePage(driver, base_url)
-    home_page.load()
+    dashboard_page = DashboardPage(driver, base_url)
+    dashboard_page.load()
 
     # Should have navigation
-    assert home_page.is_loaded(), "Home page should load with navigation"
+    assert dashboard_page.is_loaded(), "Dashboard page should load with navigation"
 
     # Should have multiple navigation menu items (Ant Design uses role='menuitem')
-    menu_items = home_page.get_navigation_links()
+    menu_items = dashboard_page.get_navigation_links()
     assert len(menu_items) >= 5, f"Should have at least 5 navigation items, found {len(menu_items)}"
 
     # Menu items should be clickable (have role='menuitem')

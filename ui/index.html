@@ -55,28 +55,7 @@
         text-align: center;
         max-width: 500px;
         padding: 0 20px;
-        background: linear-gradient(90deg, #fff, #ffd700, #fff, #ffd700, #fff);
-        background-size: 200% auto;
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        animation: shimmer 3s linear infinite, fadeIn 0.8s ease-out 0.5s backwards;
-        letter-spacing: 0.5px;
-        text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
-      }
-
-      #loading-slogan::before {
-        content: '🔒 ';
-        -webkit-text-fill-color: #ffd700;
-        filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
-        animation: lockPulse 2s ease-in-out infinite;
-      }
-
-      #loading-slogan::after {
-        content: ' 🔒';
-        -webkit-text-fill-color: #ffd700;
-        filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
-        animation: lockPulse 2s ease-in-out infinite 1s;
+        animation: fadeIn 0.8s ease-out 0.5s backwards;
       }
 
       #loading-spinner {
@@ -124,29 +103,14 @@
           transform: rotate(360deg);
         }
       }
-
-      @keyframes shimmer {
-        to {
-          background-position: 200% center;
-        }
-      }
-
-      @keyframes lockPulse {
-        0%, 100% {
-          transform: scale(1);
-          opacity: 1;
-        }
-        50% {
-          transform: scale(1.2);
-          opacity: 0.8;
-        }
-      }
     </style>
     <script>
       // Ensure loading screen stays visible for at least 3 seconds
+      // Only show loading screen on landing page (/)
       window.__loadingStartTime = Date.now();
       window.__appReady = false;
       window.__minLoadingTime = 3000; // 3 seconds
+      window.__isLandingPage = window.location.pathname === '/';
 
       window.hideLoadingScreen = function() {
         const elapsed = Date.now() - window.__loadingStartTime;
@@ -165,12 +129,18 @@
     </script>
   </head>
   <body>
-    <div id="loading-screen">
+    <div id="loading-screen" style="display: none;">
       <img id="loading-logo" src="/silvermoat-logo.png" alt="Silvermoat Insurance" />
       <div id="loading-text">Silvermoat Insurance</div>
-      <div id="loading-slogan">Fortifying Your Future with Unbreakable Security</div>
+      <div id="loading-slogan">Enterprise Insurance Management System</div>
       <div id="loading-spinner"></div>
     </div>
+    <script>
+      // Only show loading screen on landing page
+      if (window.__isLandingPage) {
+        document.getElementById('loading-screen').style.display = 'flex';
+      }
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

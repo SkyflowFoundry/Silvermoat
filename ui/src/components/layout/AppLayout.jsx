@@ -30,7 +30,7 @@ const AppLayout = () => {
   // Determine active menu item based on current path
   const getSelectedKey = () => {
     const path = location.pathname;
-    if (path === '/') return 'dashboard';
+    if (path === '/dashboard' || path === '/') return 'dashboard';
     if (path.startsWith('/quotes')) return 'quotes';
     if (path.startsWith('/policies')) return 'policies';
     if (path.startsWith('/claims')) return 'claims';
@@ -46,7 +46,7 @@ const AppLayout = () => {
       icon: <DashboardOutlined />,
       label: 'Dashboard',
       onClick: () => {
-        navigate('/');
+        navigate('/dashboard');
         closeMobileDrawer();
       },
     },

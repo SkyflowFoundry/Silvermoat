@@ -1,13 +1,13 @@
 """
-Home/Dashboard Page Object
+Dashboard Page Object
 """
 
 from selenium.webdriver.common.by import By
 from .base_page import BasePage
 
 
-class HomePage(BasePage):
-    """Page object for home/dashboard page"""
+class DashboardPage(BasePage):
+    """Page object for employee dashboard page"""
 
     # Locators - Ant Design Menu structure
     LOGO = (By.CSS_SELECTOR, "[class*='logo'], [alt*='logo']")
@@ -19,12 +19,12 @@ class HomePage(BasePage):
     PAYMENTS_LINK = (By.XPATH, "//*[@role='menuitem' and contains(., 'Payment')]")
 
     def load(self):
-        """Load the home page"""
-        self.navigate_to("/")
+        """Load the dashboard page"""
+        self.navigate_to("/dashboard")
         self.wait_for_page_load()
 
     def is_loaded(self):
-        """Check if home page is loaded"""
+        """Check if dashboard page is loaded"""
         # Page is loaded if we can find either logo or navigation
         return (
             self.is_element_present(*self.LOGO, timeout=5) or
