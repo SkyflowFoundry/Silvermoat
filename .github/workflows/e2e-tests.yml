@@ -43,6 +43,7 @@ jobs:
       infrastructure_changed: ${{ steps.filter.outputs.infrastructure }}
       ui_changed: ${{ steps.filter.outputs.ui }}
       tests_changed: ${{ steps.filter.outputs.tests }}
+      stack_exists: ${{ steps.check-stack.outputs.stack_exists }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -63,9 +64,38 @@ jobs:
               - 'tests/**'
               - '.github/workflows/e2e-tests.yml'
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Check if test stack exists
+        id: check-stack
+        run: |
+          # Determine stack name (same logic as setup-stack)
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            STACK_NAME="silvermoat-test-pr-${{ github.event.pull_request.number }}"
+          elif [ -n "${{ inputs.pr_number }}" ]; then
+            STACK_NAME="silvermoat-test-pr-${{ inputs.pr_number }}"
+          else
+            STACK_NAME="silvermoat-test-${{ github.run_id }}"
+          fi
+
+          # Check if stack exists
+          if aws cloudformation describe-stacks --stack-name "${STACK_NAME}" >/dev/null 2>&1; then
+            echo "stack_exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Stack ${STACK_NAME} exists"
+          else
+            echo "stack_exists=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ Stack ${STACK_NAME} does not exist (first run)"
+          fi
+
   validate-cdk:
     needs: detect-changes
-    if: needs.detect-changes.outputs.infrastructure_changed == 'true'
+    if: |
+      needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+      needs.detect-changes.outputs.stack_exists == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -126,7 +156,10 @@ jobs:
 
   setup-stack:
     needs: [detect-changes, validate-cdk, unit-tests]
-    if: always() && (needs.validate-cdk.result == 'success' || needs.validate-cdk.result == 'skipped')
+    if: |
+      always() &&
+      needs.unit-tests.result == 'success' &&
+      (needs.validate-cdk.result == 'success' || needs.validate-cdk.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -408,6 +441,7 @@ jobs:
 
   test-suite:
     needs: setup-stack
+    if: always() && needs.setup-stack.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
