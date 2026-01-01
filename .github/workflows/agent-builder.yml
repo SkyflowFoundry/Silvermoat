@@ -78,22 +78,13 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Run Builder Agent
-        uses: ./.github/actions/claude-code
+        uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: ${{ steps.prompt.outputs.prompt }}
-          system_prompt: |
-            You are the BUILDER AGENT.
-
-            Your role:
-            - Implement the requested changes from the issue/PR description
-            - Commit your changes directly to the current branch
-            - Follow all rules in CLAUDE.md strictly
-            - Keep scope tight to the request
-            - Write clean, maintainable code
-
-            When you're done, commit your changes with a clear commit message.
-          max_turns: '20'
+          claude_args: |
+            --system-prompt "You are the BUILDER AGENT. Implement the requested changes. Commit directly to the current branch. Follow CLAUDE.md rules strictly. Keep scope tight."
+            --max-turns 20
 
       - name: Create PR if from issue
         if: steps.target.outputs.type == 'issue'
