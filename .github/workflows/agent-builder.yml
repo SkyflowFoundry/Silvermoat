@@ -1,0 +1,129 @@
+name: Agent - Builder
+
+on:
+  issues:
+    types: [labeled]
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue or PR number to work on'
+        required: true
+        type: number
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: agent-builder-${{ github.event.pull_request.number || github.event.issue.number || github.event.inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  builder:
+    if: |
+      github.event.label.name == 'agent:build' ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine target ref
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "ref=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
+            echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "type=pr" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" == "issues" ]; then
+            # For issues, we need to create a branch
+            ISSUE_NUMBER=${{ github.event.issue.number }}
+            BRANCH_NAME="agent/build-issue-${ISSUE_NUMBER}"
+            echo "ref=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+            echo "number=${ISSUE_NUMBER}" >> $GITHUB_OUTPUT
+            echo "type=issue" >> $GITHUB_OUTPUT
+          else
+            # workflow_dispatch
+            echo "ref=main" >> $GITHUB_OUTPUT
+            echo "number=${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
+            echo "type=manual" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Create branch for issue
+        if: steps.target.outputs.type == 'issue'
+        run: |
+          BRANCH_NAME="${{ steps.target.outputs.ref }}"
+          git checkout -b "$BRANCH_NAME" || git checkout "$BRANCH_NAME"
+          git push -u origin "$BRANCH_NAME" || true
+
+      - name: Get prompt
+        id: prompt
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            PROMPT="${{ github.event.pull_request.body }}"
+          elif [ "${{ github.event_name }}" == "issues" ]; then
+            PROMPT="${{ github.event.issue.body }}"
+          else
+            PROMPT="Work on issue/PR #${{ github.event.inputs.issue_number }}"
+          fi
+          echo "prompt<<EOF" >> $GITHUB_OUTPUT
+          echo "$PROMPT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Run Builder Agent
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: ${{ steps.prompt.outputs.prompt }}
+          claude_args: |
+            --system-prompt "You are the BUILDER AGENT. Implement the requested changes. Commit directly to the current branch. Follow CLAUDE.md rules strictly. Keep scope tight."
+            --max-turns 20
+
+      - name: Create PR if from issue
+        if: steps.target.outputs.type == 'issue'
+        run: |
+          ISSUE_NUMBER=${{ steps.target.outputs.number }}
+          BRANCH_NAME="${{ steps.target.outputs.ref }}"
+
+          # Check if PR already exists
+          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --json number --jq '.[0].number' || echo "")
+
+          if [ -z "$EXISTING_PR" ]; then
+            # Get issue title
+            ISSUE_TITLE=$(gh issue view "$ISSUE_NUMBER" --json title --jq '.title')
+
+            # Create PR
+            gh pr create \
+              --title "$ISSUE_TITLE" \
+              --body "Resolves #$ISSUE_NUMBER" \
+              --head "$BRANCH_NAME" \
+              --base main
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Remove trigger label
+        if: github.event.label.name == 'agent:build'
+        run: |
+          if [ "${{ steps.target.outputs.type }}" == "pr" ]; then
+            gh pr edit ${{ steps.target.outputs.number }} --remove-label "agent:build"
+          else
+            gh issue edit ${{ steps.target.outputs.number }} --remove-label "agent:build"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Post summary
+        if: always()
+        run: |
+          echo "### Builder Agent Run" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target:** ${{ steps.target.outputs.type }} #${{ steps.target.outputs.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ steps.target.outputs.ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
