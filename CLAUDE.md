@@ -25,6 +25,11 @@ Every plan MUST include:
 4. File-level changes per phase
 5. Unresolved questions (required)
 
+### Plan Communication
+- **Always post final plan to GitHub issue** before requesting approval.
+- Create new issue or update existing one.
+- Format: Use markdown with task checkboxes for phases.
+
 ### Unresolved Questions
 - Always include an **Unresolved Questions** section.
 - Questions must be concise.
