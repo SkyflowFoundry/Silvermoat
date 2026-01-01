@@ -295,3 +295,149 @@ def test_customer_upload_claim_document(api_client):
     assert data['id'] == claim_id
     assert 's3Key' in data
     assert data['uploaded'] is True
+
+
+# Additional Negative Tests
+
+@pytest.mark.api
+@pytest.mark.customer
+@pytest.mark.negative
+def test_customer_auth_invalid_json(api_client):
+    """Test customer authentication with invalid JSON"""
+    response = api_client.api_request(
+        'POST',
+        '/customer/auth',
+        data='{"invalid": json syntax}',
+        headers={'Content-Type': 'application/json'}
+    )
+
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+
+
+@pytest.mark.api
+@pytest.mark.customer
+@pytest.mark.negative
+def test_customer_auth_empty_payload(api_client):
+    """Test customer authentication with empty payload"""
+    response = api_client.api_request('POST', '/customer/auth', json={})
+
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+
+
+@pytest.mark.api
+@pytest.mark.customer
+@pytest.mark.negative
+def test_customer_auth_nonexistent_policy(api_client):
+    """Test customer authentication with non-existent policy number"""
+    auth_data = {
+        "policyNumber": "POL-NONEXISTENT-999",
+        "zip": "99999"
+    }
+    response = api_client.api_request('POST', '/customer/auth', json=auth_data)
+
+    assert response.status_code == 401, f"Expected 401, got {response.status_code}"
+
+
+@pytest.mark.api
+@pytest.mark.customer
+@pytest.mark.negative
+def test_customer_submit_claim_invalid_json(api_client):
+    """Test claim submission with invalid JSON"""
+    response = api_client.api_request(
+        'POST',
+        '/customer/claims',
+        data='{"invalid": json syntax}',
+        headers={'Content-Type': 'application/json'}
+    )
+
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+
+
+@pytest.mark.api
+@pytest.mark.customer
+@pytest.mark.negative
+def test_customer_submit_claim_empty_payload(api_client):
+    """Test claim submission with empty payload"""
+    response = api_client.api_request('POST', '/customer/claims', json={})
+
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+
+
+@pytest.mark.api
+@pytest.mark.customer
+@pytest.mark.negative
+def test_customer_submit_claim_invalid_data_types(api_client):
+    """Test claim submission with invalid data types"""
+    claim_data = {
+        "policyNumber": "POL-2024-TEST011",
+        "claimantName": 12345,  # Should be string
+        "incidentDate": "not-a-date",  # Invalid date format
+        "description": "Test claim",
+        "estimatedAmount_cents": "not-a-number"  # Should be numeric
+    }
+    response = api_client.api_request('POST', '/customer/claims', json=claim_data)
+
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+
+
+@pytest.mark.api
+@pytest.mark.customer
+@pytest.mark.negative
+def test_customer_get_policy_not_found(api_client):
+    """Test getting non-existent customer policy"""
+    response = api_client.api_request('GET', '/customer/policies/nonexistent-id-999')
+
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+
+
+@pytest.mark.api
+@pytest.mark.customer
+@pytest.mark.negative
+def test_customer_upload_document_missing_fields(api_client):
+    """Test document upload with missing required fields"""
+    # Create policy and claim first
+    policy_data = {
+        "policyNumber": "POL-2024-TEST012",
+        "holderName": "Grace Lee",
+        "zip": "77777",
+        "effectiveDate": "2024-01-01",
+        "expirationDate": "2025-01-01",
+        "premium_cents": 200000,
+    }
+    policy_response = api_client.api_request('POST', '/policy', json=policy_data)
+    assert policy_response.status_code == 201
+
+    claim_data = {
+        "policyNumber": "POL-2024-TEST012",
+        "claimantName": "Grace Lee",
+        "incidentDate": "2024-12-01",
+        "description": "Test claim for document upload",
+        "estimatedAmount_cents": 100000,
+    }
+    claim_response = api_client.api_request('POST', '/customer/claims', json=claim_data)
+    assert claim_response.status_code == 201
+    claim_id = claim_response.json()['id']
+
+    # Try to upload document with missing fields
+    doc_data = {
+        "filename": "test.txt"
+        # Missing content and contentType
+    }
+    response = api_client.api_request('POST', f'/customer/claims/{claim_id}/doc', json=doc_data)
+
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+
+
+@pytest.mark.api
+@pytest.mark.customer
+@pytest.mark.negative
+def test_customer_upload_document_to_nonexistent_claim(api_client):
+    """Test document upload to non-existent claim"""
+    doc_data = {
+        "filename": "test.txt",
+        "content": "Test content",
+        "contentType": "text/plain"
+    }
+    response = api_client.api_request('POST', '/customer/claims/nonexistent-claim-999/doc', json=doc_data)
+
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"

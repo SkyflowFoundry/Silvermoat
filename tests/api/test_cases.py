@@ -111,3 +111,127 @@ def test_case_cors_headers(api_client, sample_case_data):
 
     # Should have CORS headers in actual responses
     assert 'Access-Control-Allow-Origin' in response.headers, "Missing CORS origin header"
+
+
+# DELETE Tests
+
+@pytest.mark.api
+@pytest.mark.cases
+def test_delete_case_success(api_client, sample_case_data):
+    """Test that case can be deleted successfully"""
+    # Create a case first
+    create_response = api_client.api_request('POST', '/case', json=sample_case_data)
+    assert create_response.status_code == 201
+    case_id = create_response.json()['id']
+
+    # Delete the case
+    delete_response = api_client.api_request('DELETE', f'/case/{case_id}')
+    assert delete_response.status_code in [200, 204], f"Expected 200 or 204, got {delete_response.status_code}"
+
+    # Verify case no longer exists
+    get_response = api_client.api_request('GET', f'/case/{case_id}')
+    assert get_response.status_code == 404, "Deleted case should return 404"
+
+
+@pytest.mark.api
+@pytest.mark.cases
+def test_delete_case_not_found(api_client):
+    """Test that deleting non-existent case returns 404"""
+    non_existent_id = 'case-does-not-exist-999999'
+
+    response = api_client.api_request('DELETE', f'/case/{non_existent_id}')
+
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+
+
+# Negative Tests
+
+@pytest.mark.api
+@pytest.mark.cases
+@pytest.mark.negative
+def test_create_case_missing_required_fields(api_client):
+    """Test that creating case without required fields returns 400"""
+    invalid_data = {
+        "title": "Test Case"
+        # Missing description, relatedEntityType, relatedEntityId, etc.
+    }
+
+    response = api_client.api_request('POST', '/case', json=invalid_data)
+
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+
+
+@pytest.mark.api
+@pytest.mark.cases
+@pytest.mark.negative
+def test_create_case_invalid_json(api_client):
+    """Test that invalid JSON returns 400"""
+    response = api_client.api_request(
+        'POST',
+        '/case',
+        data='{"invalid": json syntax}',  # Invalid JSON
+        headers={'Content-Type': 'application/json'}
+    )
+
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+
+
+@pytest.mark.api
+@pytest.mark.cases
+@pytest.mark.negative
+def test_create_case_invalid_data_types(api_client):
+    """Test that invalid data types return 400"""
+    invalid_data = {
+        "title": "Test Case",
+        "description": "Test Description",
+        "relatedEntityType": "claim",
+        "relatedEntityId": "claim-123",
+        "assignee": 12345,  # Should be string
+        "priority": "not-a-valid-priority"  # Should be valid enum value
+    }
+
+    response = api_client.api_request('POST', '/case', json=invalid_data)
+
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+
+
+@pytest.mark.api
+@pytest.mark.cases
+@pytest.mark.negative
+def test_create_case_empty_payload(api_client):
+    """Test that empty payload returns 400"""
+    response = api_client.api_request('POST', '/case', json={})
+
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+
+
+@pytest.mark.api
+@pytest.mark.cases
+@pytest.mark.negative
+def test_get_case_invalid_id_format(api_client):
+    """Test that invalid ID format returns 400 or 404"""
+    invalid_id = ""  # Empty ID
+
+    response = api_client.api_request('GET', f'/case/{invalid_id}')
+
+    # Accept either 400 (bad request) or 404 (not found) as valid
+    assert response.status_code in [400, 404], f"Expected 400 or 404, got {response.status_code}"
+
+
+@pytest.mark.api
+@pytest.mark.cases
+@pytest.mark.negative
+def test_create_case_invalid_related_entity_type(api_client):
+    """Test that invalid related entity type returns 400"""
+    invalid_data = {
+        "title": "Test Case",
+        "description": "Test Description",
+        "relatedEntityType": "invalid_entity_type",  # Should be quote, policy, claim, or payment
+        "relatedEntityId": "test-123",
+        "assignee": "agent@example.com",
+        "priority": "high"
+    }
+
+    response = api_client.api_request('POST', '/case', json=invalid_data)
+
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
