@@ -16,3 +16,6 @@ boto3==1.35.90
 
 # Test reporting
 pytest-html==4.1.1
+
+# Data generation
+Faker==40.1.0

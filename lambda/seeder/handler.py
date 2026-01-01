@@ -258,53 +258,22 @@ def handler(event, context):
                 print("Seeding DynamoDB tables with rich demo data...")
 
                 import time
+                import datetime
                 from random import choice, randint, random
+                from faker import Faker
+
+                fake = Faker()
 
                 def put(table, item):
                     ddb.Table(table).put_item(Item=item)
 
-                # Helper functions for generating realistic data
-                def random_name():
-                    firsts = ["John", "Jane", "Michael", "Sarah", "David", "Emily", "Robert", "Jessica", "William", "Jennifer", "James", "Linda", "Richard", "Patricia", "Joseph", "Mary", "Thomas", "Barbara", "Charles", "Elizabeth"]
-                    lasts = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin"]
-                    return f"{choice(firsts)} {choice(lasts)}"
-
-                def random_email(name):
-                    domains = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com"]
-                    safe_name = name.lower().replace(" ", ".")
-                    return f"{safe_name}{randint(1,999)}@{choice(domains)}"
-
-                def random_phone():
-                    return f"{randint(200,999)}{randint(200,999)}{randint(1000,9999)}"
-
-                def random_address():
-                    streets = ["Main St", "Oak Ave", "Maple Dr", "Park Blvd", "Lake Rd", "Hill Ct", "Pine St", "Cedar Ln", "Elm Dr", "Washington St"]
-                    return f"{randint(100,9999)} {choice(streets)}"
-
-                def random_city_state():
-                    cities = [
-                        ("Miami", "FL"), ("Tampa", "FL"), ("Orlando", "FL"), ("Atlanta", "GA"), ("Charlotte", "NC"),
-                        ("New York", "NY"), ("Los Angeles", "CA"), ("Chicago", "IL"), ("Houston", "TX"), ("Phoenix", "AZ"),
-                        ("Philadelphia", "PA"), ("San Antonio", "TX"), ("San Diego", "CA"), ("Dallas", "TX"), ("Austin", "TX")
-                    ]
-                    return choice(cities)
-
-                def random_zip():
-                    return f"{randint(10000,99999)}"
-
-                def random_dob():
-                    year = randint(1950, 2000)
-                    month = randint(1, 12)
-                    day = randint(1, 28)
-                    return f"{year}-{month:02d}-{day:02d}"
-
+                # Helper functions for generating realistic data (using Faker 40.1.0)
                 def random_date_recent(days_ago):
                     now = int(time.time())
                     return now - randint(0, days_ago * 86400)
 
                 def random_date_string(days_ago):
                     ts = random_date_recent(days_ago)
-                    import datetime
                     dt = datetime.datetime.fromtimestamp(ts)
                     return dt.strftime("%Y-%m-%d")
 
@@ -314,16 +283,11 @@ def handler(event, context):
 
                 def random_date_string_future(days_ahead):
                     ts = random_date_future(days_ahead)
-                    import datetime
                     dt = datetime.datetime.fromtimestamp(ts)
                     return dt.strftime("%Y-%m-%d")
 
                 def random_currency(min_cents, max_cents):
                     return randint(min_cents, max_cents)
-
-                def random_vin():
-                    chars = "ABCDEFGHJKLMNPRSTUVWXYZ0123456789"
-                    return "".join(choice(chars) for _ in range(17))
 
                 # Generate 80 quotes
                 print("Generating 80 quotes...")
@@ -331,9 +295,8 @@ def handler(event, context):
                 quote_statuses = ["PENDING", "ACCEPTED", "DECLINED", "EXPIRED"]
 
                 for i in range(1, 81):
-                    name = random_name()
+                    name = fake.name()
                     coverage = choice(coverage_types) if random() < 0.4 else choice(coverage_types[1:]) if random() < 0.5 else choice(coverage_types[2:]) if random() < 0.67 else coverage_types[3]
-                    city, state = random_city_state()
                     created = random_date_recent(3650)
 
                     quote = {
@@ -341,13 +304,13 @@ def handler(event, context):
                         "createdAt": created,
                         "data": {
                             "name": name,
-                            "email": random_email(name),
-                            "phone": random_phone(),
-                            "address": random_address(),
-                            "city": city,
-                            "state": state,
-                            "zip": random_zip(),
-                            "dateOfBirth": random_dob(),
+                            "email": fake.email(),
+                            "phone": fake.phone_number(),
+                            "address": fake.street_address(),
+                            "city": fake.city(),
+                            "state": fake.state_abbr(),
+                            "zip": fake.zipcode(),
+                            "dateOfBirth": fake.date_of_birth(minimum_age=18, maximum_age=65).strftime("%Y-%m-%d"),
                             "premium_cents": random_currency(50000, 300000),
                             "coverageType": coverage,
                             "coverageLimit_cents": random_currency(10000000, 100000000),
@@ -359,13 +322,11 @@ def handler(event, context):
                     }
 
                     if coverage == "AUTO":
-                        makes = ["Honda", "Toyota", "Ford", "Chevrolet", "Nissan", "BMW", "Mercedes", "Audi", "Lexus", "Mazda"]
-                        models = ["Civic", "Accord", "Camry", "Corolla", "F-150", "Silverado", "Altima", "Maxima", "3 Series", "C-Class"]
                         quote["data"]["vehicleInfo"] = {
                             "year": randint(2015, 2024),
-                            "make": choice(makes),
-                            "model": choice(models),
-                            "vin": random_vin()
+                            "make": fake.vehicle_make(),
+                            "model": fake.vehicle_model(),
+                            "vin": fake.vin()
                         }
 
                     put(tables[0], quote)
@@ -391,8 +352,8 @@ def handler(event, context):
                             "quoteId": quote_id,
                             "policyNumber": f"POL-2024-{i:06d}",
                             "status": choice(policy_statuses) if random() < 0.2 else "ACTIVE",
-                            "holderName": random_name(),
-                            "zip": random_zip(),
+                            "holderName": fake.name(),
+                            "zip": fake.zipcode(),
                             "effectiveDate": random_date_string(3650),
                             "expiryDate": random_date_string_future(300),
                             "renewalDate": random_date_string_future(15),
@@ -416,7 +377,6 @@ def handler(event, context):
                 print("Generating 40 claims...")
                 claim_statuses = ["INTAKE", "PENDING", "REVIEW", "APPROVED", "DENIED", "CLOSED"]
                 loss_types = ["AUTO_COLLISION", "AUTO_GLASS", "AUTO_THEFT", "PROPERTY_DAMAGE", "WATER_DAMAGE", "FIRE", "THEFT", "VANDALISM"]
-                adjuster_names = ["Bob Smith", "Alice Johnson", "Charlie Brown", "Diana Prince", "Eve Adams"]
 
                 for i in range(1, 41):
                     policy_id = choice(policy_ids)
@@ -444,7 +404,7 @@ def handler(event, context):
                         "data": {
                             "policyId": policy_id,
                             "claimNumber": f"CLM-2024-{i:06d}",
-                            "claimantName": random_name(),
+                            "claimantName": fake.name(),
                             "loss": f"{choice(loss_types).replace('_', ' ').title()} incident",
                             "lossType": choice(loss_types),
                             "incidentDate": random_date_string(3650),
@@ -454,8 +414,8 @@ def handler(event, context):
                             "deductible_cents": choice([0, 50000, 100000, 250000]),
                             "paidAmount_cents": approved if status == "CLOSED" and approved else None,
                             "description": f"Claim for {choice(loss_types).replace('_', ' ').lower()} with estimated damage",
-                            "location": choice(["I-95 northbound", "I-75 southbound", "US-1", "Downtown", "Residential area", "Parking lot"]),
-                            "adjusterName": choice(adjuster_names),
+                            "location": fake.street_address(),
+                            "adjusterName": fake.name(),
                             "adjusterNotes": "Under review" if status in ["PENDING", "REVIEW"] else "Claim processed"
                         }
                     }
@@ -499,7 +459,6 @@ def handler(event, context):
                 case_topics = ["POLICY_CHANGE", "CLAIM_INQUIRY", "BILLING", "COMPLAINT", "COVERAGE_QUESTION", "CANCELLATION"]
                 case_statuses = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]
                 priorities = ["LOW", "MEDIUM", "HIGH", "URGENT"]
-                assignees = ["Alice Johnson", "Bob Smith", "Charlie Brown", "Diana Prince", "Eve Adams", "Frank Miller"]
                 departments = ["CUSTOMER_SERVICE", "CLAIMS", "BILLING", "UNDERWRITING"]
 
                 for i in range(1, 51):
@@ -514,9 +473,9 @@ def handler(event, context):
                             "topic": choice(case_topics),
                             "status": choice(case_statuses) if random() < 0.4 else "OPEN",
                             "priority": choice(priorities) if random() < 0.3 else "MEDIUM",
-                            "assignee": choice(assignees),
+                            "assignee": fake.name(),
                             "department": choice(departments),
-                            "customerName": random_name(),
+                            "customerName": fake.name(),
                             "policyId": choice(policy_ids) if random() < 0.7 else None,
                             "description": f"Customer inquiry regarding {choice(case_topics).replace('_', ' ').lower()}",
                             "resolution": None,

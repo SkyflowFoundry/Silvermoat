@@ -1,24 +1,18 @@
 /**
  * Form Sample Data Generators
  * Provides sample data for form auto-fill functionality
- * Reuses helpers from seedData.js for consistency
+ * Uses Faker 13.x and helpers from seedData.js for consistency
  */
 
-// Helper data for realistic sample generation
-const FIRST_NAMES = ['John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily', 'Robert', 'Jessica', 'William', 'Jennifer'];
-const LAST_NAMES = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
-const CITIES = ['Miami', 'Tampa', 'Orlando', 'Atlanta', 'Charlotte', 'New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix'];
-const STATES = ['FL', 'GA', 'NC', 'NY', 'CA', 'IL', 'TX', 'AZ', 'PA'];
+import { faker } from '@faker-js/faker';
+import { randomItem, randomNumber } from './seedData.js';
+
+// Business logic constants
 const LOSS_TYPES = ['AUTO_COLLISION', 'AUTO_GLASS', 'AUTO_THEFT', 'PROPERTY_DAMAGE', 'WATER_DAMAGE', 'FIRE', 'THEFT', 'VANDALISM'];
 const PAYMENT_METHODS = ['CREDIT_CARD', 'ACH', 'CHECK'];
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
-const ASSIGNEES = ['Alice Johnson', 'Bob Smith', 'Charlie Brown', 'Diana Prince', 'Eve Adams', 'Frank Miller'];
 
-// Helper functions (duplicated from seedData.js for independence)
-const randomItem = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const randomNumber = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-const randomName = () => `${randomItem(FIRST_NAMES)} ${randomItem(LAST_NAMES)}`;
-const randomZip = () => `${randomNumber(10000, 99999)}`;
+// Date helper functions
 const randomDateWithinDays = (days) => {
   const now = new Date();
   const past = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
@@ -37,8 +31,8 @@ const futureDateWithinDays = (startDate, days) => {
  */
 export const generateQuoteSampleData = () => {
   return {
-    name: randomName(),
-    zip: randomZip(),
+    name: faker.person.fullName(),
+    zip: faker.location.zipCode(),
   };
 };
 
@@ -52,7 +46,7 @@ export const generatePolicySampleData = () => {
 
   return {
     policyNumber: `POL-2024-${randomNumber(100000, 999999)}`,
-    holderName: randomName(),
+    holderName: faker.person.fullName(),
     effectiveDate,
     expirationDate: futureDateWithinDays(effectiveDate, 365),
     premium,
@@ -70,7 +64,7 @@ export const generateClaimSampleData = () => {
 
   return {
     claimNumber: `CLM-2024-${randomNumber(100000, 999999)}`,
-    claimantName: randomName(),
+    claimantName: faker.person.fullName(),
     incidentDate: randomDateWithinDays(90),
     description: `${lossType.replace('_', ' ')} incident - Sample claim for testing purposes. This is a demonstration of the auto-fill functionality.`,
     amount,
@@ -107,7 +101,7 @@ export const generateCaseSampleData = () => {
     description: `Sample case for testing purposes. Customer inquiring about ${randomItem(topics).toLowerCase()}. This is a demonstration of the auto-fill functionality.`,
     relatedEntityType: randomItem(entityTypes),
     relatedEntityId: `${randomItem(['Q', 'POL', 'CLM'])}-2024-${randomNumber(100000, 999999)}`,
-    assignee: randomItem(ASSIGNEES),
+    assignee: faker.person.fullName(),
     priority: 'MEDIUM',
     status: 'OPEN',
   };
