@@ -38,8 +38,8 @@ def test_customer_portal_navigation(driver, base_url):
     )
     customer_button.click()
 
-    # Should navigate to /customer/login
-    assert '/customer/login' in driver.current_url, "Should navigate to customer login page"
+    # Should navigate to /customer/dashboard
+    assert '/customer/dashboard' in driver.current_url, "Should navigate to customer dashboard page"
 
 
 @pytest.mark.e2e

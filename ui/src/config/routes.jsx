@@ -36,7 +36,6 @@ const CaseList = lazy(() => import('../pages/Cases/CaseList'));
 const CaseDetail = lazy(() => import('../pages/Cases/CaseDetail'));
 
 // Customer Portal
-const CustomerLogin = lazy(() => import('../pages/Customer/CustomerLogin'));
 const CustomerDashboard = lazy(() => import('../pages/Customer/CustomerDashboard'));
 const CustomerClaimForm = lazy(() => import('../pages/Customer/CustomerClaimForm'));
 
@@ -133,11 +132,6 @@ export const routes = [
     path: '/cases/:id',
     element: <CaseDetail />,
     breadcrumb: 'Case Detail',
-  },
-  {
-    path: '/customer/login',
-    element: <CustomerLogin />,
-    breadcrumb: 'Customer Login',
   },
   {
     path: '/customer/dashboard',

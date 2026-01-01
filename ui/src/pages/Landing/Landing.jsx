@@ -143,7 +143,7 @@ const Landing = () => {
                 type="primary"
                 size="large"
                 block
-                onClick={() => navigate('/customer/login')}
+                onClick={() => navigate('/customer/dashboard')}
                 style={{
                   marginTop: 32,
                   height: 48,

@@ -23,7 +23,6 @@ import {
   FileTextOutlined,
   DollarOutlined,
   PlusOutlined,
-  LogoutOutlined,
 } from '@ant-design/icons';
 import {
   getCustomerPolicies,
@@ -53,25 +52,18 @@ const CustomerDashboard = () => {
   const [payments, setPayments] = useState([]);
   const navigate = useNavigate();
 
-  // Get customer auth from session storage
-  const auth = JSON.parse(sessionStorage.getItem('customerAuth') || '{}');
-
   useEffect(() => {
-    if (!auth.authenticated) {
-      navigate('/customer/login');
-      return;
-    }
-
     loadCustomerData();
   }, []);
 
   const loadCustomerData = async () => {
     setLoading(true);
     try {
+      // Load all customer data (no auth required for demo)
       const [policiesRes, claimsRes, paymentsRes] = await Promise.all([
-        getCustomerPolicies(auth.policyNumber),
-        getCustomerClaims(auth.policyNumber),
-        getCustomerPayments(auth.policyNumber),
+        getCustomerPolicies(),
+        getCustomerClaims(),
+        getCustomerPayments(),
       ]);
 
       setPolicies(policiesRes.policies || []);
@@ -83,12 +75,6 @@ const CustomerDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleLogout = () => {
-    sessionStorage.removeItem('customerAuth');
-    message.success('Logged out successfully');
-    navigate('/customer/login');
   };
 
   const policyColumns = [
@@ -192,17 +178,9 @@ const CustomerDashboard = () => {
         <Row justify="space-between" align="middle">
           <Col>
             <Title level={3} style={{ marginBottom: 4 }}>
-              Welcome back, {auth.holderName}
+              Customer Portal
             </Title>
-            <Text type="secondary">Policy: {auth.policyNumber}</Text>
-          </Col>
-          <Col>
-            <Button
-              icon={<LogoutOutlined />}
-              onClick={handleLogout}
-            >
-              Logout
-            </Button>
+            <Text type="secondary">Manage your policies, claims, and payments</Text>
           </Col>
         </Row>
       </Card>
