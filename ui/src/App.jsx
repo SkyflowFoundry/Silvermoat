@@ -61,9 +61,9 @@ function App() {
             <AppProvider>
               <Suspense fallback={<LoadingFallback />}>
                 <Routes>
-                  {/* Customer portal routes (no layout) */}
+                  {/* Landing + Customer portal routes (no layout) */}
                   {routes
-                    .filter(route => route.path.startsWith('/customer'))
+                    .filter(route => route.path.startsWith('/customer') || route.path === '/')
                     .map((route) => (
                       <Route
                         key={route.path}
@@ -75,7 +75,7 @@ function App() {
                   {/* Employee portal routes (with AppLayout) */}
                   <Route element={<AppLayout />}>
                     {routes
-                      .filter(route => !route.path.startsWith('/customer'))
+                      .filter(route => !route.path.startsWith('/customer') && route.path !== '/')
                       .map((route) => (
                         <Route
                           key={route.path}

@@ -6,26 +6,15 @@
 import api from './api';
 
 /**
- * Authenticate customer with policy number and ZIP code
- * @param {string} policyNumber - Policy number
- * @param {string} zip - ZIP code
- * @returns {Promise<Object>} - Authentication response
- */
-export const authenticateCustomer = async (policyNumber, zip) => {
-  const response = await api.post('/customer/auth', {
-    policyNumber,
-    zip,
-  });
-  return response;
-};
-
-/**
  * Get customer policies
- * @param {string} policyNumber - Policy number
+ * @param {string} policyNumber - Policy number (optional, fetches all if not provided)
  * @returns {Promise<Object>} - Policies response
  */
-export const getCustomerPolicies = async (policyNumber) => {
-  const response = await api.get(`/customer/policies?policyNumber=${policyNumber}`);
+export const getCustomerPolicies = async (policyNumber = null) => {
+  const url = policyNumber
+    ? `/customer/policies?policyNumber=${policyNumber}`
+    : '/customer/policies';
+  const response = await api.get(url);
   return response;
 };
 
@@ -41,11 +30,14 @@ export const getCustomerPolicy = async (policyId) => {
 
 /**
  * Get customer claims
- * @param {string} policyNumber - Policy number
+ * @param {string} policyNumber - Policy number (optional, fetches all if not provided)
  * @returns {Promise<Object>} - Claims response
  */
-export const getCustomerClaims = async (policyNumber) => {
-  const response = await api.get(`/customer/claims?policyNumber=${policyNumber}`);
+export const getCustomerClaims = async (policyNumber = null) => {
+  const url = policyNumber
+    ? `/customer/claims?policyNumber=${policyNumber}`
+    : '/customer/claims';
+  const response = await api.get(url);
   return response;
 };
 
@@ -72,10 +64,13 @@ export const uploadClaimDocument = async (claimId, docData) => {
 
 /**
  * Get customer payments
- * @param {string} policyNumber - Policy number
+ * @param {string} policyNumber - Policy number (optional, fetches all if not provided)
  * @returns {Promise<Object>} - Payments response
  */
-export const getCustomerPayments = async (policyNumber) => {
-  const response = await api.get(`/customer/payments?policyNumber=${policyNumber}`);
+export const getCustomerPayments = async (policyNumber = null) => {
+  const url = policyNumber
+    ? `/customer/payments?policyNumber=${policyNumber}`
+    : '/customer/payments';
+  const response = await api.get(url);
   return response;
 };

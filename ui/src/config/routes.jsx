@@ -9,6 +9,9 @@ import { Navigate } from 'react-router-dom';
 // Lazy load page components for better performance
 // We'll create placeholder components initially and implement them in phases
 
+// Landing
+const Landing = lazy(() => import('../pages/Landing/Landing'));
+
 // Dashboard
 const Dashboard = lazy(() => import('../pages/Dashboard/Dashboard'));
 
@@ -33,7 +36,6 @@ const CaseList = lazy(() => import('../pages/Cases/CaseList'));
 const CaseDetail = lazy(() => import('../pages/Cases/CaseDetail'));
 
 // Customer Portal
-const CustomerLogin = lazy(() => import('../pages/Customer/CustomerLogin'));
 const CustomerDashboard = lazy(() => import('../pages/Customer/CustomerDashboard'));
 const CustomerClaimForm = lazy(() => import('../pages/Customer/CustomerClaimForm'));
 
@@ -48,6 +50,11 @@ const CustomerClaimForm = lazy(() => import('../pages/Customer/CustomerClaimForm
 export const routes = [
   {
     path: '/',
+    element: <Landing />,
+    breadcrumb: 'Home',
+  },
+  {
+    path: '/dashboard',
     element: <Dashboard />,
     breadcrumb: 'Dashboard',
   },
@@ -125,11 +132,6 @@ export const routes = [
     path: '/cases/:id',
     element: <CaseDetail />,
     breadcrumb: 'Case Detail',
-  },
-  {
-    path: '/customer/login',
-    element: <CustomerLogin />,
-    breadcrumb: 'Customer Login',
   },
   {
     path: '/customer/dashboard',

@@ -28,7 +28,7 @@ const Header = () => {
   // Determine active menu item based on current path
   const getSelectedKey = () => {
     const path = location.pathname;
-    if (path === '/') return 'dashboard';
+    if (path === '/dashboard' || path === '/') return 'dashboard';
     if (path.startsWith('/quotes')) return 'quotes';
     if (path.startsWith('/policies')) return 'policies';
     if (path.startsWith('/claims')) return 'claims';
@@ -43,7 +43,7 @@ const Header = () => {
       key: 'dashboard',
       icon: <DashboardOutlined />,
       label: 'Dashboard',
-      onClick: () => navigate('/'),
+      onClick: () => navigate('/dashboard'),
     },
     {
       key: 'quotes',
@@ -107,7 +107,7 @@ const Header = () => {
         )}
         <div
           style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/dashboard')}
         >
           <img
             src="/silvermoat-logo.png"

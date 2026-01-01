@@ -126,7 +126,7 @@ const Dashboard = () => {
     {
       label: 'Customer Portal',
       icon: <UserOutlined />,
-      path: '/customer/login',
+      path: '/customer/dashboard',
       type: 'default',
     },
   ];
