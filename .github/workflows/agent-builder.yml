@@ -83,15 +83,40 @@ jobs:
           fi
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Install Claude Code
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Configure Claude Code
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          mkdir -p ~/.claude
+          cat > ~/.claude/settings.json <<EOF
+          {
+            "autoApprove": ["Write", "Edit", "Bash"]
+          }
+          EOF
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Run Builder Agent
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: ${{ steps.prompt.outputs.prompt }}
-          claude_args: |
-            --system-prompt "You are the BUILDER AGENT. Implement the requested changes. Commit directly to the current branch. Follow CLAUDE.md rules strictly. Keep scope tight."
-            --max-turns 20
-            --allowed-tools '*'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          cat > /tmp/agent-prompt.txt <<'PROMPT_EOF'
+          ${{ steps.prompt.outputs.prompt }}
+          PROMPT_EOF
+
+          claude --non-interactive \
+            --system-prompt "You are the BUILDER AGENT. Implement the requested changes. Commit directly to the current branch. Follow CLAUDE.md rules strictly. Keep scope tight." \
+            --max-turns 20 \
+            --allowed-tools '*' \
+            < /tmp/agent-prompt.txt
 
       - name: Create PR if from issue
         if: steps.target.outputs.type == 'issue'
