@@ -89,28 +89,34 @@ jobs:
     timeout-minutes: 5
 
     outputs:
-      infrastructure_changed: ${{ steps.filter.outputs.infrastructure }}
+      infrastructure_changed: ${{ steps.check.outputs.infrastructure_changed }}
       stack_exists: ${{ steps.check-stack.outputs.stack_exists }}
 
     steps:
-      - name: Checkout PR
+      - name: Checkout merged commit
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
-          fetch-depth: 0
+          fetch-depth: 2
 
-      - name: Detect file changes in PR
-        uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          base: ${{ github.event.pull_request.base.sha || 'main' }}
-          filters: |
-            infrastructure:
-              - 'cdk/**'
-              - 'lambda/**'
-              - 'scripts/**'
-              - '.github/workflows/deploy-production.yml'
-              - '.github/actions/**'
+      - name: Detect infrastructure changes
+        id: check
+        run: |
+          # For merged PRs, compare merge commit with its parent
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # Check files changed in the merge commit
+            if git diff --name-only HEAD^ HEAD | grep -E '^(cdk/|lambda/|scripts/|\.github/workflows/deploy-production\.yml|\.github/actions/)'; then
+              echo "infrastructure_changed=true" >> $GITHUB_OUTPUT
+              echo "✅ Infrastructure files changed"
+            else
+              echo "infrastructure_changed=false" >> $GITHUB_OUTPUT
+              echo "ℹ️ No infrastructure changes detected"
+            fi
+          else
+            # Manual dispatch - deploy infrastructure
+            echo "infrastructure_changed=true" >> $GITHUB_OUTPUT
+            echo "Manual dispatch - will deploy infrastructure"
+          fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
