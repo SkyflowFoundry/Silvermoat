@@ -67,15 +67,18 @@ jobs:
       - name: Get prompt
         id: prompt
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            PROMPT="${{ github.event.pull_request.body }}"
-          elif [ "${{ github.event_name }}" == "issues" ]; then
-            PROMPT="${{ github.event.issue.body }}"
-          else
-            PROMPT="Work on issue/PR #${{ github.event.inputs.issue_number }}"
-          fi
           echo "prompt<<EOF" >> $GITHUB_OUTPUT
-          echo "$PROMPT" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            cat <<'PROMPT_EOF' >> $GITHUB_OUTPUT
+          ${{ github.event.pull_request.body }}
+          PROMPT_EOF
+          elif [ "${{ github.event_name }}" == "issues" ]; then
+            cat <<'PROMPT_EOF' >> $GITHUB_OUTPUT
+          ${{ github.event.issue.body }}
+          PROMPT_EOF
+          else
+            echo "Work on issue/PR #${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
+          fi
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Run Builder Agent
