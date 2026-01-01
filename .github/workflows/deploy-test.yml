@@ -1,4 +1,4 @@
-name: E2E Tests with Ephemeral Stack
+name: Deploy Test Stack
 
 on:
   pull_request:
@@ -62,7 +62,7 @@ jobs:
               - 'ui/**'
             tests:
               - 'tests/**'
-              - '.github/workflows/e2e-tests.yml'
+              - '.github/workflows/deploy-test.yml'
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
