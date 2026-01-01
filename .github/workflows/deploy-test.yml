@@ -1,4 +1,4 @@
-name: E2E Tests with Ephemeral Stack
+name: Deploy Test Stack
 
 on:
   pull_request:
@@ -20,6 +20,14 @@ on:
         type: boolean
         default: true
         required: false
+      force_deploy:
+        description: 'Force stack deployment even if no changes detected'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 permissions:
   id-token: write
@@ -28,43 +36,60 @@ permissions:
   issues: write
 
 jobs:
-  validate-cdk:
+  detect-changes:
+    name: Detect Changed Files
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-
+    outputs:
+      infrastructure_changed: ${{ steps.filter.outputs.infrastructure }}
+      ui_changed: ${{ steps.filter.outputs.ui }}
+      tests_changed: ${{ steps.filter.outputs.tests }}
+      stack_exists: ${{ steps.check-stack.outputs.stack_exists }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - name: Detect file changes
+        uses: dorny/paths-filter@v3
+        id: filter
         with:
-          python-version: '3.12'
+          filters: |
+            infrastructure:
+              - 'cdk/**'
+              - 'lambda/**'
+              - 'scripts/deploy-stack.sh'
+              - 'scripts/deploy-ui.sh'
+            ui:
+              - 'ui/**'
+            tests:
+              - 'tests/**'
+              - '.github/workflows/deploy-test.yml'
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          node-version: '20'
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
 
-      - name: Install AWS CDK
-        run: npm install -g aws-cdk
-
-      - name: Install CDK dependencies
+      - name: Check if test stack exists
+        id: check-stack
         run: |
-          cd cdk
-          pip install -r requirements.txt
+          # Determine stack name (same logic as setup-stack)
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            STACK_NAME="silvermoat-test-pr-${{ github.event.pull_request.number }}"
+          elif [ -n "${{ inputs.pr_number }}" ]; then
+            STACK_NAME="silvermoat-test-pr-${{ inputs.pr_number }}"
+          else
+            STACK_NAME="silvermoat-test-${{ github.run_id }}"
+          fi
 
-      - name: Validate CDK stacks (synth)
-        env:
-          STACK_NAME: silvermoat-test-pr-123
-          STAGE_NAME: test
-          CREATE_CLOUDFRONT: "false"
-          DOMAIN_NAME: ""
-        run: |
-          echo "Validating CDK stacks via synthesis..."
-          cd cdk
-          cdk synth silvermoat-test-pr-123 > /dev/null
-          echo "✅ CDK stack synthesis successful"
+          # Check if stack exists
+          if aws cloudformation describe-stacks --stack-name "${STACK_NAME}" >/dev/null 2>&1; then
+            echo "stack_exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Stack ${STACK_NAME} exists"
+          else
+            echo "stack_exists=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ Stack ${STACK_NAME} does not exist (first run)"
+          fi
 
   unit-tests:
     runs-on: ubuntu-latest
@@ -87,15 +112,23 @@ jobs:
           cd ui
           npm test -- --run
 
-  setup-stack:
-    needs: [validate-cdk, unit-tests]
+  prepare-deployment:
+    needs: [detect-changes, unit-tests]
+    if: |
+      always() &&
+      needs.unit-tests.result == 'success' &&
+      (needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+       needs.detect-changes.outputs.stack_exists == 'false' ||
+       inputs.force_deploy == 'true')
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
 
     outputs:
       stack_name: ${{ steps.stack-name.outputs.stack_name }}
-      api_url: ${{ steps.stack-outputs.outputs.api_url }}
-      web_url: ${{ steps.stack-outputs.outputs.web_url }}
+      stack_status: ${{ steps.check-stack.outputs.stack_status }}
+      stack_deleted: ${{ steps.check-stack.outputs.stack_deleted }}
+      skip_deploy: ${{ steps.check-deployment.outputs.skip_deploy || 'false' }}
+      skip_reason: ${{ steps.check-deployment.outputs.skip_reason || '' }}
 
     steps:
       - name: Checkout code
@@ -159,59 +192,84 @@ jobs:
             echo "stack_deleted=false" >> $GITHUB_OUTPUT
           fi
 
-          # Note: CDK handles change detection automatically via asset hashing,
-          # so we always run cdk deploy and let it determine if updates are needed
+      - name: Setup AWS CDK
+        uses: ./.github/actions/setup-aws-cdk
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install AWS CDK
-        run: npm install -g aws-cdk
-
-      - name: Install CDK dependencies
+      - name: Check if infrastructure changes require deployment
+        id: check-deployment
+        if: |
+          needs.detect-changes.outputs.infrastructure_changed != 'true' &&
+          steps.check-stack.outputs.stack_status != 'NOT_FOUND' &&
+          inputs.force_deploy != 'true'
         run: |
+          echo "No infrastructure file changes detected. Checking CDK diff..."
+
           cd cdk
-          pip install -r requirements.txt
 
-      - name: Bootstrap CDK (with recovery)
-        run: |
-          echo "Checking CDK bootstrap status..."
+          # Run cdk diff to check for actual changes
+          if cdk diff "${{ steps.stack-name.outputs.stack_name }}" > /tmp/cdk-diff.txt 2>&1; then
+            DIFF_EXIT=$?
 
-          # Try bootstrap first
-          if ! cdk bootstrap aws://571930033416/us-east-1 2>&1 | tee bootstrap.log; then
-            echo "⚠️ Bootstrap failed, checking for corrupted stack..."
-
-            # Check if error is about existing resources
-            if grep -q "already exists" bootstrap.log; then
-              echo "Detected corrupted bootstrap stack. Attempting recovery..."
-
-              # Delete the corrupted CDKToolkit stack
-              echo "Deleting CDKToolkit stack..."
-              aws cloudformation delete-stack --stack-name CDKToolkit || true
-
-              # Wait for deletion
-              echo "Waiting for stack deletion..."
-              aws cloudformation wait stack-delete-complete --stack-name CDKToolkit || {
-                echo "Stack deletion timed out or failed, but continuing anyway..."
-              }
-
-              # Re-bootstrap
-              echo "Re-bootstrapping CDK environment..."
-              cdk bootstrap aws://571930033416/us-east-1
+            if [ $DIFF_EXIT -eq 0 ]; then
+              echo "✓ CDK diff shows no changes - deployment can be skipped"
+              echo "skip_deploy=true" >> $GITHUB_OUTPUT
+              echo "skip_reason=No infrastructure changes detected" >> $GITHUB_OUTPUT
             else
-              echo "Bootstrap failed for a different reason. Exiting."
-              cat bootstrap.log
-              exit 1
+              echo "⚠ CDK diff detected changes despite no file changes (possibly parameter updates)"
+              echo "skip_deploy=false" >> $GITHUB_OUTPUT
             fi
           else
-            echo "✅ CDK bootstrap successful"
+            echo "⚠ CDK diff failed - will deploy to be safe"
+            echo "skip_deploy=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Validate CDK stacks (synth)
+        if: |
+          needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+          steps.check-stack.outputs.stack_status == 'NOT_FOUND'
+        env:
+          STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
+          STAGE_NAME: test
+          CREATE_CLOUDFRONT: "false"
+          DOMAIN_NAME: ""
+        run: |
+          echo "Validating CDK stacks via synthesis..."
+          cd cdk
+          cdk synth ${{ steps.stack-name.outputs.stack_name }} > /dev/null
+          echo "✅ CDK stack synthesis successful"
+
+      - name: Bootstrap CDK
+        if: steps.check-deployment.outputs.skip_deploy != 'true'
+        uses: ./.github/actions/bootstrap-cdk
+
+  deploy-stack:
+    needs: [prepare-deployment]
+    if: |
+      always() &&
+      needs.prepare-deployment.result == 'success' &&
+      needs.prepare-deployment.outputs.skip_deploy != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Setup AWS CDK
+        uses: ./.github/actions/setup-aws-cdk
 
       - name: Deploy test stack
         env:
-          STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
+          STACK_NAME: ${{ needs.prepare-deployment.outputs.stack_name }}
           APP_NAME: silvermoat-test
           STAGE_NAME: test
           UI_SEEDING_MODE: external
@@ -222,17 +280,67 @@ jobs:
           chmod +x scripts/deploy-stack.sh
           ./scripts/deploy-stack.sh
 
+  deploy-ui:
+    needs: [prepare-deployment, deploy-stack]
+    if: |
+      always() &&
+      (needs.prepare-deployment.result == 'success' || needs.prepare-deployment.result == 'skipped') &&
+      (needs.deploy-stack.result == 'success' || needs.deploy-stack.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    outputs:
+      stack_name: ${{ steps.stack-name.outputs.stack_name }}
+      api_url: ${{ steps.stack-outputs.outputs.api_url }}
+      web_url: ${{ steps.stack-outputs.outputs.web_url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-deps
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Determine stack name
+        id: stack-name
+        run: |
+          # Use output from prepare-deployment if available, otherwise recalculate
+          if [ "${{ needs.prepare-deployment.result }}" = "success" ]; then
+            STACK_NAME="${{ needs.prepare-deployment.outputs.stack_name }}"
+          else
+            # Recalculate (same logic as prepare-deployment)
+            if [ -n "${{ github.event.pull_request.number }}" ]; then
+              STACK_NAME="silvermoat-test-pr-${{ github.event.pull_request.number }}"
+            elif [ -n "${{ inputs.pr_number }}" ]; then
+              STACK_NAME="silvermoat-test-pr-${{ inputs.pr_number }}"
+            else
+              STACK_NAME="silvermoat-test-${{ github.run_id }}"
+            fi
+          fi
+          echo "stack_name=${STACK_NAME}" >> $GITHUB_OUTPUT
+          echo "Stack name: ${STACK_NAME}"
+
       - name: Check if UI needs deployment
         id: check-ui
         run: |
-          STACK_NAME="${{ steps.stack-name.outputs.stack_name }}"
-
           # If stack was just deployed, always deploy UI
-          if [ "${{ steps.check-stack.outputs.skip_deploy }}" != "true" ]; then
+          if [ "${{ needs.deploy-stack.result }}" = "success" ]; then
             echo "Stack was just deployed, UI needs deployment"
             echo "skip_ui=false" >> $GITHUB_OUTPUT
             exit 0
           fi
+
+          # Stack deployment was skipped, check if UI changed
+          STACK_NAME="${{ steps.stack-name.outputs.stack_name }}"
 
           # Get UI bucket from stack outputs
           UI_BUCKET=$(aws cloudformation describe-stacks \
@@ -280,20 +388,18 @@ jobs:
       - name: Summary of operations
         if: always()
         run: |
-          echo "=== Setup Stack Summary ==="
+          echo "=== Deployment Summary ==="
           echo "Stack: ${{ steps.stack-name.outputs.stack_name }}"
-          echo "Stack status: ${{ steps.check-stack.outputs.stack_status }}"
-          echo "Stack deleted: ${{ steps.check-stack.outputs.stack_deleted }}"
+          echo "Infrastructure deployment: ${{ needs.prepare-deployment.result }}"
+          echo "Stack deployment: ${{ needs.deploy-stack.result }}"
           echo "UI deployment skipped: ${{ steps.check-ui.outputs.skip_ui }}"
           echo ""
-          if [ "${{ steps.check-stack.outputs.stack_deleted }}" = "true" ]; then
-            echo "🗑️ Previous failed stack was deleted before redeployment"
+          if [ "${{ needs.prepare-deployment.result }}" = "skipped" ]; then
+            echo "⏭️ Infrastructure unchanged - skipped CDK setup & deployment"
           fi
           if [ "${{ steps.check-ui.outputs.skip_ui }}" = "true" ]; then
             echo "⚡ UI unchanged - saved ~2-3 minutes!"
           fi
-          echo ""
-          echo "Note: CDK automatically detects and skips unchanged resources"
 
       - name: Get stack outputs
         id: stack-outputs
@@ -322,7 +428,8 @@ jobs:
           echo "Web URL: ${WEB_URL}"
 
   test-suite:
-    needs: setup-stack
+    needs: [prepare-deployment, deploy-ui]
+    if: always() && needs.deploy-ui.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -377,9 +484,9 @@ jobs:
         id: test-run
         continue-on-error: true
         env:
-          STACK_NAME: ${{ needs.setup-stack.outputs.stack_name }}
-          SILVERMOAT_API_URL: ${{ needs.setup-stack.outputs.api_url }}
-          SILVERMOAT_URL: ${{ needs.setup-stack.outputs.web_url }}
+          STACK_NAME: ${{ needs.deploy-ui.outputs.stack_name || needs.prepare-deployment.outputs.stack_name }}
+          SILVERMOAT_API_URL: ${{ needs.deploy-ui.outputs.api_url }}
+          SILVERMOAT_URL: ${{ needs.deploy-ui.outputs.web_url }}
           HEADLESS: '1'
         run: |
           set -o pipefail
@@ -413,7 +520,7 @@ jobs:
           fi
 
   analyze-results:
-    needs: [validate-cdk, setup-stack, test-suite]
+    needs: [prepare-deployment, deploy-stack, test-suite]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -441,11 +548,11 @@ jobs:
           fi
 
           # Collect job outcomes
-          CFN_OUTCOME="${{ needs.validate-cdk.result }}"
-          SETUP_OUTCOME="${{ needs.setup-stack.result }}"
+          INFRA_OUTCOME="${{ needs.prepare-deployment.result }}"
+          DEPLOY_OUTCOME="${{ needs.deploy-stack.result }}"
           TESTS_OUTCOME="${{ needs.test-suite.result }}"
 
-          echo "Job outcomes: CFN=$CFN_OUTCOME, SETUP=$SETUP_OUTCOME, TESTS=$TESTS_OUTCOME"
+          echo "Job outcomes: INFRA=$INFRA_OUTCOME, DEPLOY=$DEPLOY_OUTCOME, TESTS=$TESTS_OUTCOME"
 
           # Collect test outputs (escape for JSON, limit to 2000 lines each)
           SMOKE_OUTPUT=$(cat test-outputs/smoke-test-output/smoke-tests-output.txt 2>/dev/null | head -2000 | jq -Rs . || echo '"No output captured"')
@@ -471,8 +578,8 @@ jobs:
 
           # Build JSON request with proper escaping
           jq -n \
-            --arg cfn_outcome "$CFN_OUTCOME" \
-            --arg setup_outcome "$SETUP_OUTCOME" \
+            --arg infra_outcome "$INFRA_OUTCOME" \
+            --arg deploy_outcome "$DEPLOY_OUTCOME" \
             --arg tests_outcome "$TESTS_OUTCOME" \
             --arg smoke_outcome "$SMOKE_OUTCOME" \
             --arg api_outcome "$API_OUTCOME" \
@@ -486,7 +593,7 @@ jobs:
               "max_tokens": 4096,
               "messages": [{
                 "role": "user",
-                "content": "You are analyzing GitHub Actions workflow results for the Silvermoat insurance MVP application. Review ALL job outcomes and outputs below, then generate a concise PR comment summarizing:\n\n1. Overall pipeline status (✅ passed / ⚠️ partial / ❌ failed)\n2. Key findings for EACH job (CloudFormation validation, stack deployment, tests)\n3. Root cause analysis for any failures (check CFN validation and stack deployment FIRST)\n4. Critical failures that need immediate attention\n5. Recommendations for fixes\n\nFormat as GitHub-flavored markdown. Be specific about which jobs/tests failed and why. Limit to 500 words.\n\n## Pipeline Job Outcomes\n- CloudFormation Validation: \($cfn_outcome)\n- Stack Deployment: \($setup_outcome)\n- Test Suite: \($tests_outcome)\n\n## Test Suite Outcomes (if tests ran)\n- Smoke tests: \($smoke_outcome)\n- API tests: \($api_outcome)\n- E2E tests: \($e2e_outcome)\n\n## Test Outputs\n\n### Deployment Smoke Tests\n```\n\($smoke_output)\n```\n\n### API Contract Tests\n```\n\($api_output)\n```\n\n### E2E Smoke Tests\n```\n\($e2e_output)\n```\n\n### E2E Debug Artifacts\nThese contain DOM state, console errors, and diagnostic info for failed tests:\n```\n\($e2e_artifacts)\n```\n\n## Analysis Instructions\n\n**IMPORTANT**: If CFN validation or stack deployment failed, focus on that as the root cause. Tests cannot run without a deployed stack. Check for:\n- CFN template syntax errors (cfn-lint output)\n- Stack deployment failures (missing resources, circular dependencies, parameter issues)\n- Rollback states (ROLLBACK_COMPLETE, ROLLBACK_FAILED)\n\nOnly analyze test failures if the stack deployed successfully."
+                "content": "You are analyzing GitHub Actions workflow results for the Silvermoat insurance MVP application. Review ALL job outcomes and outputs below, then generate a concise PR comment summarizing:\n\n1. Overall pipeline status (✅ passed / ⚠️ partial / ❌ failed)\n2. Key findings for EACH job (infrastructure setup, stack deployment, tests)\n3. Root cause analysis for any failures (check infrastructure and deployment FIRST)\n4. Critical failures that need immediate attention\n5. Recommendations for fixes\n\nFormat as GitHub-flavored markdown. Be specific about which jobs/tests failed and why. Limit to 500 words.\n\n## Pipeline Job Outcomes\n- Infrastructure Setup: \($infra_outcome)\n- Stack Deployment: \($deploy_outcome)\n- Test Suite: \($tests_outcome)\n\n## Test Suite Outcomes (if tests ran)\n- Smoke tests: \($smoke_outcome)\n- API tests: \($api_outcome)\n- E2E tests: \($e2e_outcome)\n\n## Test Outputs\n\n### Deployment Smoke Tests\n```\n\($smoke_output)\n```\n\n### API Contract Tests\n```\n\($api_output)\n```\n\n### E2E Smoke Tests\n```\n\($e2e_output)\n```\n\n### E2E Debug Artifacts\nThese contain DOM state, console errors, and diagnostic info for failed tests:\n```\n\($e2e_artifacts)\n```\n\n## Analysis Instructions\n\n**IMPORTANT**: If infrastructure setup or stack deployment failed, focus on that as the root cause. Tests cannot run without a deployed stack. Check for:\n- CDK template syntax errors (cdk synth output)\n- Stack deployment failures (missing resources, circular dependencies, parameter issues)\n- Rollback states (ROLLBACK_COMPLETE, ROLLBACK_FAILED)\n\nOnly analyze test failures if the stack deployed successfully."
               }]
             }' > analysis-request.json
 
@@ -639,7 +746,7 @@ jobs:
           retention-days: 7
 
   post-to-pr:
-    needs: [setup-stack, analyze-results]
+    needs: [prepare-deployment, analyze-results]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -714,7 +821,7 @@ jobs:
             const fs = require('fs');
             const prNumber = context.payload.pull_request.number;
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const stackName = '${{ needs.setup-stack.outputs.stack_name }}' || 'unknown';
+            const stackName = '${{ needs.prepare-deployment.outputs.stack_name }}' || 'unknown';
 
             // Read AI-generated analysis
             let analysis = "Test analysis not available";
@@ -723,6 +830,14 @@ jobs:
             } catch (error) {
               console.log('Could not read analysis file:', error);
               analysis = "⚠️ AI analysis failed. Check logs for details.";
+            }
+
+            // Check if deployment was skipped
+            const deploySkipped = '${{ needs.prepare-deployment.outputs.skip_deploy }}' === 'true';
+            const skipReason = '${{ needs.prepare-deployment.outputs.skip_reason }}' || '';
+            let deploySkippedNote = '';
+            if (deploySkipped) {
+              deploySkippedNote = `\n  ⏭️ **Deployment Skipped** (${skipReason})`;
             }
 
             // Read created issues from previous step
@@ -770,12 +885,12 @@ jobs:
             }
 
             // Build stack status section
-            const cfnOutcome = '${{ needs.analyze-results.result }}';
-            const setupOutcome = '${{ needs.setup-stack.result }}';
+            const infraOutcome = '${{ needs.prepare-deployment.result }}';
+            const deployOutcome = '${{ needs.deploy-stack.result }}';
             const testsOutcome = '${{ needs.analyze-results.result }}';
 
             let statusEmoji = '✅';
-            if (cfnOutcome === 'failure' || setupOutcome === 'failure') {
+            if (infraOutcome === 'failure' || deployOutcome === 'failure') {
               statusEmoji = '❌';
             } else if (testsOutcome === 'failure') {
               statusEmoji = '⚠️';
@@ -795,8 +910,8 @@ jobs:
             **Run:** [View Full Logs](${runUrl})
 
             **Job Results:**
-            - CloudFormation Validation: ${cfnOutcome === 'success' ? '✅' : '❌'} \`${cfnOutcome}\`
-            - Stack Deployment: ${setupOutcome === 'success' ? '✅' : '❌'} \`${setupOutcome}\`
+            - Infrastructure Setup: ${infraOutcome === 'success' ? '✅' : '❌'} \`${infraOutcome}\`
+            - Stack Deployment: ${deployOutcome === 'success' ? '✅' : deployOutcome === 'skipped' ? '⏭️' : '❌'} \`${deployOutcome}\`${deploySkippedNote}
             - Test Suite: ${testsOutcome === 'success' ? '✅' : testsOutcome === 'skipped' ? '⏭️' : '❌'} \`${testsOutcome}\`
 
             **Test Results:**
@@ -810,7 +925,7 @@ jobs:
 
             ---
 
-            <sub>Stack \`${stackName}\` ${setupOutcome === 'success' ? 'is running and will be cleaned up when this PR is closed' : 'may not have deployed successfully - check logs above'}. Analysis generated by Claude Sonnet 4.</sub>
+            <sub>Stack \`${stackName}\` ${deployOutcome === 'success' ? 'is running and will be cleaned up when this PR is closed' : 'may not have deployed successfully - check logs above'}. Analysis generated by Claude Sonnet 4.</sub>
             `;
 
             await github.rest.issues.createComment({
@@ -820,20 +935,3 @@ jobs:
               body: body
             });
 
-  check-results:
-    needs: test-suite
-    if: always()
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-
-    steps:
-      - name: Check test results
-        run: |
-          echo "Checking test suite results..."
-          echo "Test suite job result: ${{ needs.test-suite.result }}"
-
-          if [ "${{ needs.test-suite.result }}" = "failure" ]; then
-            echo "One or more test suites failed"
-            exit 1
-          fi
-          echo "All test suites passed"

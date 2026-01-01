@@ -1,4 +1,4 @@
-name: Cleanup PR Stack
+name: Destroy Test Stack
 
 on:
   pull_request:

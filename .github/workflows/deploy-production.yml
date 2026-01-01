@@ -16,17 +16,56 @@ permissions:
   contents: read
 
 jobs:
-  deploy:
+  detect-changes:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
 
     outputs:
-      stack_name: silvermoat
-      api_url: ${{ steps.stack-outputs.outputs.api_url }}
-      web_url: ${{ steps.stack-outputs.outputs.web_url }}
-      cloudfront_url: ${{ steps.stack-outputs.outputs.cloudfront_url }}
-      cloudfront_id: ${{ steps.cloudfront.outputs.distribution_id }}
-      ui_deployed: ${{ steps.check-ui.outputs.skip_ui != 'true' }}
+      infrastructure_changed: ${{ steps.check.outputs.infrastructure_changed }}
+      stack_exists: ${{ steps.check.outputs.stack_exists }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Detect infrastructure changes
+        id: check
+        run: |
+          # Check if infrastructure files changed
+          if git diff --name-only HEAD^ HEAD | grep -E '^(cdk/|lambda/|scripts/|\.github/workflows/deploy-production\.yml)'; then
+            echo "infrastructure_changed=true" >> $GITHUB_OUTPUT
+            echo "Infrastructure files changed"
+          else
+            echo "infrastructure_changed=false" >> $GITHUB_OUTPUT
+            echo "No infrastructure changes detected"
+          fi
+
+          # Check if stack exists
+          if aws cloudformation describe-stacks --stack-name silvermoat >/dev/null 2>&1; then
+            echo "stack_exists=true" >> $GITHUB_OUTPUT
+            echo "Stack 'silvermoat' exists"
+          else
+            echo "stack_exists=false" >> $GITHUB_OUTPUT
+            echo "Stack 'silvermoat' does not exist"
+          fi
+
+  prepare-deployment:
+    needs: [detect-changes]
+    if: |
+      always() &&
+      needs.detect-changes.result == 'success' &&
+      (needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+       needs.detect-changes.outputs.stack_exists == 'false')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
@@ -46,53 +85,32 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Setup AWS CDK
+        uses: ./.github/actions/setup-aws-cdk
+
+      - name: Bootstrap CDK
+        uses: ./.github/actions/bootstrap-cdk
+
+  deploy-stack:
+    needs: [prepare-deployment]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          node-version: '20'
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
 
-      - name: Install AWS CDK
-        run: npm install -g aws-cdk
-
-      - name: Install CDK dependencies
-        run: |
-          cd cdk
-          pip install -r requirements.txt
-
-      - name: Bootstrap CDK (with recovery)
-        run: |
-          cd cdk
-          echo "Checking CDK bootstrap status..."
-
-          # Try bootstrap first
-          if ! cdk bootstrap aws://571930033416/us-east-1 2>&1 | tee bootstrap.log; then
-            echo "⚠️ Bootstrap failed, checking for corrupted stack..."
-
-            # Check if error is about existing resources
-            if grep -q "already exists" bootstrap.log; then
-              echo "Detected corrupted bootstrap stack. Attempting recovery..."
-
-              # Delete the corrupted CDKToolkit stack
-              echo "Deleting CDKToolkit stack..."
-              aws cloudformation delete-stack --stack-name CDKToolkit || true
-
-              # Wait for deletion
-              echo "Waiting for stack deletion..."
-              aws cloudformation wait stack-delete-complete --stack-name CDKToolkit || {
-                echo "Stack deletion timed out or failed, but continuing anyway..."
-              }
-
-              # Re-bootstrap
-              echo "Re-bootstrapping CDK environment..."
-              cdk bootstrap aws://571930033416/us-east-1
-            else
-              echo "Bootstrap failed for a different reason. Exiting."
-              cat bootstrap.log
-              exit 1
-            fi
-          else
-            echo "✅ CDK bootstrap successful"
-          fi
+      - name: Setup AWS CDK
+        uses: ./.github/actions/setup-aws-cdk
 
       - name: Deploy production stack
         env:
@@ -107,6 +125,22 @@ jobs:
           echo "Note: Clean deployment with full CloudFront + custom domain"
           chmod +x scripts/deploy-stack.sh
           ./scripts/deploy-stack.sh
+
+  configure-dns:
+    needs: [deploy-stack]
+    if: always() && needs.deploy-stack.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
 
       - name: Setup ACM validation (automatic)
         env:
@@ -129,6 +163,38 @@ jobs:
           chmod +x scripts/update-cloudflare-dns.sh
           ./scripts/update-cloudflare-dns.sh
 
+  deploy-ui:
+    needs: [deploy-stack, configure-dns]
+    if: |
+      always() &&
+      (needs.deploy-stack.result == 'success' || needs.deploy-stack.result == 'skipped') &&
+      (needs.configure-dns.result == 'success' || needs.configure-dns.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    outputs:
+      api_url: ${{ steps.stack-outputs.outputs.api_url }}
+      web_url: ${{ steps.stack-outputs.outputs.web_url }}
+      cloudfront_url: ${{ steps.stack-outputs.outputs.cloudfront_url }}
+      cloudfront_id: ${{ steps.cloudfront.outputs.distribution_id }}
+      ui_deployed: ${{ steps.check-ui.outputs.skip_ui != 'true' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-deps
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
       - name: Get CloudFront distribution ID
         id: cloudfront
         run: |
@@ -148,42 +214,9 @@ jobs:
 
       - name: Check if UI needs deployment
         id: check-ui
-        run: |
-          STACK_NAME="silvermoat"
-
-          # Get UI bucket from stack outputs
-          UI_BUCKET=$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query 'Stacks[0].Outputs[?OutputKey==`UiBucketName`].OutputValue' \
-            --output text 2>/dev/null || echo "")
-
-          if [ -z "$UI_BUCKET" ]; then
-            echo "⚠️ Could not find UI bucket, will deploy UI"
-            echo "skip_ui=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # Check if bucket has index.html
-          if aws s3 ls "s3://${UI_BUCKET}/index.html" >/dev/null 2>&1; then
-            echo "✅ UI already deployed in bucket ${UI_BUCKET}"
-
-            # Calculate hash of UI source to detect changes
-            UI_HASH=$(find ui/src ui/public ui/index.html -type f -exec md5sum {} \; 2>/dev/null | sort | md5sum | cut -d' ' -f1)
-
-            # Try to get stored hash from S3
-            STORED_HASH=$(aws s3 cp "s3://${UI_BUCKET}/.ui-hash" - 2>/dev/null || echo "")
-
-            if [ "${UI_HASH}" = "${STORED_HASH}" ]; then
-              echo "✅ UI source unchanged (hash: ${UI_HASH}), skipping rebuild"
-              echo "skip_ui=true" >> $GITHUB_OUTPUT
-            else
-              echo "UI source changed (${UI_HASH} vs ${STORED_HASH}), will deploy"
-              echo "skip_ui=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "UI not found in bucket, will deploy"
-            echo "skip_ui=false" >> $GITHUB_OUTPUT
-          fi
+        uses: ./.github/actions/check-ui-deployment
+        with:
+          stack-name: silvermoat
 
       - name: Build and deploy React UI
         if: steps.check-ui.outputs.skip_ui != 'true'
@@ -194,7 +227,6 @@ jobs:
           chmod +x scripts/deploy-ui.sh
           ./scripts/deploy-ui.sh
 
-      # Phase 3: Start CloudFront invalidation (async)
       - name: Start CloudFront cache invalidation
         id: invalidation
         if: steps.cloudfront.outputs.distribution_id != '' && steps.check-ui.outputs.skip_ui != 'true'
@@ -230,7 +262,6 @@ jobs:
           echo "CloudFront URL: ${CF_URL}"
           echo "Custom Domain URL: ${CUSTOM_URL}"
 
-      # Phase 3: Early health check
       - name: Quick health check
         run: |
           API_URL="${{ steps.stack-outputs.outputs.api_url }}"
@@ -250,22 +281,18 @@ jobs:
           echo "Production Deployment Summary"
           echo "==================================="
           echo "Stack: silvermoat"
-          echo "Stack deployment skipped: ${{ steps.check-stack.outputs.skip_deploy }}"
           echo "UI deployment skipped: ${{ steps.check-ui.outputs.skip_ui }}"
           echo "API: ${{ steps.stack-outputs.outputs.api_url }}"
           echo "CloudFront: ${{ steps.stack-outputs.outputs.cloudfront_url }}"
           echo "Custom Domain: ${{ steps.stack-outputs.outputs.web_url }}"
           echo "==================================="
-          if [ "${{ steps.check-stack.outputs.skip_deploy }}" = "true" ]; then
-            echo "⚡ Stack unchanged - saved ~10-15 minutes!"
-          fi
           if [ "${{ steps.check-ui.outputs.skip_ui }}" = "true" ]; then
             echo "⚡ UI unchanged - saved ~2-3 minutes!"
           fi
 
   # Phase 1: Comprehensive Test Suite (Matrix Strategy)
   test-suite:
-    needs: deploy
+    needs: deploy-ui
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -310,9 +337,9 @@ jobs:
         id: test-run
         continue-on-error: true
         env:
-          STACK_NAME: ${{ needs.deploy.outputs.stack_name }}
-          SILVERMOAT_API_URL: ${{ needs.deploy.outputs.api_url }}
-          SILVERMOAT_URL: ${{ needs.deploy.outputs.web_url }}
+          STACK_NAME: silvermoat
+          SILVERMOAT_API_URL: ${{ needs.deploy-ui.outputs.api_url }}
+          SILVERMOAT_URL: ${{ needs.deploy-ui.outputs.web_url }}
           HEADLESS: '1'
         run: |
           set -o pipefail
@@ -338,7 +365,7 @@ jobs:
 
   # Phase 4: Verify Deployment with Enhanced Reporting
   verify-deployment:
-    needs: [deploy, test-suite]
+    needs: [deploy-ui, test-suite]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -354,15 +381,15 @@ jobs:
 
       # Phase 3: Check CloudFront invalidation status
       - name: Check CloudFront invalidation status
-        if: needs.deploy.outputs.cloudfront_id != ''
+        if: needs.deploy-ui.outputs.cloudfront_id != ''
         run: |
           # CloudFront invalidations are async and can take 10-15 minutes
           # We don't block on completion, just check status
-          echo "CloudFront distribution: ${{ needs.deploy.outputs.cloudfront_id }}"
+          echo "CloudFront distribution: ${{ needs.deploy-ui.outputs.cloudfront_id }}"
 
           # Get latest invalidation status
           STATUS=$(aws cloudfront list-invalidations \
-            --distribution-id ${{ needs.deploy.outputs.cloudfront_id }} \
+            --distribution-id ${{ needs.deploy-ui.outputs.cloudfront_id }} \
             --query 'InvalidationList.Items[0].Status' \
             --output text 2>/dev/null || echo "UNKNOWN")
 
@@ -424,11 +451,10 @@ jobs:
 
           ## Deployment Status
 
-          - **Stack:** ${{ needs.deploy.outputs.stack_name }}
-          - **Stack Deployed:** ${{ needs.deploy.outputs.stack_deployed }}
-          - **UI Deployed:** ${{ needs.deploy.outputs.ui_deployed }}
-          - **API URL:** ${{ needs.deploy.outputs.api_url }}
-          - **Web URL:** ${{ needs.deploy.outputs.web_url }}
+          - **Stack:** silvermoat
+          - **UI Deployed:** ${{ needs.deploy-ui.outputs.ui_deployed }}
+          - **API URL:** ${{ needs.deploy-ui.outputs.api_url }}
+          - **Web URL:** ${{ needs.deploy-ui.outputs.web_url }}
 
           ## Test Results
 
@@ -442,10 +468,7 @@ jobs:
 
           EOF
 
-          if [ "${{ needs.deploy.outputs.stack_deployed }}" = "false" ]; then
-            echo "⚡ **Stack unchanged** - Saved ~10-15 minutes" >> deployment-report.md
-          fi
-          if [ "${{ needs.deploy.outputs.ui_deployed }}" = "false" ]; then
+          if [ "${{ needs.deploy-ui.outputs.ui_deployed }}" = "false" ]; then
             echo "⚡ **UI unchanged** - Saved ~2-3 minutes" >> deployment-report.md
           fi
 
@@ -468,7 +491,7 @@ jobs:
             exit 1
           fi
 
-          if [ "${{ needs.deploy.result }}" = "failure" ]; then
+          if [ "${{ needs.deploy-ui.result }}" = "failure" ]; then
             echo "❌ Deployment failed"
             exit 1
           fi

@@ -72,7 +72,7 @@ const Landing = () => {
             <Card
               hoverable
               style={{
-                minHeight: 480,
+                minHeight: 456,
                 boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
                 border: '1px solid rgba(255,255,255,0.2)',
                 borderRadius: 12,
@@ -84,7 +84,7 @@ const Landing = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100%',
-                padding: '40px 32px',
+                padding: '38px 30px',
               }}
             >
               <div style={{ flex: 1 }}>
@@ -102,11 +102,11 @@ const Landing = () => {
                   <SafetyOutlined style={{ fontSize: 40, color: 'white' }} />
                 </div>
 
-                <Title level={2} style={{ marginBottom: 12, marginTop: 0, fontSize: 28 }}>
+                <Title level={2} style={{ marginBottom: 12, marginTop: 0, fontSize: 28, textAlign: 'center' }}>
                   Customer Portal
                 </Title>
 
-                <Paragraph style={{ fontSize: 16, color: 'rgba(0,0,0,0.65)', marginBottom: 24 }}>
+                <Paragraph style={{ fontSize: 16, color: 'rgba(0,0,0,0.65)', marginBottom: 24, textAlign: 'center', lineHeight: '1.6' }}>
                   Secure self-service platform for policyholders to manage their insurance needs
                 </Paragraph>
 
@@ -161,7 +161,7 @@ const Landing = () => {
             <Card
               hoverable
               style={{
-                minHeight: 480,
+                minHeight: 456,
                 boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
                 border: '1px solid rgba(255,255,255,0.2)',
                 borderRadius: 12,
@@ -173,7 +173,7 @@ const Landing = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100%',
-                padding: '40px 32px',
+                padding: '38px 30px',
               }}
             >
               <div style={{ flex: 1 }}>
@@ -191,11 +191,11 @@ const Landing = () => {
                   <DashboardOutlined style={{ fontSize: 40, color: 'white' }} />
                 </div>
 
-                <Title level={2} style={{ marginBottom: 12, marginTop: 0, fontSize: 28 }}>
+                <Title level={2} style={{ marginBottom: 12, marginTop: 0, fontSize: 28, textAlign: 'center' }}>
                   Employee Portal
                 </Title>
 
-                <Paragraph style={{ fontSize: 16, color: 'rgba(0,0,0,0.65)', marginBottom: 24 }}>
+                <Paragraph style={{ fontSize: 16, color: 'rgba(0,0,0,0.65)', marginBottom: 24, textAlign: 'center', lineHeight: '1.6' }}>
                   Comprehensive operations hub for insurance professionals and administrators
                 </Paragraph>
 
