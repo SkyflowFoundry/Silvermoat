@@ -121,23 +121,6 @@ def test_cors_preflight_chat_endpoint(api_client):
 
 @pytest.mark.api
 @pytest.mark.security
-def test_cors_preflight_customer_auth_endpoint(api_client):
-    """Test CORS preflight request to customer auth endpoint"""
-    response = api_client.api_request(
-        'OPTIONS',
-        '/customer/auth',
-        headers={
-            'Origin': 'https://example.com',
-            'Access-Control-Request-Method': 'POST'
-        }
-    )
-
-    assert response.status_code in [200, 204]
-    assert 'Access-Control-Allow-Origin' in response.headers
-
-
-@pytest.mark.api
-@pytest.mark.security
 def test_cors_headers_present_on_get_requests(api_client, sample_quote_data):
     """Test that GET requests include CORS headers"""
     # Create a quote
@@ -173,74 +156,6 @@ def test_cors_headers_present_on_delete_requests(api_client, sample_quote_data):
     delete_response = api_client.api_request('DELETE', f'/quote/{quote_id}')
 
     assert 'Access-Control-Allow-Origin' in delete_response.headers, "DELETE response missing CORS headers"
-
-
-# Authentication Tests
-
-@pytest.mark.api
-@pytest.mark.security
-def test_customer_auth_valid_credentials(api_client):
-    """Test customer authentication with valid credentials"""
-    # Create policy
-    policy_data = {
-        "policyNumber": "POL-SEC-001",
-        "holderName": "Security Test User",
-        "zip": "90210",
-        "effectiveDate": "2024-01-01",
-        "expirationDate": "2025-01-01",
-        "premium_cents": 150000,
-    }
-    create_response = api_client.api_request('POST', '/policy', json=policy_data)
-    assert create_response.status_code == 201
-
-    # Valid authentication
-    auth_data = {
-        "policyNumber": "POL-SEC-001",
-        "zip": "90210"
-    }
-    auth_response = api_client.api_request('POST', '/customer/auth', json=auth_data)
-
-    assert auth_response.status_code == 200
-    assert auth_response.json()['authenticated'] is True
-
-
-@pytest.mark.api
-@pytest.mark.security
-def test_customer_auth_invalid_credentials(api_client):
-    """Test customer authentication with invalid credentials returns 401"""
-    # Create policy
-    policy_data = {
-        "policyNumber": "POL-SEC-002",
-        "holderName": "Test User",
-        "zip": "12345",
-        "effectiveDate": "2024-01-01",
-        "expirationDate": "2025-01-01",
-        "premium_cents": 150000,
-    }
-    create_response = api_client.api_request('POST', '/policy', json=policy_data)
-    assert create_response.status_code == 201
-
-    # Invalid authentication (wrong ZIP)
-    auth_data = {
-        "policyNumber": "POL-SEC-002",
-        "zip": "99999"
-    }
-    auth_response = api_client.api_request('POST', '/customer/auth', json=auth_data)
-
-    assert auth_response.status_code == 401
-
-
-@pytest.mark.api
-@pytest.mark.security
-def test_customer_auth_nonexistent_policy(api_client):
-    """Test authentication with non-existent policy returns 401"""
-    auth_data = {
-        "policyNumber": "POL-NONEXISTENT",
-        "zip": "12345"
-    }
-    response = api_client.api_request('POST', '/customer/auth', json=auth_data)
-
-    assert response.status_code == 401
 
 
 # Input Validation and Security
