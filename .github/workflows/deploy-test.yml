@@ -58,6 +58,7 @@ jobs:
               - 'lambda/**'
               - 'scripts/deploy-stack.sh'
               - 'scripts/deploy-ui.sh'
+              - '.github/actions/**'
             ui:
               - 'ui/**'
             tests:
