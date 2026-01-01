@@ -20,6 +20,14 @@ on:
         type: boolean
         default: true
         required: false
+      force_deploy:
+        description: 'Force stack deployment even if no changes detected'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 permissions:
   id-token: write
@@ -28,7 +36,36 @@ permissions:
   issues: write
 
 jobs:
+  detect-changes:
+    name: Detect Changed Files
+    runs-on: ubuntu-latest
+    outputs:
+      infrastructure_changed: ${{ steps.filter.outputs.infrastructure }}
+      ui_changed: ${{ steps.filter.outputs.ui }}
+      tests_changed: ${{ steps.filter.outputs.tests }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Detect file changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            infrastructure:
+              - 'cdk/**'
+              - 'lambda/**'
+              - 'scripts/deploy-stack.sh'
+              - 'scripts/deploy-ui.sh'
+            ui:
+              - 'ui/**'
+            tests:
+              - 'tests/**'
+              - '.github/workflows/e2e-tests.yml'
+
   validate-cdk:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.infrastructure_changed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -88,7 +125,8 @@ jobs:
           npm test -- --run
 
   setup-stack:
-    needs: [validate-cdk, unit-tests]
+    needs: [detect-changes, validate-cdk, unit-tests]
+    if: always() && (needs.validate-cdk.result == 'success' || needs.validate-cdk.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -96,6 +134,8 @@ jobs:
       stack_name: ${{ steps.stack-name.outputs.stack_name }}
       api_url: ${{ steps.stack-outputs.outputs.api_url }}
       web_url: ${{ steps.stack-outputs.outputs.web_url }}
+      skip_deploy: ${{ steps.check-deployment.outputs.skip_deploy || 'false' }}
+      skip_reason: ${{ steps.check-deployment.outputs.skip_reason || '' }}
 
     steps:
       - name: Checkout code
@@ -162,6 +202,34 @@ jobs:
           # Note: CDK handles change detection automatically via asset hashing,
           # so we always run cdk deploy and let it determine if updates are needed
 
+      - name: Check if infrastructure changes require deployment
+        id: check-deployment
+        if: |
+          needs.detect-changes.outputs.infrastructure_changed != 'true' &&
+          steps.check-stack.outputs.stack_status != 'NOT_FOUND' &&
+          inputs.force_deploy != 'true'
+        run: |
+          echo "No infrastructure file changes detected. Checking CDK diff..."
+
+          cd cdk
+
+          # Run cdk diff to check for actual changes
+          if cdk diff "${{ steps.stack-name.outputs.stack_name }}" > /tmp/cdk-diff.txt 2>&1; then
+            DIFF_EXIT=$?
+
+            if [ $DIFF_EXIT -eq 0 ]; then
+              echo "✓ CDK diff shows no changes - deployment can be skipped"
+              echo "skip_deploy=true" >> $GITHUB_OUTPUT
+              echo "skip_reason=No infrastructure changes detected" >> $GITHUB_OUTPUT
+            else
+              echo "⚠ CDK diff detected changes despite no file changes (possibly parameter updates)"
+              echo "skip_deploy=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠ CDK diff failed - will deploy to be safe"
+            echo "skip_deploy=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -176,6 +244,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Bootstrap CDK (with recovery)
+        if: steps.check-deployment.outputs.skip_deploy != 'true'
         run: |
           echo "Checking CDK bootstrap status..."
 
@@ -209,7 +278,22 @@ jobs:
             echo "✅ CDK bootstrap successful"
           fi
 
+      - name: Skip deployment (no changes)
+        if: steps.check-deployment.outputs.skip_deploy == 'true'
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "⏭️  SKIPPING STACK DEPLOYMENT"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Reason: ${{ steps.check-deployment.outputs.skip_reason }}"
+          echo "Stack: ${{ steps.stack-name.outputs.stack_name }}"
+          echo "Status: Stack already exists and is up to date"
+          echo ""
+          echo "Tests will run against the existing deployed stack."
+          echo ""
+
       - name: Deploy test stack
+        if: steps.check-deployment.outputs.skip_deploy != 'true'
         env:
           STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
           APP_NAME: silvermoat-test
@@ -224,6 +308,7 @@ jobs:
 
       - name: Check if UI needs deployment
         id: check-ui
+        if: steps.check-deployment.outputs.skip_deploy != 'true'
         run: |
           STACK_NAME="${{ steps.stack-name.outputs.stack_name }}"
 
@@ -269,7 +354,7 @@ jobs:
           fi
 
       - name: Build and deploy React UI
-        if: steps.check-ui.outputs.skip_ui != 'true'
+        if: steps.check-deployment.outputs.skip_deploy != 'true' && steps.check-ui.outputs.skip_ui != 'true'
         env:
           STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
         run: |
@@ -725,6 +810,14 @@ jobs:
               analysis = "⚠️ AI analysis failed. Check logs for details.";
             }
 
+            // Check if deployment was skipped
+            const deploySkipped = '${{ needs.setup-stack.outputs.skip_deploy }}' === 'true';
+            const skipReason = '${{ needs.setup-stack.outputs.skip_reason }}' || '';
+            let deploySkippedNote = '';
+            if (deploySkipped) {
+              deploySkippedNote = `\n  ⏭️ **Deployment Skipped** (${skipReason})`;
+            }
+
             // Read created issues from previous step
             const createdIssuesJson = '${{ steps.create-issues.outputs.created_issues }}';
             let createdIssues = [];
@@ -796,7 +889,7 @@ jobs:
 
             **Job Results:**
             - CloudFormation Validation: ${cfnOutcome === 'success' ? '✅' : '❌'} \`${cfnOutcome}\`
-            - Stack Deployment: ${setupOutcome === 'success' ? '✅' : '❌'} \`${setupOutcome}\`
+            - Stack Deployment: ${setupOutcome === 'success' ? '✅' : '❌'} \`${setupOutcome}\`${deploySkippedNote}
             - Test Suite: ${testsOutcome === 'success' ? '✅' : testsOutcome === 'skipped' ? '⏭️' : '❌'} \`${testsOutcome}\`
 
             **Test Results:**
