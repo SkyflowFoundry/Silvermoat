@@ -129,7 +129,7 @@ jobs:
             echo "ℹ️ Stack 'silvermoat' does not exist"
           fi
 
-  prepare-deployment:
+  deploy-stack:
     needs: [detect-changes]
     if: |
       always() &&
@@ -137,7 +137,7 @@ jobs:
       (needs.detect-changes.outputs.infrastructure_changed == 'true' ||
        needs.detect-changes.outputs.stack_exists == 'false')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
@@ -162,27 +162,6 @@ jobs:
 
       - name: Bootstrap CDK
         uses: ./.github/actions/bootstrap-cdk
-
-  deploy-stack:
-    needs: [prepare-deployment]
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup environment
-        uses: ./.github/actions/setup-env
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Setup AWS CDK
-        uses: ./.github/actions/setup-aws-cdk
 
       - name: Deploy production stack
         env:

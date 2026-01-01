@@ -113,7 +113,7 @@ jobs:
           cd ui
           npm test -- --run
 
-  prepare-deployment:
+  deploy-stack:
     needs: [detect-changes, unit-tests]
     if: |
       always() &&
@@ -122,7 +122,7 @@ jobs:
        needs.detect-changes.outputs.stack_exists == 'false' ||
        inputs.force_deploy == 'true')
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     outputs:
       stack_name: ${{ steps.stack-name.outputs.stack_name }}
@@ -243,34 +243,10 @@ jobs:
         if: steps.check-deployment.outputs.skip_deploy != 'true'
         uses: ./.github/actions/bootstrap-cdk
 
-  deploy-stack:
-    needs: [prepare-deployment]
-    if: |
-      always() &&
-      needs.prepare-deployment.result == 'success' &&
-      needs.prepare-deployment.outputs.skip_deploy != 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup environment
-        uses: ./.github/actions/setup-env
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Setup AWS CDK
-        uses: ./.github/actions/setup-aws-cdk
-
       - name: Deploy test stack
+        if: steps.check-deployment.outputs.skip_deploy != 'true'
         env:
-          STACK_NAME: ${{ needs.prepare-deployment.outputs.stack_name }}
+          STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
           APP_NAME: silvermoat-test
           STAGE_NAME: test
           UI_SEEDING_MODE: external
@@ -282,10 +258,9 @@ jobs:
           ./scripts/deploy-stack.sh
 
   deploy-ui:
-    needs: [prepare-deployment, deploy-stack]
+    needs: [deploy-stack]
     if: |
       always() &&
-      (needs.prepare-deployment.result == 'success' || needs.prepare-deployment.result == 'skipped') &&
       (needs.deploy-stack.result == 'success' || needs.deploy-stack.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -314,11 +289,11 @@ jobs:
       - name: Determine stack name
         id: stack-name
         run: |
-          # Use output from prepare-deployment if available, otherwise recalculate
-          if [ "${{ needs.prepare-deployment.result }}" = "success" ]; then
-            STACK_NAME="${{ needs.prepare-deployment.outputs.stack_name }}"
+          # Use output from deploy-stack if available, otherwise recalculate
+          if [ "${{ needs.deploy-stack.result }}" = "success" ]; then
+            STACK_NAME="${{ needs.deploy-stack.outputs.stack_name }}"
           else
-            # Recalculate (same logic as prepare-deployment)
+            # Recalculate (same logic as deploy-stack)
             if [ -n "${{ github.event.pull_request.number }}" ]; then
               STACK_NAME="silvermoat-test-pr-${{ github.event.pull_request.number }}"
             elif [ -n "${{ inputs.pr_number }}" ]; then
@@ -391,12 +366,11 @@ jobs:
         run: |
           echo "=== Deployment Summary ==="
           echo "Stack: ${{ steps.stack-name.outputs.stack_name }}"
-          echo "Infrastructure deployment: ${{ needs.prepare-deployment.result }}"
           echo "Stack deployment: ${{ needs.deploy-stack.result }}"
           echo "UI deployment skipped: ${{ steps.check-ui.outputs.skip_ui }}"
           echo ""
-          if [ "${{ needs.prepare-deployment.result }}" = "skipped" ]; then
-            echo "⏭️ Infrastructure unchanged - skipped CDK setup & deployment"
+          if [ "${{ needs.deploy-stack.result }}" = "skipped" ]; then
+            echo "⏭️ Infrastructure unchanged - skipped deployment"
           fi
           if [ "${{ steps.check-ui.outputs.skip_ui }}" = "true" ]; then
             echo "⚡ UI unchanged - saved ~2-3 minutes!"
@@ -429,7 +403,7 @@ jobs:
           echo "Web URL: ${WEB_URL}"
 
   test-suite:
-    needs: [prepare-deployment, deploy-ui]
+    needs: [deploy-stack, deploy-ui]
     if: always() && needs.deploy-ui.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -485,7 +459,7 @@ jobs:
         id: test-run
         continue-on-error: true
         env:
-          STACK_NAME: ${{ needs.deploy-ui.outputs.stack_name || needs.prepare-deployment.outputs.stack_name }}
+          STACK_NAME: ${{ needs.deploy-ui.outputs.stack_name || needs.deploy-stack.outputs.stack_name }}
           SILVERMOAT_API_URL: ${{ needs.deploy-ui.outputs.api_url }}
           SILVERMOAT_URL: ${{ needs.deploy-ui.outputs.web_url }}
           HEADLESS: '1'
@@ -521,7 +495,7 @@ jobs:
           fi
 
   analyze-results:
-    needs: [prepare-deployment, deploy-stack, test-suite]
+    needs: [deploy-stack, test-suite]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -549,7 +523,7 @@ jobs:
           fi
 
           # Collect job outcomes
-          INFRA_OUTCOME="${{ needs.prepare-deployment.result }}"
+          INFRA_OUTCOME="${{ needs.deploy-stack.result }}"
           DEPLOY_OUTCOME="${{ needs.deploy-stack.result }}"
           TESTS_OUTCOME="${{ needs.test-suite.result }}"
 
@@ -747,7 +721,7 @@ jobs:
           retention-days: 7
 
   post-to-pr:
-    needs: [prepare-deployment, analyze-results]
+    needs: [deploy-stack, analyze-results]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -822,7 +796,7 @@ jobs:
             const fs = require('fs');
             const prNumber = context.payload.pull_request.number;
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const stackName = '${{ needs.prepare-deployment.outputs.stack_name }}' || 'unknown';
+            const stackName = '${{ needs.deploy-stack.outputs.stack_name }}' || 'unknown';
 
             // Read AI-generated analysis
             let analysis = "Test analysis not available";
@@ -834,8 +808,8 @@ jobs:
             }
 
             // Check if deployment was skipped
-            const deploySkipped = '${{ needs.prepare-deployment.outputs.skip_deploy }}' === 'true';
-            const skipReason = '${{ needs.prepare-deployment.outputs.skip_reason }}' || '';
+            const deploySkipped = '${{ needs.deploy-stack.outputs.skip_deploy }}' === 'true';
+            const skipReason = '${{ needs.deploy-stack.outputs.skip_reason }}' || '';
             let deploySkippedNote = '';
             if (deploySkipped) {
               deploySkippedNote = `\n  ⏭️ **Deployment Skipped** (${skipReason})`;
@@ -886,7 +860,7 @@ jobs:
             }
 
             // Build stack status section
-            const infraOutcome = '${{ needs.prepare-deployment.result }}';
+            const infraOutcome = '${{ needs.deploy-stack.result }}';
             const deployOutcome = '${{ needs.deploy-stack.result }}';
             const testsOutcome = '${{ needs.analyze-results.result }}';
 
