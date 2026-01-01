@@ -61,8 +61,8 @@ const CustomerLogin = () => {
       // Use the first policy
       const policy = data.items[0];
       form.setFieldsValue({
-        policyNumber: policy.policyNumber,
-        zip: policy.zip,
+        policyNumber: policy.data.policyNumber,
+        zip: policy.data.zip,
       });
 
       message.success('Demo credentials loaded!');
