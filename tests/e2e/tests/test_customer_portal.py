@@ -310,29 +310,41 @@ def test_load_demo_credentials_button(driver, base_url, api_base_url):
 @pytest.mark.customer
 def test_load_demo_credentials_no_policies(driver, base_url, api_base_url):
     """Test Load Demo Credentials button shows warning when no policies exist"""
+    # Save existing policies before deletion
+    existing_policies_resp = requests.get(f"{api_base_url}/policy")
+    existing_policies = existing_policies_resp.json().get("items", []) if existing_policies_resp.ok else []
+
     # Delete all policies to ensure empty state
     requests.delete(f"{api_base_url}/policy")
 
-    # Navigate to login page
-    driver.get(f"{base_url}/customer/login")
-    wait_for_app_ready(driver)
+    try:
+        # Navigate to login page
+        driver.get(f"{base_url}/customer/login")
+        wait_for_app_ready(driver)
 
-    # Find and click "Load Demo Credentials" button
-    wait = WebDriverWait(driver, 10)
-    demo_button = wait.until(
-        EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Load Demo Credentials')]"))
-    )
-    demo_button.click()
+        # Find and click "Load Demo Credentials" button
+        wait = WebDriverWait(driver, 10)
+        demo_button = wait.until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Load Demo Credentials')]"))
+        )
+        demo_button.click()
 
-    # Wait for message to appear
-    import time
-    time.sleep(2)
+        # Wait for message to appear
+        import time
+        time.sleep(2)
 
-    # Should show warning message about no policies
-    # Ant Design messages appear in the DOM temporarily
-    # We can't reliably check for the exact message text, but the form should remain empty
-    policy_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='text']")
-    if len(policy_inputs) >= 1:
-        policy_value = policy_inputs[0].get_attribute('value')
-        # Form should be empty or show placeholder
-        assert not policy_value or policy_value == "", "Policy field should remain empty when no policies available"
+        # Should show warning message about no policies
+        # Ant Design messages appear in the DOM temporarily
+        # We can't reliably check for the exact message text, but the form should remain empty
+        policy_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='text']")
+        if len(policy_inputs) >= 1:
+            policy_value = policy_inputs[0].get_attribute('value')
+            # Form should be empty or show placeholder
+            assert not policy_value or policy_value == "", "Policy field should remain empty when no policies available"
+    finally:
+        # Restore policies to avoid affecting other tests
+        for policy in existing_policies:
+            # Re-create each policy (use data field only, not full item)
+            policy_data = policy.get("data", {})
+            if policy_data:
+                requests.post(f"{api_base_url}/policy", json=policy_data)
