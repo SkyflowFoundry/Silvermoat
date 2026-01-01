@@ -1,0 +1,55 @@
+name: 'Claude Code'
+description: 'Run Claude Code CLI in GitHub Actions'
+inputs:
+  anthropic_api_key:
+    description: 'Anthropic API key'
+    required: true
+  prompt:
+    description: 'Prompt for Claude Code'
+    required: true
+  system_prompt:
+    description: 'System prompt to override default behavior'
+    required: false
+    default: ''
+  max_turns:
+    description: 'Maximum conversation turns'
+    required: false
+    default: '15'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Claude Code
+      shell: bash
+      run: |
+        curl -fsSL https://raw.githubusercontent.com/anthropics/claude-code/main/install.sh | sh
+        echo "$HOME/.claude/bin" >> $GITHUB_PATH
+
+    - name: Configure Claude Code
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+      run: |
+        mkdir -p ~/.config/claude-code
+        cat > ~/.config/claude-code/config.json <<EOF
+        {
+          "apiKey": "$ANTHROPIC_API_KEY"
+        }
+        EOF
+
+    - name: Run Claude Code
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+      run: |
+        # Build arguments
+        ARGS=""
+        if [ -n "${{ inputs.system_prompt }}" ]; then
+          ARGS="$ARGS --system-prompt '${{ inputs.system_prompt }}'"
+        fi
+        if [ -n "${{ inputs.max_turns }}" ]; then
+          ARGS="$ARGS --max-turns ${{ inputs.max_turns }}"
+        fi
+
+        # Run Claude Code with the prompt
+        echo "${{ inputs.prompt }}" | claude-code --non-interactive $ARGS
