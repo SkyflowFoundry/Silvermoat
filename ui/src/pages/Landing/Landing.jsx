@@ -102,11 +102,11 @@ const Landing = () => {
                   <SafetyOutlined style={{ fontSize: 40, color: 'white' }} />
                 </div>
 
-                <Title level={2} style={{ marginBottom: 12, marginTop: 0, fontSize: 28 }}>
+                <Title level={2} style={{ marginBottom: 12, marginTop: 0, fontSize: 28, textAlign: 'center' }}>
                   Customer Portal
                 </Title>
 
-                <Paragraph style={{ fontSize: 16, color: 'rgba(0,0,0,0.65)', marginBottom: 24 }}>
+                <Paragraph style={{ fontSize: 16, color: 'rgba(0,0,0,0.65)', marginBottom: 24, textAlign: 'center' }}>
                   Secure self-service platform for policyholders to manage their insurance needs
                 </Paragraph>
 
@@ -191,11 +191,11 @@ const Landing = () => {
                   <DashboardOutlined style={{ fontSize: 40, color: 'white' }} />
                 </div>
 
-                <Title level={2} style={{ marginBottom: 12, marginTop: 0, fontSize: 28 }}>
+                <Title level={2} style={{ marginBottom: 12, marginTop: 0, fontSize: 28, textAlign: 'center' }}>
                   Employee Portal
                 </Title>
 
-                <Paragraph style={{ fontSize: 16, color: 'rgba(0,0,0,0.65)', marginBottom: 24 }}>
+                <Paragraph style={{ fontSize: 16, color: 'rgba(0,0,0,0.65)', marginBottom: 24, textAlign: 'center' }}>
                   Comprehensive operations hub for insurance professionals and administrators
                 </Paragraph>
 
