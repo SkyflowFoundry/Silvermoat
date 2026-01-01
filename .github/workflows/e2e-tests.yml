@@ -91,48 +91,6 @@ jobs:
             echo "ℹ️ Stack ${STACK_NAME} does not exist (first run)"
           fi
 
-  validate-cdk:
-    needs: detect-changes
-    if: |
-      needs.detect-changes.outputs.infrastructure_changed == 'true' ||
-      needs.detect-changes.outputs.stack_exists == 'false'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install AWS CDK
-        run: npm install -g aws-cdk
-
-      - name: Install CDK dependencies
-        run: |
-          cd cdk
-          pip install -r requirements.txt
-
-      - name: Validate CDK stacks (synth)
-        env:
-          STACK_NAME: silvermoat-test-pr-123
-          STAGE_NAME: test
-          CREATE_CLOUDFRONT: "false"
-          DOMAIN_NAME: ""
-        run: |
-          echo "Validating CDK stacks via synthesis..."
-          cd cdk
-          cdk synth silvermoat-test-pr-123 > /dev/null
-          echo "✅ CDK stack synthesis successful"
-
   unit-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -155,11 +113,8 @@ jobs:
           npm test -- --run
 
   setup-infra:
-    needs: [detect-changes, validate-cdk, unit-tests]
-    if: |
-      always() &&
-      needs.unit-tests.result == 'success' &&
-      (needs.validate-cdk.result == 'success' || needs.validate-cdk.result == 'skipped')
+    needs: [detect-changes, unit-tests]
+    if: always() && needs.unit-tests.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -272,6 +227,21 @@ jobs:
         run: |
           cd cdk
           pip install -r requirements.txt
+
+      - name: Validate CDK stacks (synth)
+        if: |
+          needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+          steps.check-stack.outputs.stack_status == 'NOT_FOUND'
+        env:
+          STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
+          STAGE_NAME: test
+          CREATE_CLOUDFRONT: "false"
+          DOMAIN_NAME: ""
+        run: |
+          echo "Validating CDK stacks via synthesis..."
+          cd cdk
+          cdk synth ${{ steps.stack-name.outputs.stack_name }} > /dev/null
+          echo "✅ CDK stack synthesis successful"
 
       - name: Bootstrap CDK (with recovery)
         if: steps.check-deployment.outputs.skip_deploy != 'true'
@@ -579,7 +549,7 @@ jobs:
           fi
 
   analyze-results:
-    needs: [validate-cdk, setup-infra, deploy-stack, deploy-ui, test-suite]
+    needs: [setup-infra, deploy-stack, deploy-ui, test-suite]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -607,11 +577,11 @@ jobs:
           fi
 
           # Collect job outcomes
-          CFN_OUTCOME="${{ needs.validate-cdk.result }}"
-          SETUP_OUTCOME="${{ needs.deploy-stack.result }}"
+          INFRA_OUTCOME="${{ needs.setup-infra.result }}"
+          DEPLOY_OUTCOME="${{ needs.deploy-stack.result }}"
           TESTS_OUTCOME="${{ needs.test-suite.result }}"
 
-          echo "Job outcomes: CFN=$CFN_OUTCOME, SETUP=$SETUP_OUTCOME, TESTS=$TESTS_OUTCOME"
+          echo "Job outcomes: INFRA=$INFRA_OUTCOME, DEPLOY=$DEPLOY_OUTCOME, TESTS=$TESTS_OUTCOME"
 
           # Collect test outputs (escape for JSON, limit to 2000 lines each)
           SMOKE_OUTPUT=$(cat test-outputs/smoke-test-output/smoke-tests-output.txt 2>/dev/null | head -2000 | jq -Rs . || echo '"No output captured"')
@@ -637,8 +607,8 @@ jobs:
 
           # Build JSON request with proper escaping
           jq -n \
-            --arg cfn_outcome "$CFN_OUTCOME" \
-            --arg setup_outcome "$SETUP_OUTCOME" \
+            --arg infra_outcome "$INFRA_OUTCOME" \
+            --arg deploy_outcome "$DEPLOY_OUTCOME" \
             --arg tests_outcome "$TESTS_OUTCOME" \
             --arg smoke_outcome "$SMOKE_OUTCOME" \
             --arg api_outcome "$API_OUTCOME" \
@@ -652,7 +622,7 @@ jobs:
               "max_tokens": 4096,
               "messages": [{
                 "role": "user",
-                "content": "You are analyzing GitHub Actions workflow results for the Silvermoat insurance MVP application. Review ALL job outcomes and outputs below, then generate a concise PR comment summarizing:\n\n1. Overall pipeline status (✅ passed / ⚠️ partial / ❌ failed)\n2. Key findings for EACH job (CloudFormation validation, stack deployment, tests)\n3. Root cause analysis for any failures (check CFN validation and stack deployment FIRST)\n4. Critical failures that need immediate attention\n5. Recommendations for fixes\n\nFormat as GitHub-flavored markdown. Be specific about which jobs/tests failed and why. Limit to 500 words.\n\n## Pipeline Job Outcomes\n- CloudFormation Validation: \($cfn_outcome)\n- Stack Deployment: \($setup_outcome)\n- Test Suite: \($tests_outcome)\n\n## Test Suite Outcomes (if tests ran)\n- Smoke tests: \($smoke_outcome)\n- API tests: \($api_outcome)\n- E2E tests: \($e2e_outcome)\n\n## Test Outputs\n\n### Deployment Smoke Tests\n```\n\($smoke_output)\n```\n\n### API Contract Tests\n```\n\($api_output)\n```\n\n### E2E Smoke Tests\n```\n\($e2e_output)\n```\n\n### E2E Debug Artifacts\nThese contain DOM state, console errors, and diagnostic info for failed tests:\n```\n\($e2e_artifacts)\n```\n\n## Analysis Instructions\n\n**IMPORTANT**: If CFN validation or stack deployment failed, focus on that as the root cause. Tests cannot run without a deployed stack. Check for:\n- CFN template syntax errors (cfn-lint output)\n- Stack deployment failures (missing resources, circular dependencies, parameter issues)\n- Rollback states (ROLLBACK_COMPLETE, ROLLBACK_FAILED)\n\nOnly analyze test failures if the stack deployed successfully."
+                "content": "You are analyzing GitHub Actions workflow results for the Silvermoat insurance MVP application. Review ALL job outcomes and outputs below, then generate a concise PR comment summarizing:\n\n1. Overall pipeline status (✅ passed / ⚠️ partial / ❌ failed)\n2. Key findings for EACH job (infrastructure setup, stack deployment, tests)\n3. Root cause analysis for any failures (check infrastructure and deployment FIRST)\n4. Critical failures that need immediate attention\n5. Recommendations for fixes\n\nFormat as GitHub-flavored markdown. Be specific about which jobs/tests failed and why. Limit to 500 words.\n\n## Pipeline Job Outcomes\n- Infrastructure Setup: \($infra_outcome)\n- Stack Deployment: \($deploy_outcome)\n- Test Suite: \($tests_outcome)\n\n## Test Suite Outcomes (if tests ran)\n- Smoke tests: \($smoke_outcome)\n- API tests: \($api_outcome)\n- E2E tests: \($e2e_outcome)\n\n## Test Outputs\n\n### Deployment Smoke Tests\n```\n\($smoke_output)\n```\n\n### API Contract Tests\n```\n\($api_output)\n```\n\n### E2E Smoke Tests\n```\n\($e2e_output)\n```\n\n### E2E Debug Artifacts\nThese contain DOM state, console errors, and diagnostic info for failed tests:\n```\n\($e2e_artifacts)\n```\n\n## Analysis Instructions\n\n**IMPORTANT**: If infrastructure setup or stack deployment failed, focus on that as the root cause. Tests cannot run without a deployed stack. Check for:\n- CDK template syntax errors (cdk synth output)\n- Stack deployment failures (missing resources, circular dependencies, parameter issues)\n- Rollback states (ROLLBACK_COMPLETE, ROLLBACK_FAILED)\n\nOnly analyze test failures if the stack deployed successfully."
               }]
             }' > analysis-request.json
 
@@ -944,12 +914,12 @@ jobs:
             }
 
             // Build stack status section
-            const cfnOutcome = '${{ needs.analyze-results.result }}';
-            const setupOutcome = '${{ needs.deploy-stack.result }}';
+            const infraOutcome = '${{ needs.setup-infra.result }}';
+            const deployOutcome = '${{ needs.deploy-stack.result }}';
             const testsOutcome = '${{ needs.analyze-results.result }}';
 
             let statusEmoji = '✅';
-            if (cfnOutcome === 'failure' || setupOutcome === 'failure') {
+            if (infraOutcome === 'failure' || deployOutcome === 'failure') {
               statusEmoji = '❌';
             } else if (testsOutcome === 'failure') {
               statusEmoji = '⚠️';
@@ -969,8 +939,8 @@ jobs:
             **Run:** [View Full Logs](${runUrl})
 
             **Job Results:**
-            - CloudFormation Validation: ${cfnOutcome === 'success' ? '✅' : '❌'} \`${cfnOutcome}\`
-            - Stack Deployment: ${setupOutcome === 'success' ? '✅' : '❌'} \`${setupOutcome}\`${deploySkippedNote}
+            - Infrastructure Setup: ${infraOutcome === 'success' ? '✅' : '❌'} \`${infraOutcome}\`
+            - Stack Deployment: ${deployOutcome === 'success' ? '✅' : deployOutcome === 'skipped' ? '⏭️' : '❌'} \`${deployOutcome}\`${deploySkippedNote}
             - Test Suite: ${testsOutcome === 'success' ? '✅' : testsOutcome === 'skipped' ? '⏭️' : '❌'} \`${testsOutcome}\`
 
             **Test Results:**
@@ -984,7 +954,7 @@ jobs:
 
             ---
 
-            <sub>Stack \`${stackName}\` ${setupOutcome === 'success' ? 'is running and will be cleaned up when this PR is closed' : 'may not have deployed successfully - check logs above'}. Analysis generated by Claude Sonnet 4.</sub>
+            <sub>Stack \`${stackName}\` ${deployOutcome === 'success' ? 'is running and will be cleaned up when this PR is closed' : 'may not have deployed successfully - check logs above'}. Analysis generated by Claude Sonnet 4.</sub>
             `;
 
             await github.rest.issues.createComment({
