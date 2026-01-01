@@ -32,19 +32,20 @@ jobs:
         id: target
         run: |
           if [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "ref=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
+            echo "checkout_ref=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
             echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
             echo "type=pr" >> $GITHUB_OUTPUT
           elif [ "${{ github.event_name }}" == "issues" ]; then
-            # For issues, we need to create a branch
+            # For issues, checkout main then create branch
             ISSUE_NUMBER=${{ github.event.issue.number }}
             BRANCH_NAME="agent/build-issue-${ISSUE_NUMBER}"
-            echo "ref=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+            echo "checkout_ref=main" >> $GITHUB_OUTPUT
+            echo "branch_name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
             echo "number=${ISSUE_NUMBER}" >> $GITHUB_OUTPUT
             echo "type=issue" >> $GITHUB_OUTPUT
           else
             # workflow_dispatch
-            echo "ref=main" >> $GITHUB_OUTPUT
+            echo "checkout_ref=main" >> $GITHUB_OUTPUT
             echo "number=${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
             echo "type=manual" >> $GITHUB_OUTPUT
           fi
@@ -52,16 +53,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.target.outputs.ref }}
+          ref: ${{ steps.target.outputs.checkout_ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
       - name: Create branch for issue
         if: steps.target.outputs.type == 'issue'
         run: |
-          BRANCH_NAME="${{ steps.target.outputs.ref }}"
-          git checkout -b "$BRANCH_NAME" || git checkout "$BRANCH_NAME"
-          git push -u origin "$BRANCH_NAME" || true
+          BRANCH_NAME="${{ steps.target.outputs.branch_name }}"
+          git checkout -b "$BRANCH_NAME"
+          git push -u origin "$BRANCH_NAME"
 
       - name: Get prompt
         id: prompt
@@ -90,7 +91,7 @@ jobs:
         if: steps.target.outputs.type == 'issue'
         run: |
           ISSUE_NUMBER=${{ steps.target.outputs.number }}
-          BRANCH_NAME="${{ steps.target.outputs.ref }}"
+          BRANCH_NAME="${{ steps.target.outputs.branch_name }}"
 
           # Check if PR already exists
           EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --json number --jq '.[0].number' || echo "")
@@ -125,5 +126,5 @@ jobs:
         run: |
           echo "### Builder Agent Run" >> $GITHUB_STEP_SUMMARY
           echo "- **Target:** ${{ steps.target.outputs.type }} #${{ steps.target.outputs.number }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branch:** ${{ steps.target.outputs.ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ steps.target.outputs.branch_name || steps.target.outputs.checkout_ref }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
