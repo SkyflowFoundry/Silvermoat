@@ -108,15 +108,12 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          cat > /tmp/agent-prompt.txt <<'PROMPT_EOF'
-          ${{ steps.prompt.outputs.prompt }}
-          PROMPT_EOF
+          PROMPT="${{ steps.prompt.outputs.prompt }}"
 
-          claude --non-interactive \
+          echo "$PROMPT" | claude \
             --system-prompt "You are the BUILDER AGENT. Implement the requested changes. Commit directly to the current branch. Follow CLAUDE.md rules strictly. Keep scope tight." \
             --max-turns 20 \
-            --allowed-tools '*' \
-            < /tmp/agent-prompt.txt
+            --allowed-tools '*'
 
       - name: Create PR if from issue
         if: steps.target.outputs.type == 'issue'
