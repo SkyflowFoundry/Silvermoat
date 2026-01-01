@@ -114,7 +114,12 @@ jobs:
 
   prepare-deployment:
     needs: [detect-changes, unit-tests]
-    if: always() && needs.unit-tests.result == 'success'
+    if: |
+      always() &&
+      needs.unit-tests.result == 'success' &&
+      (needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+       needs.detect-changes.outputs.stack_exists == 'false' ||
+       inputs.force_deploy == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -279,12 +284,13 @@ jobs:
     needs: [prepare-deployment, deploy-stack]
     if: |
       always() &&
-      needs.prepare-deployment.result == 'success' &&
+      (needs.prepare-deployment.result == 'success' || needs.prepare-deployment.result == 'skipped') &&
       (needs.deploy-stack.result == 'success' || needs.deploy-stack.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     outputs:
+      stack_name: ${{ steps.stack-name.outputs.stack_name }}
       api_url: ${{ steps.stack-outputs.outputs.api_url }}
       web_url: ${{ steps.stack-outputs.outputs.web_url }}
 
@@ -304,18 +310,37 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
+      - name: Determine stack name
+        id: stack-name
+        run: |
+          # Use output from prepare-deployment if available, otherwise recalculate
+          if [ "${{ needs.prepare-deployment.result }}" = "success" ]; then
+            STACK_NAME="${{ needs.prepare-deployment.outputs.stack_name }}"
+          else
+            # Recalculate (same logic as prepare-deployment)
+            if [ -n "${{ github.event.pull_request.number }}" ]; then
+              STACK_NAME="silvermoat-test-pr-${{ github.event.pull_request.number }}"
+            elif [ -n "${{ inputs.pr_number }}" ]; then
+              STACK_NAME="silvermoat-test-pr-${{ inputs.pr_number }}"
+            else
+              STACK_NAME="silvermoat-test-${{ github.run_id }}"
+            fi
+          fi
+          echo "stack_name=${STACK_NAME}" >> $GITHUB_OUTPUT
+          echo "Stack name: ${STACK_NAME}"
+
       - name: Check if UI needs deployment
         id: check-ui
         run: |
           # If stack was just deployed, always deploy UI
-          if [ "${{ needs.prepare-deployment.outputs.skip_deploy }}" != "true" ]; then
+          if [ "${{ needs.deploy-stack.result }}" = "success" ]; then
             echo "Stack was just deployed, UI needs deployment"
             echo "skip_ui=false" >> $GITHUB_OUTPUT
             exit 0
           fi
 
           # Stack deployment was skipped, check if UI changed
-          STACK_NAME="${{ needs.prepare-deployment.outputs.stack_name }}"
+          STACK_NAME="${{ steps.stack-name.outputs.stack_name }}"
 
           # Get UI bucket from stack outputs
           UI_BUCKET=$(aws cloudformation describe-stacks \
@@ -354,7 +379,7 @@ jobs:
       - name: Build and deploy React UI
         if: steps.check-ui.outputs.skip_ui != 'true'
         env:
-          STACK_NAME: ${{ needs.prepare-deployment.outputs.stack_name }}
+          STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
         run: |
           echo "Building and deploying React UI..."
           chmod +x scripts/deploy-ui.sh
@@ -364,17 +389,13 @@ jobs:
         if: always()
         run: |
           echo "=== Deployment Summary ==="
-          echo "Stack: ${{ needs.prepare-deployment.outputs.stack_name }}"
-          echo "Stack status: ${{ needs.prepare-deployment.outputs.stack_status }}"
-          echo "Stack deleted: ${{ needs.prepare-deployment.outputs.stack_deleted }}"
-          echo "Stack deployment skipped: ${{ needs.prepare-deployment.outputs.skip_deploy }}"
+          echo "Stack: ${{ steps.stack-name.outputs.stack_name }}"
+          echo "Infrastructure deployment: ${{ needs.prepare-deployment.result }}"
+          echo "Stack deployment: ${{ needs.deploy-stack.result }}"
           echo "UI deployment skipped: ${{ steps.check-ui.outputs.skip_ui }}"
           echo ""
-          if [ "${{ needs.prepare-deployment.outputs.stack_deleted }}" = "true" ]; then
-            echo "🗑️ Previous failed stack was deleted before redeployment"
-          fi
-          if [ "${{ needs.prepare-deployment.outputs.skip_deploy }}" = "true" ]; then
-            echo "⏭️ Stack deployment skipped - ${{ needs.prepare-deployment.outputs.skip_reason }}"
+          if [ "${{ needs.prepare-deployment.result }}" = "skipped" ]; then
+            echo "⏭️ Infrastructure unchanged - skipped CDK setup & deployment"
           fi
           if [ "${{ steps.check-ui.outputs.skip_ui }}" = "true" ]; then
             echo "⚡ UI unchanged - saved ~2-3 minutes!"
@@ -383,7 +404,7 @@ jobs:
       - name: Get stack outputs
         id: stack-outputs
         run: |
-          STACK_NAME="${{ needs.prepare-deployment.outputs.stack_name }}"
+          STACK_NAME="${{ steps.stack-name.outputs.stack_name }}"
 
           # Get all outputs as JSON
           OUTPUTS=$(aws cloudformation describe-stacks \
@@ -463,7 +484,7 @@ jobs:
         id: test-run
         continue-on-error: true
         env:
-          STACK_NAME: ${{ needs.prepare-deployment.outputs.stack_name }}
+          STACK_NAME: ${{ needs.deploy-ui.outputs.stack_name || needs.prepare-deployment.outputs.stack_name }}
           SILVERMOAT_API_URL: ${{ needs.deploy-ui.outputs.api_url }}
           SILVERMOAT_URL: ${{ needs.deploy-ui.outputs.web_url }}
           HEADLESS: '1'
