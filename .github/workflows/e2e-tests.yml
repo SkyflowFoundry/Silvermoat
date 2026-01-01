@@ -233,40 +233,9 @@ jobs:
           cdk synth ${{ steps.stack-name.outputs.stack_name }} > /dev/null
           echo "✅ CDK stack synthesis successful"
 
-      - name: Bootstrap CDK (with recovery)
+      - name: Bootstrap CDK
         if: steps.check-deployment.outputs.skip_deploy != 'true'
-        run: |
-          echo "Checking CDK bootstrap status..."
-
-          # Try bootstrap first
-          if ! cdk bootstrap aws://571930033416/us-east-1 2>&1 | tee bootstrap.log; then
-            echo "⚠️ Bootstrap failed, checking for corrupted stack..."
-
-            # Check if error is about existing resources
-            if grep -q "already exists" bootstrap.log; then
-              echo "Detected corrupted bootstrap stack. Attempting recovery..."
-
-              # Delete the corrupted CDKToolkit stack
-              echo "Deleting CDKToolkit stack..."
-              aws cloudformation delete-stack --stack-name CDKToolkit || true
-
-              # Wait for deletion
-              echo "Waiting for stack deletion..."
-              aws cloudformation wait stack-delete-complete --stack-name CDKToolkit || {
-                echo "Stack deletion timed out or failed, but continuing anyway..."
-              }
-
-              # Re-bootstrap
-              echo "Re-bootstrapping CDK environment..."
-              cdk bootstrap aws://571930033416/us-east-1
-            else
-              echo "Bootstrap failed for a different reason. Exiting."
-              cat bootstrap.log
-              exit 1
-            fi
-          else
-            echo "✅ CDK bootstrap successful"
-          fi
+        uses: ./.github/actions/bootstrap-cdk
 
   deploy-stack:
     needs: [prepare-deployment]
@@ -338,46 +307,47 @@ jobs:
       - name: Check if UI needs deployment
         id: check-ui
         run: |
+          # If stack was just deployed, always deploy UI
+          if [ "${{ needs.prepare-deployment.outputs.skip_deploy }}" != "true" ]; then
+            echo "Stack was just deployed, UI needs deployment"
+            echo "skip_ui=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Stack deployment was skipped, check if UI changed
           STACK_NAME="${{ needs.prepare-deployment.outputs.stack_name }}"
 
-          # If stack deployment was skipped, check UI hash
-          if [ "${{ needs.prepare-deployment.outputs.skip_deploy }}" = "true" ]; then
-            # Get UI bucket from stack outputs
-            UI_BUCKET=$(aws cloudformation describe-stacks \
-              --stack-name "${STACK_NAME}" \
-              --query 'Stacks[0].Outputs[?OutputKey==`UiBucketName`].OutputValue' \
-              --output text 2>/dev/null || echo "")
+          # Get UI bucket from stack outputs
+          UI_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].Outputs[?OutputKey==`UiBucketName`].OutputValue' \
+            --output text 2>/dev/null || echo "")
 
-            if [ -z "$UI_BUCKET" ]; then
-              echo "⚠️ Could not find UI bucket, will deploy UI"
-              echo "skip_ui=false" >> $GITHUB_OUTPUT
-              exit 0
-            fi
+          if [ -z "$UI_BUCKET" ]; then
+            echo "⚠️ Could not find UI bucket, will deploy UI"
+            echo "skip_ui=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
 
-            # Check if bucket has index.html
-            if aws s3 ls "s3://${UI_BUCKET}/index.html" >/dev/null 2>&1; then
-              echo "✅ UI already deployed in bucket ${UI_BUCKET}"
+          # Check if bucket has index.html
+          if aws s3 ls "s3://${UI_BUCKET}/index.html" >/dev/null 2>&1; then
+            echo "✅ UI already deployed in bucket ${UI_BUCKET}"
 
-              # Calculate hash of UI source to detect changes
-              UI_HASH=$(find ui/src ui/public ui/index.html -type f -exec md5sum {} \; 2>/dev/null | sort | md5sum | cut -d' ' -f1)
+            # Calculate hash of UI source to detect changes
+            UI_HASH=$(find ui/src ui/public ui/index.html -type f -exec md5sum {} \; 2>/dev/null | sort | md5sum | cut -d' ' -f1)
 
-              # Try to get stored hash from S3
-              STORED_HASH=$(aws s3 cp "s3://${UI_BUCKET}/.ui-hash" - 2>/dev/null || echo "")
+            # Try to get stored hash from S3
+            STORED_HASH=$(aws s3 cp "s3://${UI_BUCKET}/.ui-hash" - 2>/dev/null || echo "")
 
-              if [ "${UI_HASH}" = "${STORED_HASH}" ]; then
-                echo "✅ UI source unchanged (hash: ${UI_HASH}), skipping rebuild"
-                echo "skip_ui=true" >> $GITHUB_OUTPUT
-              else
-                echo "UI source changed (${UI_HASH} vs ${STORED_HASH}), will deploy"
-                echo "skip_ui=false" >> $GITHUB_OUTPUT
-              fi
+            if [ "${UI_HASH}" = "${STORED_HASH}" ]; then
+              echo "✅ UI source unchanged (hash: ${UI_HASH}), skipping rebuild"
+              echo "skip_ui=true" >> $GITHUB_OUTPUT
             else
-              echo "UI not found in bucket, will deploy"
+              echo "UI source changed (${UI_HASH} vs ${STORED_HASH}), will deploy"
               echo "skip_ui=false" >> $GITHUB_OUTPUT
             fi
           else
-            # Stack was just deployed, always deploy UI
-            echo "Stack was just deployed, UI needs deployment"
+            echo "UI not found in bucket, will deploy"
             echo "skip_ui=false" >> $GITHUB_OUTPUT
           fi
 
