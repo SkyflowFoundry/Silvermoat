@@ -39,7 +39,7 @@ Every plan MUST include:
 ## Multi-Phase Work
 
 - If work may exceed one context window:
-  - Explicitly break into phases.
+  - Explicitly break into phases, using Github Issues to preserve plan/context.
   - Each phase should be independently executable.
   - Later phases may depend on artifacts from earlier phases.
 
