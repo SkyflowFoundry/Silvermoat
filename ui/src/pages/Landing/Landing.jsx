@@ -62,8 +62,7 @@ const Landing = () => {
             maxWidth: 600,
             margin: '16px auto 0'
           }}>
-            Streamlined policy management, claims processing, and operational excellence
-            for modern insurance organizations
+            Streamlined policy management and claims processing for modern insurance organizations
           </Paragraph>
         </div>
 
