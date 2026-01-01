@@ -88,13 +88,10 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: ${{ steps.prompt.outputs.prompt }}
-          settings: |
-            {
-              "autoApprove": ["Write", "Edit", "Bash"]
-            }
           claude_args: |
             --system-prompt "You are the BUILDER AGENT. Implement the requested changes. Commit directly to the current branch. Follow CLAUDE.md rules strictly. Keep scope tight."
             --max-turns 20
+            --allowed-tools '*'
 
       - name: Create PR if from issue
         if: steps.target.outputs.type == 'issue'
