@@ -72,7 +72,7 @@ const Landing = () => {
             <Card
               hoverable
               style={{
-                minHeight: 480,
+                minHeight: 456,
                 boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
                 border: '1px solid rgba(255,255,255,0.2)',
                 borderRadius: 12,
@@ -84,7 +84,7 @@ const Landing = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100%',
-                padding: '40px 32px',
+                padding: '38px 30px',
               }}
             >
               <div style={{ flex: 1 }}>
@@ -161,7 +161,7 @@ const Landing = () => {
             <Card
               hoverable
               style={{
-                minHeight: 480,
+                minHeight: 456,
                 boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
                 border: '1px solid rgba(255,255,255,0.2)',
                 borderRadius: 12,
@@ -173,7 +173,7 @@ const Landing = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100%',
-                padding: '40px 32px',
+                padding: '38px 30px',
               }}
             >
               <div style={{ flex: 1 }}>
