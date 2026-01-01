@@ -106,7 +106,7 @@ const Landing = () => {
                   Customer Portal
                 </Title>
 
-                <Paragraph style={{ fontSize: 16, color: 'rgba(0,0,0,0.65)', marginBottom: 24, textAlign: 'center' }}>
+                <Paragraph style={{ fontSize: 16, color: 'rgba(0,0,0,0.65)', marginBottom: 24, textAlign: 'center', lineHeight: '1.6' }}>
                   Secure self-service platform for policyholders to manage their insurance needs
                 </Paragraph>
 
@@ -195,7 +195,7 @@ const Landing = () => {
                   Employee Portal
                 </Title>
 
-                <Paragraph style={{ fontSize: 16, color: 'rgba(0,0,0,0.65)', marginBottom: 24, textAlign: 'center' }}>
+                <Paragraph style={{ fontSize: 16, color: 'rgba(0,0,0,0.65)', marginBottom: 24, textAlign: 'center', lineHeight: '1.6' }}>
                   Comprehensive operations hub for insurance professionals and administrators
                 </Paragraph>
 
