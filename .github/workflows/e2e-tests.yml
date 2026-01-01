@@ -187,6 +187,9 @@ jobs:
             echo "stack_deleted=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Setup AWS CDK
+        uses: ./.github/actions/setup-aws-cdk
+
       - name: Check if infrastructure changes require deployment
         id: check-deployment
         if: |
@@ -214,19 +217,6 @@ jobs:
             echo "⚠ CDK diff failed - will deploy to be safe"
             echo "skip_deploy=false" >> $GITHUB_OUTPUT
           fi
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install AWS CDK
-        run: npm install -g aws-cdk
-
-      - name: Install CDK dependencies
-        run: |
-          cd cdk
-          pip install -r requirements.txt
 
       - name: Validate CDK stacks (synth)
         if: |
@@ -300,18 +290,8 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install AWS CDK
-        run: npm install -g aws-cdk
-
-      - name: Install CDK dependencies
-        run: |
-          cd cdk
-          pip install -r requirements.txt
+      - name: Setup AWS CDK
+        uses: ./.github/actions/setup-aws-cdk
 
       - name: Deploy test stack
         env:
@@ -549,7 +529,7 @@ jobs:
           fi
 
   analyze-results:
-    needs: [prepare-deployment, deploy-stack, deploy-ui, test-suite]
+    needs: [prepare-deployment, deploy-stack, test-suite]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -775,7 +755,7 @@ jobs:
           retention-days: 7
 
   post-to-pr:
-    needs: [prepare-deployment, deploy-ui, analyze-results]
+    needs: [prepare-deployment, analyze-results]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -964,20 +944,3 @@ jobs:
               body: body
             });
 
-  check-results:
-    needs: test-suite
-    if: always()
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-
-    steps:
-      - name: Check test results
-        run: |
-          echo "Checking test suite results..."
-          echo "Test suite job result: ${{ needs.test-suite.result }}"
-
-          if [ "${{ needs.test-suite.result }}" = "failure" ]; then
-            echo "One or more test suites failed"
-            exit 1
-          fi
-          echo "All test suites passed"

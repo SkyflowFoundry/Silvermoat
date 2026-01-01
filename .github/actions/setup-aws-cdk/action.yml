@@ -1,0 +1,26 @@
+name: Setup AWS CDK
+description: Install Node.js and set up AWS CDK
+
+inputs:
+  node-version:
+    description: 'Node.js version to install'
+    required: false
+    default: '20'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install AWS CDK
+      shell: bash
+      run: npm install -g aws-cdk
+
+    - name: Install CDK dependencies
+      shell: bash
+      run: |
+        cd cdk
+        pip install -r requirements.txt
