@@ -61,6 +61,17 @@ def api_client(api_base_url):
 
 
 @pytest.fixture
+def sample_customer_data():
+    """Sample customer data for testing"""
+    return {
+        "name": "Test Customer",
+        "email": "test.customer@example.com",
+        "address": "789 Test St, Austin, TX 78703",
+        "phone": "512-555-0100"
+    }
+
+
+@pytest.fixture
 def sample_quote_data():
     """Sample quote data for testing"""
     return {
@@ -125,6 +136,17 @@ def sample_case_data():
 
 
 # Self-contained test fixtures with automatic cleanup
+
+@pytest.fixture
+def created_customer(api_client, sample_customer_data):
+    """Create a customer for testing, clean up after."""
+    response = api_client.api_request('POST', '/customer', json=sample_customer_data)
+    assert response.status_code == 201, f"Failed to create test customer: {response.status_code}"
+    customer_id = response.json()['id']
+    yield customer_id
+    # Cleanup
+    api_client.api_request('DELETE', f'/customer/{customer_id}')
+
 
 @pytest.fixture
 def created_quote(api_client, sample_quote_data):

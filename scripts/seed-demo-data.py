@@ -18,16 +18,31 @@ customers = []
 quotes = []
 policies = []
 
-def generate_customers(count=50):
-    """Generate pool of customers for reuse across resources."""
-    print(f"Generating {count} customers...")
-    for _ in range(count):
-        customers.append({
+def seed_customers(count=50):
+    """Seed customer records to database."""
+    print(f"Seeding {count} customers...")
+    for i in range(count):
+        data = {
             "name": fake.name(),
             "email": fake.email(),
-            "address": fake.address().replace('\n', ', ')
+            "address": fake.address().replace('\n', ', '),
+            "phone": fake.phone_number()
+        }
+        response = requests.post(f"{API_BASE_URL}/customer", json=data, timeout=30)
+        response.raise_for_status()
+
+        # Store customer ID and data for quotes/policies
+        customer_id = response.json()['id']
+        customers.append({
+            "id": customer_id,
+            "name": data["name"],
+            "email": data["email"],
+            "address": data["address"]
         })
-    print(f"✓ Generated {count} customers")
+
+        if (i + 1) % 25 == 0:
+            print(f"  Created {i + 1}/{count} customers")
+    print(f"✓ Created {count} customers")
 
 def seed_quotes(count=150):
     """Seed quote records (avg 3 per customer, some customers get 1-5)."""
@@ -195,8 +210,8 @@ if __name__ == "__main__":
     try:
         print(f"Seeding demo data to {API_BASE_URL}\n")
 
-        # Generate customer pool first
-        generate_customers(50)
+        # Seed customers first
+        seed_customers(50)
         print()
 
         # Seed resources with realistic relationships
@@ -208,7 +223,7 @@ if __name__ == "__main__":
 
         total = 50 + 150 + 90 + 30 + 270 + 40
         print(f"\n✓ Seeding complete: {total} items created")
-        print(f"  - 50 customers (reused across resources)")
+        print(f"  - 50 customers")
         print(f"  - 150 quotes (avg 3 per customer)")
         print(f"  - 90 policies (60% quote conversion)")
         print(f"  - 30 claims (30% of policies)")
