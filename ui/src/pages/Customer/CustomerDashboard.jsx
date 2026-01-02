@@ -217,8 +217,8 @@ const CustomerDashboard = () => {
   ];
 
   return (
-    <div style={{ padding: '24px', background: '#f0f2f5', minHeight: '100vh' }}>
-      <Card style={{ marginBottom: 24 }}>
+    <div style={{ padding: '16px', background: '#f0f2f5', minHeight: '100vh' }}>
+      <Card style={{ marginBottom: 16 }}>
         <Row justify="space-between" align="middle">
           <Col>
             <Title level={3} style={{ marginBottom: 4 }}>
@@ -228,13 +228,13 @@ const CustomerDashboard = () => {
           </Col>
         </Row>
         {customer && (
-          <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <UserOutlined style={{ fontSize: 16, color: '#1890ff' }} />
             <Text strong>Viewing as:</Text>
             <Select
               value={customer.email}
               onChange={handleCustomerChange}
-              style={{ minWidth: 300 }}
+              style={{ minWidth: 200, maxWidth: '100%', flex: '1 1 auto' }}
               placeholder="Select a customer"
               loading={loading}
             >
@@ -249,7 +249,7 @@ const CustomerDashboard = () => {
         )}
       </Card>
 
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={8}>
           <Card>
             <Space direction="vertical" size="small">
@@ -309,6 +309,7 @@ const CustomerDashboard = () => {
                   dataSource={policies}
                   rowKey="id"
                   pagination={{ pageSize: 10 }}
+                  scroll={{ x: true }}
                 />
               ),
             },
@@ -340,6 +341,7 @@ const CustomerDashboard = () => {
                     dataSource={claims}
                     rowKey="id"
                     pagination={{ pageSize: 10 }}
+                    scroll={{ x: true }}
                   />
                 </div>
               ),
@@ -362,6 +364,7 @@ const CustomerDashboard = () => {
                   dataSource={payments}
                   rowKey="id"
                   pagination={{ pageSize: 10 }}
+                  scroll={{ x: true }}
                 />
               ),
             },
