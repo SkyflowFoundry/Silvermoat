@@ -99,7 +99,7 @@ const ClaimDetail = () => {
           </Descriptions.Item>
 
           <Descriptions.Item label="Claim Number">
-            {claim.data?.claimNumber || '-'}
+            {claim.data?.claimNumber || claim.id.substring(0, 8) + '...'}
           </Descriptions.Item>
 
           <Descriptions.Item label="Status">
@@ -114,7 +114,11 @@ const ClaimDetail = () => {
             {formatCurrency(claim.data?.amount)}
           </Descriptions.Item>
 
-          <Descriptions.Item label="Incident Date" span={2}>
+          <Descriptions.Item label="Loss Type">
+            {claim.data?.lossType?.replace(/_/g, ' ') || '-'}
+          </Descriptions.Item>
+
+          <Descriptions.Item label="Incident Date">
             {formatDate(claim.data?.incidentDate)}
           </Descriptions.Item>
 

@@ -81,7 +81,7 @@ const PolicyDetail = () => {
           </Descriptions.Item>
 
           <Descriptions.Item label="Status">
-            <StatusTag type="policy" value={policy.data?.status} />
+            <StatusTag type="policy" value={policy.status} />
           </Descriptions.Item>
 
           <Descriptions.Item label="Policy Holder">

@@ -61,7 +61,7 @@ const ClaimTable = ({ claims = [], loading = false }) => {
     },
     {
       title: 'Status',
-      dataIndex: ['data', 'status'],
+      dataIndex: 'status',
       key: 'status',
       width: 110,
       filters: [
@@ -70,7 +70,7 @@ const ClaimTable = ({ claims = [], loading = false }) => {
         { text: 'Approved', value: 'APPROVED' },
         { text: 'Denied', value: 'DENIED' },
       ],
-      onFilter: (value, record) => record.data?.status === value,
+      onFilter: (value, record) => record.status === value,
       render: (status) => <StatusTag type="claim" value={status} />,
     },
     {

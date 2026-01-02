@@ -79,12 +79,12 @@ def sample_customer_data():
 def sample_quote_data():
     """Sample quote data for testing (generated with Faker)"""
     return {
-        "customer_name": fake.name(),
-        "customer_email": fake.email(),
-        "property_address": fake.address().replace('\n', ', '),
-        "coverage_amount": fake.random_int(50000, 1000000, step=10000),
-        "property_type": fake.random_element(["single_family", "condo", "townhouse"]),
-        "year_built": fake.random_int(1950, 2024)
+        "customerName": fake.name(),
+        "customerEmail": fake.email(),
+        "propertyAddress": fake.address().replace('\n', ', '),
+        "coverageAmount": fake.random_int(50000, 1000000, step=10000),
+        "propertyType": fake.random_element(["SINGLE_FAMILY", "CONDO", "TOWNHOUSE"]),
+        "yearBuilt": fake.random_int(1950, 2024)
     }
 
 
@@ -94,14 +94,15 @@ def sample_policy_data():
     effective_date = fake.date_between(start_date='-1y', end_date='today')
     expiration_date = effective_date + timedelta(days=365)
     return {
-        "quote_id": f"quote-{fake.uuid4()}",
-        "customer_name": fake.name(),
-        "customer_email": fake.email(),
-        "property_address": fake.address().replace('\n', ', '),
-        "coverage_amount": fake.random_int(100000, 2000000, step=10000),
-        "premium_annual": round(fake.random_int(800, 5000, step=50) + fake.random.random(), 2),
-        "effective_date": effective_date.isoformat(),
-        "expiration_date": expiration_date.isoformat()
+        "quoteId": f"quote-{fake.uuid4()}",
+        "policyNumber": fake.bothify(text='POL-####-####'),
+        "holderName": fake.name(),
+        "holderEmail": fake.email(),
+        "propertyAddress": fake.address().replace('\n', ', '),
+        "coverageAmount": fake.random_int(100000, 2000000, step=10000),
+        "premium": round(fake.random_int(800, 5000, step=50) + fake.random.random(), 2),
+        "effectiveDate": effective_date.isoformat(),
+        "expirationDate": expiration_date.isoformat()
     }
 
 
@@ -109,11 +110,14 @@ def sample_policy_data():
 def sample_claim_data():
     """Sample claim data for testing (generated with Faker)"""
     return {
-        "policy_id": f"policy-{fake.uuid4()}",
-        "claim_type": fake.random_element(["water_damage", "fire", "theft", "liability"]),
+        "policyId": f"policy-{fake.uuid4()}",
+        "claimNumber": fake.bothify(text='CLM-####-####'),
+        "claimantName": fake.name(),
+        "lossType": fake.random_element(["WATER_DAMAGE", "FIRE", "THEFT", "LIABILITY"]),
         "description": fake.text(max_nb_chars=200),
-        "claim_amount": fake.random_int(1000, 100000, step=1000),
-        "date_of_loss": fake.date_between(start_date='-1y', end_date='today').isoformat()
+        "amount": fake.random_int(1000, 100000, step=1000),
+        "estimatedAmount_cents": fake.random_int(1000, 100000, step=1000) * 100,
+        "incidentDate": fake.date_between(start_date='-1y', end_date='today').isoformat()
     }
 
 
@@ -121,10 +125,10 @@ def sample_claim_data():
 def sample_payment_data():
     """Sample payment data for testing (generated with Faker)"""
     return {
-        "policy_id": f"policy-{fake.uuid4()}",
+        "policyId": f"policy-{fake.uuid4()}",
         "amount": round(fake.random_int(200, 1500, step=50) + fake.random.random(), 2),
-        "payment_method": fake.random_element(["credit_card", "bank_transfer", "check"]),
-        "card_last_four": fake.numerify(text="####")
+        "paymentMethod": fake.random_element(["CREDIT_CARD", "BANK_TRANSFER", "CHECK"]),
+        "cardLastFour": fake.numerify(text="####")
     }
 
 
