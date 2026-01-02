@@ -3,6 +3,7 @@
 import os
 import sys
 import requests
+from datetime import date
 from faker import Faker
 
 API_BASE_URL = os.environ.get('API_BASE_URL', '').rstrip('/')
@@ -102,11 +103,18 @@ def seed_claims(count=30):
         # Reference actual policy
         policy = fake.random_element(policies)
 
-        # Loss date should be during policy period
-        loss_date = fake.date_between(
-            start_date=policy["effective_date"],
-            end_date=min(policy["expiration_date"], fake.date_object())
-        )
+        # Loss date should be during policy period (but not in the future)
+        today = date.today()
+        end_date = min(policy["expiration_date"], today)
+
+        # If policy is brand new (effective_date >= today), use effective_date as loss date
+        if policy["effective_date"] >= end_date:
+            loss_date = policy["effective_date"]
+        else:
+            loss_date = fake.date_between(
+                start_date=policy["effective_date"],
+                end_date=end_date
+            )
 
         data = {
             "policy_id": policy["id"],
