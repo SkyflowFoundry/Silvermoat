@@ -17,18 +17,21 @@ import {
   Space,
   message,
   Spin,
+  Select,
 } from 'antd';
 import {
   SafetyOutlined,
   FileTextOutlined,
   DollarOutlined,
   PlusOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import {
   getCustomerPolicies,
   getCustomerClaims,
   getCustomerPayments,
   getDefaultCustomer,
+  getAvailableCustomers,
 } from '../../services/customer';
 import { formatCurrency, formatDate } from '../../utils/format';
 
@@ -49,36 +52,61 @@ const getStatusColor = (status) => {
 const CustomerDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [customer, setCustomer] = useState(null);
+  const [availableCustomers, setAvailableCustomers] = useState([]);
   const [policies, setPolicies] = useState([]);
   const [claims, setClaims] = useState([]);
   const [payments, setPayments] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
-    loadCustomerData();
+    loadInitialData();
   }, []);
 
-  const loadCustomerData = async () => {
+  const loadInitialData = async () => {
     setLoading(true);
     try {
-      // Get default demo customer
-      const customerInfo = await getDefaultCustomer();
-      setCustomer(customerInfo);
+      // Get all available customers
+      const customers = await getAvailableCustomers();
+      setAvailableCustomers(customers);
 
+      // Set default customer and load their data
+      if (customers.length > 0) {
+        const defaultCustomer = customers[0];
+        setCustomer(defaultCustomer);
+        await loadCustomerData(defaultCustomer.email);
+      }
+    } catch (error) {
+      message.error('Failed to load customer data');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadCustomerData = async (email) => {
+    try {
       // Load all customer data filtered by email
       const [policiesRes, claimsRes, paymentsRes] = await Promise.all([
-        getCustomerPolicies(customerInfo.email),
-        getCustomerClaims(customerInfo.email),
-        getCustomerPayments(customerInfo.email),
+        getCustomerPolicies(email),
+        getCustomerClaims(email),
+        getCustomerPayments(email),
       ]);
 
       setPolicies(policiesRes.policies || []);
       setClaims(claimsRes.claims || []);
       setPayments(paymentsRes.payments || []);
     } catch (error) {
-      message.error('Failed to load your information');
+      message.error('Failed to load customer information');
       console.error(error);
-    } finally {
+    }
+  };
+
+  const handleCustomerChange = async (email) => {
+    const selectedCustomer = availableCustomers.find(c => c.email === email);
+    if (selectedCustomer) {
+      setCustomer(selectedCustomer);
+      setLoading(true);
+      await loadCustomerData(email);
       setLoading(false);
     }
   };
@@ -197,15 +225,28 @@ const CustomerDashboard = () => {
               Customer Portal
             </Title>
             <Text type="secondary">Manage your policies, claims, and payments</Text>
-            {customer && (
-              <div style={{ marginTop: 8 }}>
-                <Tag color="blue">
-                  Viewing as: {customer.name} ({customer.email})
-                </Tag>
-              </div>
-            )}
           </Col>
         </Row>
+        {customer && (
+          <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <UserOutlined style={{ fontSize: 16, color: '#1890ff' }} />
+            <Text strong>Viewing as:</Text>
+            <Select
+              value={customer.email}
+              onChange={handleCustomerChange}
+              style={{ minWidth: 300 }}
+              placeholder="Select a customer"
+              loading={loading}
+            >
+              {availableCustomers.map(c => (
+                <Select.Option key={c.email} value={c.email}>
+                  {c.name} ({c.email})
+                </Select.Option>
+              ))}
+            </Select>
+            <Tag color="blue">{policies.length} policies</Tag>
+          </div>
+        )}
       </Card>
 
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>

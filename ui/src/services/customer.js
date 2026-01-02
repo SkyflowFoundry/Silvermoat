@@ -95,24 +95,39 @@ export const getCustomerPayments = async (customerEmail) => {
 };
 
 /**
+ * Get all available customers from seeded data
+ * @returns {Promise<Array>} - Array of customer info objects
+ */
+export const getAvailableCustomers = async () => {
+  const response = await api.get('/policy');
+
+  if (!response.items || response.items.length === 0) {
+    return [{
+      name: 'Demo Customer',
+      email: 'demo@example.com',
+    }];
+  }
+
+  // Extract unique customers from policies
+  const customersMap = new Map();
+  response.items.forEach(policy => {
+    const email = policy.data?.customer_email;
+    if (email && !customersMap.has(email)) {
+      customersMap.set(email, {
+        name: policy.data?.customer_name || 'Unknown',
+        email: email,
+      });
+    }
+  });
+
+  return Array.from(customersMap.values());
+};
+
+/**
  * Get a default demo customer from seeded data
  * @returns {Promise<Object>} - Customer info (name, email)
  */
 export const getDefaultCustomer = async () => {
-  // Get first policy to extract customer info
-  const response = await api.get('/policy');
-
-  if (response.items && response.items.length > 0) {
-    const firstPolicy = response.items[0];
-    return {
-      name: firstPolicy.data?.customer_name || 'Demo Customer',
-      email: firstPolicy.data?.customer_email || 'demo@example.com',
-    };
-  }
-
-  // Fallback if no data
-  return {
-    name: 'Demo Customer',
-    email: 'demo@example.com',
-  };
+  const customers = await getAvailableCustomers();
+  return customers[0];
 };
