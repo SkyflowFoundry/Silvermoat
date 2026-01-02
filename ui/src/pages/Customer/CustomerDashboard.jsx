@@ -28,6 +28,7 @@ import {
   getCustomerPolicies,
   getCustomerClaims,
   getCustomerPayments,
+  getDefaultCustomer,
 } from '../../services/customer';
 import { formatCurrency, formatDate } from '../../utils/format';
 
@@ -47,6 +48,7 @@ const getStatusColor = (status) => {
 
 const CustomerDashboard = () => {
   const [loading, setLoading] = useState(true);
+  const [customer, setCustomer] = useState(null);
   const [policies, setPolicies] = useState([]);
   const [claims, setClaims] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -59,11 +61,15 @@ const CustomerDashboard = () => {
   const loadCustomerData = async () => {
     setLoading(true);
     try {
-      // Load all customer data (no auth required for demo)
+      // Get default demo customer
+      const customerInfo = await getDefaultCustomer();
+      setCustomer(customerInfo);
+
+      // Load all customer data filtered by email
       const [policiesRes, claimsRes, paymentsRes] = await Promise.all([
-        getCustomerPolicies(),
-        getCustomerClaims(),
-        getCustomerPayments(),
+        getCustomerPolicies(customerInfo.email),
+        getCustomerClaims(customerInfo.email),
+        getCustomerPayments(customerInfo.email),
       ]);
 
       setPolicies(policiesRes.policies || []);
@@ -79,30 +85,38 @@ const CustomerDashboard = () => {
 
   const policyColumns = [
     {
-      title: 'Policy Number',
-      dataIndex: ['data', 'policyNumber'],
-      key: 'policyNumber',
+      title: 'Policy ID',
+      dataIndex: 'id',
+      key: 'id',
+      render: (id) => id.substring(0, 12) + '...',
     },
     {
-      title: 'Type',
-      dataIndex: ['data', 'coverageType'],
-      key: 'coverageType',
+      title: 'Coverage',
+      dataIndex: ['data', 'coverage_amount'],
+      key: 'coverage',
+      render: (amount) => formatCurrency(amount * 100),
     },
     {
       title: 'Premium',
-      dataIndex: ['data', 'premium_cents'],
+      dataIndex: ['data', 'premium_annual'],
       key: 'premium',
-      render: (cents) => formatCurrency(cents),
+      render: (amount) => formatCurrency(amount * 100),
     },
     {
       title: 'Effective Date',
-      dataIndex: ['data', 'effectiveDate'],
-      key: 'effectiveDate',
+      dataIndex: ['data', 'effective_date'],
+      key: 'effective_date',
+      render: (date) => formatDate(date),
+    },
+    {
+      title: 'Expiration Date',
+      dataIndex: ['data', 'expiration_date'],
+      key: 'expiration_date',
       render: (date) => formatDate(date),
     },
     {
       title: 'Status',
-      dataIndex: ['data', 'status'],
+      dataIndex: 'status',
       key: 'status',
       render: (status) => <Tag color={getStatusColor(status)}>{status}</Tag>,
     },
@@ -110,27 +124,28 @@ const CustomerDashboard = () => {
 
   const claimColumns = [
     {
-      title: 'Claim Number',
-      dataIndex: ['data', 'claimNumber'],
-      key: 'claimNumber',
+      title: 'Claim ID',
+      dataIndex: 'id',
+      key: 'id',
+      render: (id) => id.substring(0, 12) + '...',
     },
     {
       title: 'Type',
-      dataIndex: ['data', 'lossType'],
-      key: 'lossType',
-      render: (type) => type?.replace(/_/g, ' '),
+      dataIndex: ['data', 'claim_type'],
+      key: 'claim_type',
+      render: (type) => type?.replace(/_/g, ' ').toUpperCase(),
     },
     {
-      title: 'Incident Date',
-      dataIndex: ['data', 'incidentDate'],
-      key: 'incidentDate',
+      title: 'Date of Loss',
+      dataIndex: ['data', 'date_of_loss'],
+      key: 'date_of_loss',
       render: (date) => formatDate(date),
     },
     {
       title: 'Amount',
-      dataIndex: ['data', 'estimatedAmount_cents'],
-      key: 'amount',
-      render: (cents) => formatCurrency(cents),
+      dataIndex: ['data', 'claim_amount'],
+      key: 'claim_amount',
+      render: (amount) => formatCurrency(amount * 100),
     },
     {
       title: 'Status',
@@ -142,31 +157,32 @@ const CustomerDashboard = () => {
 
   const paymentColumns = [
     {
-      title: 'Payment Number',
-      dataIndex: ['data', 'paymentNumber'],
-      key: 'paymentNumber',
+      title: 'Payment ID',
+      dataIndex: 'id',
+      key: 'id',
+      render: (id) => id.substring(0, 12) + '...',
     },
     {
       title: 'Amount',
-      dataIndex: ['data', 'amount_cents'],
+      dataIndex: ['data', 'amount'],
       key: 'amount',
-      render: (cents) => formatCurrency(cents),
+      render: (amount) => formatCurrency(amount * 100),
     },
     {
       title: 'Method',
-      dataIndex: ['data', 'paymentMethod'],
-      key: 'method',
-      render: (method) => method?.replace(/_/g, ' '),
+      dataIndex: ['data', 'payment_method'],
+      key: 'payment_method',
+      render: (method) => method?.replace(/_/g, ' ').toUpperCase(),
     },
     {
-      title: 'Date',
-      dataIndex: ['data', 'paidDate'],
-      key: 'date',
-      render: (date) => formatDate(date) || 'Pending',
+      title: 'Card Last 4',
+      dataIndex: ['data', 'card_last_four'],
+      key: 'card_last_four',
+      render: (last4) => last4 ? `•••• ${last4}` : 'N/A',
     },
     {
       title: 'Status',
-      dataIndex: ['data', 'status'],
+      dataIndex: 'status',
       key: 'status',
       render: (status) => <Tag color={getStatusColor(status)}>{status}</Tag>,
     },
@@ -181,6 +197,13 @@ const CustomerDashboard = () => {
               Customer Portal
             </Title>
             <Text type="secondary">Manage your policies, claims, and payments</Text>
+            {customer && (
+              <div style={{ marginTop: 8 }}>
+                <Tag color="blue">
+                  Viewing as: {customer.name} ({customer.email})
+                </Tag>
+              </div>
+            )}
           </Col>
         </Row>
       </Card>
@@ -192,7 +215,7 @@ const CustomerDashboard = () => {
               <SafetyOutlined style={{ fontSize: 24, color: '#1890ff' }} />
               <Text type="secondary">Active Policies</Text>
               <Title level={2} style={{ margin: 0 }}>
-                {policies.filter(p => p.data?.status === 'ACTIVE').length}
+                {policies.filter(p => p.status === 'ACTIVE').length}
               </Title>
             </Space>
           </Card>
@@ -201,9 +224,9 @@ const CustomerDashboard = () => {
           <Card>
             <Space direction="vertical" size="small">
               <FileTextOutlined style={{ fontSize: 24, color: '#52c41a' }} />
-              <Text type="secondary">Open Claims</Text>
+              <Text type="secondary">Total Claims</Text>
               <Title level={2} style={{ margin: 0 }}>
-                {claims.filter(c => ['PENDING', 'REVIEW'].includes(c.status)).length}
+                {claims.length}
               </Title>
             </Space>
           </Card>
@@ -215,9 +238,7 @@ const CustomerDashboard = () => {
               <Text type="secondary">Total Payments</Text>
               <Title level={2} style={{ margin: 0 }}>
                 {formatCurrency(
-                  payments
-                    .filter(p => p.data?.status === 'COMPLETED')
-                    .reduce((sum, p) => sum + (p.data?.amount_cents || 0), 0)
+                  payments.reduce((sum, p) => sum + ((p.data?.amount || 0) * 100), 0)
                 )}
               </Title>
             </Space>
