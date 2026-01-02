@@ -38,10 +38,10 @@ def test_get_quote_by_id(api_client, created_quote):
 
     # Validate quote structure (data is nested under 'data' key)
     assert quote['id'] == created_quote
-    assert 'customer_name' in quote['data']
-    assert 'customer_email' in quote['data']
-    assert 'property_address' in quote['data']
-    assert 'coverage_amount' in quote['data']
+    assert 'customerName' in quote['data']
+    assert 'customerEmail' in quote['data']
+    assert 'propertyAddress' in quote['data']
+    assert 'coverageAmount' in quote['data']
 
 
 @pytest.mark.api
@@ -65,10 +65,10 @@ def test_quote_data_persistence(api_client, created_quote, sample_quote_data):
     quote = get_response.json()
 
     # Verify data matches what was submitted (data is nested under 'data' key)
-    assert quote['data']['customer_name'] == sample_quote_data['customer_name']
-    assert quote['data']['customer_email'] == sample_quote_data['customer_email']
-    assert quote['data']['property_address'] == sample_quote_data['property_address']
-    assert quote['data']['coverage_amount'] == sample_quote_data['coverage_amount']
+    assert quote['data']['customerName'] == sample_quote_data['customerName']
+    assert quote['data']['customerEmail'] == sample_quote_data['customerEmail']
+    assert quote['data']['propertyAddress'] == sample_quote_data['propertyAddress']
+    assert quote['data']['coverageAmount'] == sample_quote_data['coverageAmount']
 
 
 @pytest.mark.api

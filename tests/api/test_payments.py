@@ -35,10 +35,10 @@ def test_get_payment_by_id(api_client, created_payment):
 
     # Validate payment structure (data is nested under 'data' key)
     assert payment['id'] == created_payment
-    assert 'policy_id' in payment['data']
+    assert 'policyId' in payment['data']
     assert 'amount' in payment['data']
-    # Status may be at top level or in data
-    assert 'status' in payment or 'status' in payment.get('data', {})
+    # Status is at top level
+    assert 'status' in payment
 
 
 @pytest.mark.api

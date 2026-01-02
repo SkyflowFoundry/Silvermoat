@@ -35,9 +35,9 @@ def test_get_claim_by_id(api_client, created_claim):
 
     # Validate claim structure (data is nested under 'data' key)
     assert claim['id'] == created_claim
-    assert 'policy_id' in claim['data']
-    assert 'claim_type' in claim['data']
-    assert 'status' in claim or 'status' in claim.get('data', {})
+    assert 'policyId' in claim['data']
+    assert 'lossType' in claim['data']
+    assert 'status' in claim
 
 
 @pytest.mark.api
