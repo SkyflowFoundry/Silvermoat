@@ -6,7 +6,6 @@ from .storage_stack import StorageStack
 from .compute_stack import ComputeStack
 from .api_stack import ApiStack
 from .frontend_stack import FrontendStack
-from custom_constructs.seeder_custom_resource import SeederCustomResource
 
 
 class SilvermoatStack(Stack):
@@ -50,15 +49,6 @@ class SilvermoatStack(Stack):
             storage.ui_bucket,
             config.domain_name,
             config.create_cloudfront,
-        )
-
-        # Custom resources for seeding and cleanup
-        seeder = SeederCustomResource(
-            self,
-            "Seeder",
-            compute.seeder_function,
-            config.ui_seeding_mode,
-            api.api_url,
         )
 
         # Top-level outputs (used by scripts)
@@ -151,12 +141,6 @@ class SilvermoatStack(Stack):
             "MvpServiceFunctionName",
             value=compute.mvp_function.function_name,
             export_name=f"{self.stack_name}-MvpServiceFunctionName",
-        )
-        CfnOutput(
-            self,
-            "SeederFunctionArn",
-            value=compute.seeder_function.function_arn,
-            export_name=f"{self.stack_name}-SeederFunctionArn",
         )
 
         # Frontend Stack outputs (conditional)

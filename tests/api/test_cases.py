@@ -24,21 +24,16 @@ def test_create_case_success(api_client, sample_case_data):
 
 @pytest.mark.api
 @pytest.mark.cases
-def test_get_case_by_id(api_client, sample_case_data):
-    """Test that created case can be retrieved by ID"""
-    # Create a case first
-    create_response = api_client.api_request('POST', '/case', json=sample_case_data)
-    assert create_response.status_code == 201
-    case_id = create_response.json()['id']
-
+def test_get_case_by_id(api_client, created_case):
+    """Test that created case can be retrieved by ID (self-contained with cleanup)"""
     # Retrieve the case
-    get_response = api_client.api_request('GET', f'/case/{case_id}')
+    get_response = api_client.api_request('GET', f'/case/{created_case}')
 
     assert get_response.status_code == 200, f"Expected 200, got {get_response.status_code}"
     case = get_response.json()
 
     # Validate case structure (data is nested under 'data' key)
-    assert case['id'] == case_id
+    assert case['id'] == created_case
     assert 'title' in case['data']
     assert 'description' in case['data']
     assert 'relatedEntityType' in case['data']
@@ -62,15 +57,10 @@ def test_get_case_not_found(api_client):
 
 @pytest.mark.api
 @pytest.mark.cases
-def test_case_data_persistence(api_client, sample_case_data):
-    """Test that case data persists correctly (create then retrieve)"""
-    # Create case
-    create_response = api_client.api_request('POST', '/case', json=sample_case_data)
-    assert create_response.status_code == 201
-    case_id = create_response.json()['id']
-
+def test_case_data_persistence(api_client, created_case, sample_case_data):
+    """Test that case data persists correctly (self-contained with cleanup)"""
     # Retrieve case
-    get_response = api_client.api_request('GET', f'/case/{case_id}')
+    get_response = api_client.api_request('GET', f'/case/{created_case}')
     assert get_response.status_code == 200
     case = get_response.json()
 

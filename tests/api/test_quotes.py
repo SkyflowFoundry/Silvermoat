@@ -25,21 +25,16 @@ def test_create_quote_success(api_client, sample_quote_data):
 
 @pytest.mark.api
 @pytest.mark.quotes
-def test_get_quote_by_id(api_client, sample_quote_data):
-    """Test that created quote can be retrieved by ID"""
-    # Create a quote first
-    create_response = api_client.api_request('POST', '/quote', json=sample_quote_data)
-    assert create_response.status_code == 201
-    quote_id = create_response.json()['id']
-
+def test_get_quote_by_id(api_client, created_quote):
+    """Test that created quote can be retrieved by ID (self-contained with cleanup)"""
     # Retrieve the quote
-    get_response = api_client.api_request('GET', f'/quote/{quote_id}')
+    get_response = api_client.api_request('GET', f'/quote/{created_quote}')
 
     assert get_response.status_code == 200, f"Expected 200, got {get_response.status_code}"
     quote = get_response.json()
 
     # Validate quote structure (data is nested under 'data' key)
-    assert quote['id'] == quote_id
+    assert quote['id'] == created_quote
     assert 'customer_name' in quote['data']
     assert 'customer_email' in quote['data']
     assert 'property_address' in quote['data']
@@ -59,15 +54,10 @@ def test_get_quote_not_found(api_client):
 
 @pytest.mark.api
 @pytest.mark.quotes
-def test_quote_data_persistence(api_client, sample_quote_data):
-    """Test that quote data persists correctly (create then retrieve)"""
-    # Create quote
-    create_response = api_client.api_request('POST', '/quote', json=sample_quote_data)
-    assert create_response.status_code == 201
-    quote_id = create_response.json()['id']
-
+def test_quote_data_persistence(api_client, created_quote, sample_quote_data):
+    """Test that quote data persists correctly (self-contained with cleanup)"""
     # Retrieve quote
-    get_response = api_client.api_request('GET', f'/quote/{quote_id}')
+    get_response = api_client.api_request('GET', f'/quote/{created_quote}')
     assert get_response.status_code == 200
     quote = get_response.json()
 
@@ -93,8 +83,8 @@ def test_quote_cors_headers(api_client, sample_quote_data):
 @pytest.mark.api
 @pytest.mark.quotes
 def test_delete_quote_success(api_client, sample_quote_data):
-    """Test that quote can be deleted successfully"""
-    # Create a quote first
+    """Test that quote can be deleted successfully (creates own data)"""
+    # Create a quote
     create_response = api_client.api_request('POST', '/quote', json=sample_quote_data)
     assert create_response.status_code == 201
     quote_id = create_response.json()['id']

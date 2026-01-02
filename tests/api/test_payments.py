@@ -22,21 +22,16 @@ def test_create_payment_success(api_client, sample_payment_data):
 
 @pytest.mark.api
 @pytest.mark.payments
-def test_get_payment_by_id(api_client, sample_payment_data):
-    """Test that created payment can be retrieved by ID"""
-    # Create payment
-    create_response = api_client.api_request('POST', '/payment', json=sample_payment_data)
-    assert create_response.status_code == 201
-    payment_id = create_response.json()['id']
-
+def test_get_payment_by_id(api_client, created_payment):
+    """Test that created payment can be retrieved by ID (self-contained with cleanup)"""
     # Retrieve payment
-    get_response = api_client.api_request('GET', f'/payment/{payment_id}')
+    get_response = api_client.api_request('GET', f'/payment/{created_payment}')
 
     assert get_response.status_code == 200
     payment = get_response.json()
 
     # Validate payment structure (data is nested under 'data' key)
-    assert payment['id'] == payment_id
+    assert payment['id'] == created_payment
     assert 'policy_id' in payment['data']
     assert 'amount' in payment['data']
     # Status may be at top level or in data

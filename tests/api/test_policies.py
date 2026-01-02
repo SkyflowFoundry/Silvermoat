@@ -22,21 +22,16 @@ def test_create_policy_success(api_client, sample_policy_data):
 
 @pytest.mark.api
 @pytest.mark.policies
-def test_get_policy_by_id(api_client, sample_policy_data):
-    """Test that created policy can be retrieved by ID"""
-    # Create policy
-    create_response = api_client.api_request('POST', '/policy', json=sample_policy_data)
-    assert create_response.status_code == 201
-    policy_id = create_response.json()['id']
-
+def test_get_policy_by_id(api_client, created_policy):
+    """Test that created policy can be retrieved by ID (self-contained with cleanup)"""
     # Retrieve policy
-    get_response = api_client.api_request('GET', f'/policy/{policy_id}')
+    get_response = api_client.api_request('GET', f'/policy/{created_policy}')
 
     assert get_response.status_code == 200
     policy = get_response.json()
 
     # Validate policy structure (data is nested under 'data' key)
-    assert policy['id'] == policy_id
+    assert policy['id'] == created_policy
     assert 'customer_name' in policy['data']
     assert 'coverage_amount' in policy['data']
     # Status may be at top level or in data
@@ -54,15 +49,10 @@ def test_get_policy_not_found(api_client):
 
 @pytest.mark.api
 @pytest.mark.policies
-def test_policy_status_field(api_client, sample_policy_data):
-    """Test that policy includes status field"""
-    # Create policy
-    create_response = api_client.api_request('POST', '/policy', json=sample_policy_data)
-    assert create_response.status_code == 201
-    policy_id = create_response.json()['id']
-
+def test_policy_status_field(api_client, created_policy):
+    """Test that policy includes status field (self-contained with cleanup)"""
     # Retrieve policy
-    get_response = api_client.api_request('GET', f'/policy/{policy_id}')
+    get_response = api_client.api_request('GET', f'/policy/{created_policy}')
     policy = get_response.json()
 
     # Status should be present and valid (may be at top level or in data)

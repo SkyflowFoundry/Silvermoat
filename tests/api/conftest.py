@@ -124,6 +124,63 @@ def sample_case_data():
     }
 
 
+# Self-contained test fixtures with automatic cleanup
+
+@pytest.fixture
+def created_quote(api_client, sample_quote_data):
+    """Create a quote for testing, clean up after."""
+    response = api_client.api_request('POST', '/quote', json=sample_quote_data)
+    assert response.status_code == 201, f"Failed to create test quote: {response.status_code}"
+    quote_id = response.json()['id']
+    yield quote_id
+    # Cleanup
+    api_client.api_request('DELETE', f'/quote/{quote_id}')
+
+
+@pytest.fixture
+def created_policy(api_client, sample_policy_data):
+    """Create a policy for testing, clean up after."""
+    response = api_client.api_request('POST', '/policy', json=sample_policy_data)
+    assert response.status_code == 201, f"Failed to create test policy: {response.status_code}"
+    policy_id = response.json()['id']
+    yield policy_id
+    # Cleanup
+    api_client.api_request('DELETE', f'/policy/{policy_id}')
+
+
+@pytest.fixture
+def created_claim(api_client, sample_claim_data):
+    """Create a claim for testing, clean up after."""
+    response = api_client.api_request('POST', '/claim', json=sample_claim_data)
+    assert response.status_code == 201, f"Failed to create test claim: {response.status_code}"
+    claim_id = response.json()['id']
+    yield claim_id
+    # Cleanup
+    api_client.api_request('DELETE', f'/claim/{claim_id}')
+
+
+@pytest.fixture
+def created_payment(api_client, sample_payment_data):
+    """Create a payment for testing, clean up after."""
+    response = api_client.api_request('POST', '/payment', json=sample_payment_data)
+    assert response.status_code == 201, f"Failed to create test payment: {response.status_code}"
+    payment_id = response.json()['id']
+    yield payment_id
+    # Cleanup
+    api_client.api_request('DELETE', f'/payment/{payment_id}')
+
+
+@pytest.fixture
+def created_case(api_client, sample_case_data):
+    """Create a case for testing, clean up after."""
+    response = api_client.api_request('POST', '/case', json=sample_case_data)
+    assert response.status_code == 201, f"Failed to create test case: {response.status_code}"
+    case_id = response.json()['id']
+    yield case_id
+    # Cleanup
+    api_client.api_request('DELETE', f'/case/{case_id}')
+
+
 def pytest_collection_modifyitems(config, items):
     """
     Automatically mark negative tests as xfail.
