@@ -231,7 +231,7 @@ export const uploadClaimDocument = async (claimId, text) => {
 
 /**
  * Generic POST request
- * @param {string} path - API path (e.g., '/customer/auth')
+ * @param {string} path - API path (e.g., '/quote', '/claim')
  * @param {object} data - Request body
  * @returns {Promise<object>} Response data
  */
