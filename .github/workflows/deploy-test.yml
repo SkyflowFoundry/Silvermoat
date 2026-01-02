@@ -402,7 +402,7 @@ jobs:
           echo "API URL: ${API_URL}"
           echo "Web URL: ${WEB_URL}"
 
-  seed-data:
+  clear-and-seed-data:
     needs: [deploy-stack, deploy-ui]
     if: |
       always() &&
@@ -415,22 +415,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Clear and seed demo data
+        uses: ./.github/actions/clear-and-seed-data
         with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: pip install faker==40.1.0 requests
-
-      - name: Seed demo data
-        run: python scripts/seed-demo-data.py
-        env:
-          API_BASE_URL: ${{ needs.deploy-ui.outputs.api_url }}
+          api-base-url: ${{ needs.deploy-ui.outputs.api_url }}
 
   test-suite:
-    needs: [deploy-stack, deploy-ui, seed-data]
-    if: always() && needs.deploy-ui.result == 'success' && needs.seed-data.result == 'success'
+    needs: [deploy-stack, deploy-ui, clear-and-seed-data]
+    if: always() && needs.deploy-ui.result == 'success' && needs.clear-and-seed-data.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
