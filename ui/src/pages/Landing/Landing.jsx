@@ -71,6 +71,7 @@ const Landing = () => {
           <Col xs={24} sm={24} md={12}>
             <Card
               hoverable
+              onClick={() => navigate('/customer/dashboard')}
               style={{
                 minHeight: 456,
                 boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
@@ -79,6 +80,7 @@ const Landing = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                cursor: 'pointer',
               }}
               bodyStyle={{
                 display: 'flex',
@@ -160,6 +162,7 @@ const Landing = () => {
           <Col xs={24} sm={24} md={12}>
             <Card
               hoverable
+              onClick={() => navigate('/dashboard')}
               style={{
                 minHeight: 456,
                 boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
@@ -168,6 +171,7 @@ const Landing = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                cursor: 'pointer',
               }}
               bodyStyle={{
                 display: 'flex',
