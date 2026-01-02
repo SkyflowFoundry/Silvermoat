@@ -22,6 +22,9 @@ def test_create_quote_success(api_client, sample_quote_data):
     assert isinstance(data['id'], str), "Quote ID should be a string"
     assert len(data['id']) > 0, "Quote ID should not be empty"
 
+    # Cleanup
+    api_client.api_request('DELETE', f'/quote/{data["id"]}')
+
 
 @pytest.mark.api
 @pytest.mark.quotes
@@ -76,6 +79,10 @@ def test_quote_cors_headers(api_client, sample_quote_data):
 
     # Should have CORS headers in actual responses
     assert 'Access-Control-Allow-Origin' in response.headers, "Missing CORS origin header"
+
+    # Cleanup
+    if response.status_code == 201:
+        api_client.api_request('DELETE', f'/quote/{response.json()["id"]}')
 
 
 # DELETE Tests

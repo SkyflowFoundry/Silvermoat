@@ -19,6 +19,9 @@ def test_create_payment_success(api_client, sample_payment_data):
     assert 'id' in data, "Response should contain payment ID"
     assert isinstance(data['id'], str), "Payment ID should be a string"
 
+    # Cleanup
+    api_client.api_request('DELETE', f'/payment/{data["id"]}')
+
 
 @pytest.mark.api
 @pytest.mark.payments
@@ -52,6 +55,9 @@ def test_payment_includes_confirmation(api_client, sample_payment_data):
     assert 'item' in data
     # Payment was successfully created (existence of ID is confirmation)
     assert isinstance(data['id'], str)
+
+    # Cleanup
+    api_client.api_request('DELETE', f'/payment/{data["id"]}')
 
 
 @pytest.mark.api

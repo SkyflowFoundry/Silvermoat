@@ -21,6 +21,9 @@ def test_create_case_success(api_client, sample_case_data):
     assert isinstance(data['id'], str), "Case ID should be a string"
     assert len(data['id']) > 0, "Case ID should not be empty"
 
+    # Cleanup
+    api_client.api_request('DELETE', f'/case/{data["id"]}')
+
 
 @pytest.mark.api
 @pytest.mark.cases
@@ -83,14 +86,18 @@ def test_case_default_status(api_client, sample_case_data):
     data = response.json()
     case_id = data['id']
 
-    # Retrieve to verify status
-    get_response = api_client.api_request('GET', f'/case/{case_id}')
-    assert get_response.status_code == 200
-    case = get_response.json()
+    try:
+        # Retrieve to verify status
+        get_response = api_client.api_request('GET', f'/case/{case_id}')
+        assert get_response.status_code == 200
+        case = get_response.json()
 
-    # Default status should be OPEN (from Lambda line 387)
-    status = case.get('status') or case.get('data', {}).get('status')
-    assert status == 'OPEN', f"Default status should be OPEN, got {status}"
+        # Default status should be OPEN (from Lambda line 387)
+        status = case.get('status') or case.get('data', {}).get('status')
+        assert status == 'OPEN', f"Default status should be OPEN, got {status}"
+    finally:
+        # Cleanup
+        api_client.api_request('DELETE', f'/case/{case_id}')
 
 
 @pytest.mark.api
@@ -101,6 +108,10 @@ def test_case_cors_headers(api_client, sample_case_data):
 
     # Should have CORS headers in actual responses
     assert 'Access-Control-Allow-Origin' in response.headers, "Missing CORS origin header"
+
+    # Cleanup
+    if response.status_code == 201:
+        api_client.api_request('DELETE', f'/case/{response.json()["id"]}')
 
 
 # DELETE Tests

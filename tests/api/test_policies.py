@@ -19,6 +19,9 @@ def test_create_policy_success(api_client, sample_policy_data):
     assert 'id' in data, "Response should contain policy ID"
     assert isinstance(data['id'], str), "Policy ID should be a string"
 
+    # Cleanup
+    api_client.api_request('DELETE', f'/policy/{data["id"]}')
+
 
 @pytest.mark.api
 @pytest.mark.policies
