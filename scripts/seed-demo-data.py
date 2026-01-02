@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seed demo data using Faker library v40.1.0."""
+"""Seed demo data using Faker library v40.1.0 with realistic customer relationships."""
 import os
 import sys
 import requests
@@ -12,58 +12,108 @@ if not API_BASE_URL:
 
 fake = Faker()
 
-def seed_quotes(count=100):
-    """Seed quote records."""
+# Global storage for created resources to maintain relationships
+customers = []
+quotes = []
+policies = []
+
+def generate_customers(count=50):
+    """Generate pool of customers for reuse across resources."""
+    print(f"Generating {count} customers...")
+    for _ in range(count):
+        customers.append({
+            "name": fake.name(),
+            "email": fake.email(),
+            "address": fake.address().replace('\n', ', ')
+        })
+    print(f"✓ Generated {count} customers")
+
+def seed_quotes(count=150):
+    """Seed quote records (avg 3 per customer, some customers get 1-5)."""
     print(f"Seeding {count} quotes...")
     for i in range(count):
+        # Reuse customer from pool
+        customer = fake.random_element(customers)
+
         data = {
-            "customer_name": fake.name(),
-            "customer_email": fake.email(),
-            "property_address": fake.address().replace('\n', ', '),
+            "customer_name": customer["name"],
+            "customer_email": customer["email"],
+            "property_address": customer["address"],
             "coverage_amount": fake.random_int(50000, 1000000, step=10000),
             "property_type": fake.random_element(["single_family", "condo", "townhouse"]),
             "year_built": fake.random_int(1950, 2024)
         }
         response = requests.post(f"{API_BASE_URL}/quote", json=data, timeout=30)
         response.raise_for_status()
+
+        # Store quote ID and customer for policy generation
+        quote_id = response.json()['id']
+        quotes.append({
+            "id": quote_id,
+            "customer": customer,
+            "coverage_amount": data["coverage_amount"]
+        })
+
         if (i + 1) % 25 == 0:
             print(f"  Created {i + 1}/{count} quotes")
     print(f"✓ Created {count} quotes")
 
-def seed_policies(count=100):
-    """Seed policy records."""
+def seed_policies(count=90):
+    """Seed policy records (60% quote conversion rate)."""
     print(f"Seeding {count} policies...")
     for i in range(count):
+        # Reference actual quote
+        quote = fake.random_element(quotes)
+
         # Generate dates for policy period
         effective_date = fake.date_between(start_date='-2y', end_date='today')
         expiration_date = fake.date_between(start_date=effective_date, end_date='+1y')
 
         data = {
-            "quote_id": f"quote-{fake.uuid4()}",
-            "customer_name": fake.name(),
-            "customer_email": fake.email(),
-            "property_address": fake.address().replace('\n', ', '),
-            "coverage_amount": fake.random_int(100000, 2000000, step=10000),
+            "quote_id": quote["id"],
+            "customer_name": quote["customer"]["name"],
+            "customer_email": quote["customer"]["email"],
+            "property_address": quote["customer"]["address"],
+            "coverage_amount": quote["coverage_amount"],  # Match quote coverage
             "premium_annual": round(fake.random_int(800, 5000, step=50) + fake.random.random(), 2),
             "effective_date": effective_date.isoformat(),
             "expiration_date": expiration_date.isoformat()
         }
         response = requests.post(f"{API_BASE_URL}/policy", json=data, timeout=30)
         response.raise_for_status()
+
+        # Store policy ID for claims/payments
+        policy_id = response.json()['id']
+        policies.append({
+            "id": policy_id,
+            "customer": quote["customer"],
+            "effective_date": effective_date,
+            "expiration_date": expiration_date
+        })
+
         if (i + 1) % 25 == 0:
             print(f"  Created {i + 1}/{count} policies")
     print(f"✓ Created {count} policies")
 
-def seed_claims(count=100):
-    """Seed claim records."""
+def seed_claims(count=30):
+    """Seed claim records (30% of policies have 1-2 claims)."""
     print(f"Seeding {count} claims...")
     for i in range(count):
+        # Reference actual policy
+        policy = fake.random_element(policies)
+
+        # Loss date should be during policy period
+        loss_date = fake.date_between(
+            start_date=policy["effective_date"],
+            end_date=min(policy["expiration_date"], fake.date_object())
+        )
+
         data = {
-            "policy_id": f"policy-{fake.uuid4()}",
+            "policy_id": policy["id"],
             "claim_type": fake.random_element(["water_damage", "fire", "theft", "liability"]),
             "description": fake.text(max_nb_chars=200),
             "claim_amount": fake.random_int(1000, 100000, step=1000),
-            "date_of_loss": fake.date_between(start_date='-1y', end_date='today').isoformat()
+            "date_of_loss": loss_date.isoformat()
         }
         response = requests.post(f"{API_BASE_URL}/claim", json=data, timeout=30)
         response.raise_for_status()
@@ -71,13 +121,16 @@ def seed_claims(count=100):
             print(f"  Created {i + 1}/{count} claims")
     print(f"✓ Created {count} claims")
 
-def seed_payments(count=100):
-    """Seed payment records."""
+def seed_payments(count=270):
+    """Seed payment records (avg 3 payments per policy - quarterly/monthly premiums)."""
     print(f"Seeding {count} payments...")
     for i in range(count):
+        # Reference actual policy
+        policy = fake.random_element(policies)
+
         data = {
-            "policy_id": f"policy-{fake.uuid4()}",
-            "amount": round(fake.random_int(500, 5000, step=100) + fake.random.random(), 2),
+            "policy_id": policy["id"],
+            "amount": round(fake.random_int(200, 1500, step=50) + fake.random.random(), 2),
             "payment_method": fake.random_element(["credit_card", "bank_transfer", "check"]),
             "card_last_four": fake.numerify(text="####")
         }
@@ -87,9 +140,13 @@ def seed_payments(count=100):
             print(f"  Created {i + 1}/{count} payments")
     print(f"✓ Created {count} payments")
 
-def seed_cases(count=100):
-    """Seed case records."""
+def seed_cases(count=40):
+    """Seed case records (various customer service issues)."""
     print(f"Seeding {count} cases...")
+
+    # Generate pool of customer service reps
+    assignees = [fake.name() for _ in range(10)]
+
     for i in range(count):
         # Generate case titles based on common scenarios
         case_titles = [
@@ -103,12 +160,21 @@ def seed_cases(count=100):
             "Coverage Extension Request"
         ]
 
+        # Reference actual resources
+        entity_type = fake.random_element(["policy", "quote", "claim"])
+        if entity_type == "policy" and policies:
+            entity_id = fake.random_element(policies)["id"]
+        elif entity_type == "quote" and quotes:
+            entity_id = fake.random_element(quotes)["id"]
+        else:
+            entity_id = f"{entity_type}-{fake.uuid4()}"
+
         data = {
             "title": fake.random_element(case_titles),
             "description": fake.text(max_nb_chars=200),
-            "relatedEntityType": fake.random_element(["policy", "quote", "claim"]),
-            "relatedEntityId": f"{fake.random_element(['policy', 'quote', 'claim'])}-{fake.uuid4()}",
-            "assignee": fake.name(),
+            "relatedEntityType": entity_type,
+            "relatedEntityId": entity_id,
+            "assignee": fake.random_element(assignees),
             "priority": fake.random_element(["LOW", "MEDIUM", "HIGH"])
         }
         response = requests.post(f"{API_BASE_URL}/case", json=data, timeout=30)
@@ -120,12 +186,27 @@ def seed_cases(count=100):
 if __name__ == "__main__":
     try:
         print(f"Seeding demo data to {API_BASE_URL}\n")
-        seed_quotes(100)
-        seed_policies(100)
-        seed_claims(100)
-        seed_payments(100)
-        seed_cases(100)
-        print("\n✓ Seeding complete: 500 items created")
+
+        # Generate customer pool first
+        generate_customers(50)
+        print()
+
+        # Seed resources with realistic relationships
+        seed_quotes(150)
+        seed_policies(90)
+        seed_claims(30)
+        seed_payments(270)
+        seed_cases(40)
+
+        total = 50 + 150 + 90 + 30 + 270 + 40
+        print(f"\n✓ Seeding complete: {total} items created")
+        print(f"  - 50 customers (reused across resources)")
+        print(f"  - 150 quotes (avg 3 per customer)")
+        print(f"  - 90 policies (60% quote conversion)")
+        print(f"  - 30 claims (30% of policies)")
+        print(f"  - 270 payments (avg 3 per policy)")
+        print(f"  - 40 cases (customer service issues)")
+
     except requests.exceptions.RequestException as e:
         print(f"\n✗ Seeding failed: {e}", file=sys.stderr)
         sys.exit(1)
