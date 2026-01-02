@@ -82,48 +82,4 @@ class ComputeStack(Construct):
             )
         )
 
-        # Seeder Lambda
-        self.seeder_function = PythonFunction(
-            self,
-            "SeederFunction",
-            entry="../lambda/seeder",
-            index="handler.py",
-            handler="handler",
-            runtime=lambda_.Runtime.PYTHON_3_12,
-            timeout=Duration.seconds(120),
-            memory_size=256,
-            layers=[shared_layer],
-            environment={
-                "UI_BUCKET": storage_stack.ui_bucket.bucket_name,
-                "DOCS_BUCKET": storage_stack.docs_bucket.bucket_name,
-                "QUOTES_TABLE": data_stack.tables["quotes"].table_name,
-                "POLICIES_TABLE": data_stack.tables["policies"].table_name,
-                "CLAIMS_TABLE": data_stack.tables["claims"].table_name,
-                "PAYMENTS_TABLE": data_stack.tables["payments"].table_name,
-                "CASES_TABLE": data_stack.tables["cases"].table_name,
-                "WEB_BASE": storage_stack.ui_bucket.bucket_website_url,
-            },
-        )
-
-        # Grant permissions to seeder function
-        storage_stack.ui_bucket.grant_read_write(self.seeder_function)
-        storage_stack.docs_bucket.grant_read_write(self.seeder_function)
-
-        # Seeder needs additional S3 permissions for cleanup (list, delete versions)
-        storage_stack.ui_bucket.grant_delete(self.seeder_function)
-        storage_stack.docs_bucket.grant_delete(self.seeder_function)
-
-        self.seeder_function.add_to_role_policy(
-            iam.PolicyStatement(
-                actions=["s3:ListBucketVersions"],
-                resources=[
-                    storage_stack.ui_bucket.bucket_arn,
-                    storage_stack.docs_bucket.bucket_arn,
-                ],
-            )
-        )
-
-        for table in data_stack.tables.values():
-            table.grant_read_write_data(self.seeder_function)
-
         # Note: Outputs must be defined in parent Stack, not here in Construct

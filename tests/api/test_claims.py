@@ -22,21 +22,16 @@ def test_create_claim_success(api_client, sample_claim_data):
 
 @pytest.mark.api
 @pytest.mark.claims
-def test_get_claim_by_id(api_client, sample_claim_data):
-    """Test that created claim can be retrieved by ID"""
-    # Create claim
-    create_response = api_client.api_request('POST', '/claim', json=sample_claim_data)
-    assert create_response.status_code == 201
-    claim_id = create_response.json()['id']
-
+def test_get_claim_by_id(api_client, created_claim):
+    """Test that created claim can be retrieved by ID (self-contained with cleanup)"""
     # Retrieve claim
-    get_response = api_client.api_request('GET', f'/claim/{claim_id}')
+    get_response = api_client.api_request('GET', f'/claim/{created_claim}')
 
     assert get_response.status_code == 200
     claim = get_response.json()
 
     # Validate claim structure (data is nested under 'data' key)
-    assert claim['id'] == claim_id
+    assert claim['id'] == created_claim
     assert 'policy_id' in claim['data']
     assert 'claim_type' in claim['data']
     assert 'status' in claim or 'status' in claim.get('data', {})
