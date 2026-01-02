@@ -75,11 +75,28 @@ def seed_quotes(count=150):
     print(f"✓ Created {count} quotes")
 
 def seed_policies(count=90):
-    """Seed policy records (60% quote conversion rate)."""
+    """Seed policy records (60% quote conversion rate).
+
+    Distribution strategy:
+    - First 50 policies: Round-robin across customers (1 per customer)
+    - Remaining 40 policies: Random distribution (some customers get 2-3)
+    """
     print(f"Seeding {count} policies...")
+
+    # Track which customers have policies
+    customer_policy_count = {c["id"]: 0 for c in customers}
+
     for i in range(count):
-        # Reference actual quote
-        quote = fake.random_element(quotes)
+        # First 50 policies: ensure each customer gets one policy (round-robin)
+        if i < len(customers):
+            # Find quote for this specific customer
+            customer = customers[i]
+            customer_quotes = [q for q in quotes if q["customer"]["id"] == customer["id"]]
+            # If no quotes for this customer, pick any quote (fallback)
+            quote = fake.random_element(customer_quotes) if customer_quotes else fake.random_element(quotes)
+        else:
+            # Remaining policies: random distribution
+            quote = fake.random_element(quotes)
 
         # Generate dates for policy period
         effective_date = fake.date_between(start_date='-2y', end_date='today')
@@ -90,6 +107,7 @@ def seed_policies(count=90):
             "policyNumber": fake.bothify(text='POL-####-####'),
             "holderName": quote["customer"]["name"],
             "holderEmail": quote["customer"]["email"],
+            "customer_email": quote["customer"]["email"],  # Frontend expects this field
             "propertyAddress": quote["customer"]["address"],
             "coverageAmount": quote["coverage_amount"],
             "premium": round(fake.random_int(800, 5000, step=50) + fake.random.random(), 2),
@@ -134,6 +152,7 @@ def seed_claims(count=30):
 
         data = {
             "policyId": policy["id"],
+            "policy_id": policy["id"],  # Frontend expects this field
             "claimNumber": fake.bothify(text='CLM-####-####'),
             "claimantName": policy["customer"]["name"],
             "lossType": fake.random_element(["WATER_DAMAGE", "FIRE", "THEFT", "LIABILITY"]),
@@ -157,6 +176,7 @@ def seed_payments(count=270):
 
         data = {
             "policyId": policy["id"],
+            "policy_id": policy["id"],  # Frontend expects this field
             "amount": round(fake.random_int(200, 1500, step=50) + fake.random.random(), 2),
             "paymentMethod": fake.random_element(["CREDIT_CARD", "BANK_TRANSFER", "CHECK"]),
             "cardLastFour": fake.numerify(text="####")
