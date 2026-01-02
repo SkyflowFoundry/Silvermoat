@@ -8,6 +8,10 @@ Tests validate API behavior without depending on specific backend implementation
 import os
 import pytest
 import requests
+from faker import Faker
+from datetime import date, timedelta
+
+fake = Faker()
 
 
 @pytest.fixture(scope="session")
@@ -61,70 +65,107 @@ def api_client(api_base_url):
 
 
 @pytest.fixture
-def sample_quote_data():
-    """Sample quote data for testing"""
+def sample_customer_data():
+    """Sample customer data for testing (generated with Faker)"""
     return {
-        "customer_name": "Jane Doe",
-        "customer_email": "jane.doe@example.com",
-        "property_address": "123 Main St, Austin, TX 78701",
-        "coverage_amount": 500000,
-        "property_type": "single_family",
-        "year_built": 2010
+        "name": fake.name(),
+        "email": fake.email(),
+        "address": fake.address().replace('\n', ', '),
+        "phone": fake.phone_number()
+    }
+
+
+@pytest.fixture
+def sample_quote_data():
+    """Sample quote data for testing (generated with Faker)"""
+    return {
+        "customerName": fake.name(),
+        "customerEmail": fake.email(),
+        "propertyAddress": fake.address().replace('\n', ', '),
+        "coverageAmount": fake.random_int(50000, 1000000, step=10000),
+        "propertyType": fake.random_element(["SINGLE_FAMILY", "CONDO", "TOWNHOUSE"]),
+        "yearBuilt": fake.random_int(1950, 2024)
     }
 
 
 @pytest.fixture
 def sample_policy_data():
-    """Sample policy data for testing"""
+    """Sample policy data for testing (generated with Faker)"""
+    effective_date = fake.date_between(start_date='-1y', end_date='today')
+    expiration_date = effective_date + timedelta(days=365)
     return {
-        "quote_id": "test-quote-123",
-        "customer_name": "John Smith",
-        "customer_email": "john.smith@example.com",
-        "property_address": "456 Oak Ave, Austin, TX 78702",
-        "coverage_amount": 750000,
-        "premium_annual": 1850.00,
-        "effective_date": "2024-01-01",
-        "expiration_date": "2025-01-01"
+        "quoteId": f"quote-{fake.uuid4()}",
+        "policyNumber": fake.bothify(text='POL-####-####'),
+        "holderName": fake.name(),
+        "holderEmail": fake.email(),
+        "propertyAddress": fake.address().replace('\n', ', '),
+        "coverageAmount": fake.random_int(100000, 2000000, step=10000),
+        "premium": round(fake.random_int(800, 5000, step=50) + fake.random.random(), 2),
+        "effectiveDate": effective_date.isoformat(),
+        "expirationDate": expiration_date.isoformat()
     }
 
 
 @pytest.fixture
 def sample_claim_data():
-    """Sample claim data for testing"""
+    """Sample claim data for testing (generated with Faker)"""
     return {
-        "policy_id": "test-policy-456",
-        "claim_type": "water_damage",
-        "description": "Pipe burst in basement causing water damage",
-        "claim_amount": 15000,
-        "date_of_loss": "2024-03-15"
+        "policyId": f"policy-{fake.uuid4()}",
+        "claimNumber": fake.bothify(text='CLM-####-####'),
+        "claimantName": fake.name(),
+        "lossType": fake.random_element(["WATER_DAMAGE", "FIRE", "THEFT", "LIABILITY"]),
+        "description": fake.text(max_nb_chars=200),
+        "amount": fake.random_int(1000, 100000, step=1000),
+        "estimatedAmount_cents": fake.random_int(1000, 100000, step=1000) * 100,
+        "incidentDate": fake.date_between(start_date='-1y', end_date='today').isoformat()
     }
 
 
 @pytest.fixture
 def sample_payment_data():
-    """Sample payment data for testing"""
+    """Sample payment data for testing (generated with Faker)"""
     return {
-        "policy_id": "test-policy-789",
-        "amount": 925.00,
-        "payment_method": "credit_card",
-        "card_last_four": "4242"
+        "policyId": f"policy-{fake.uuid4()}",
+        "amount": round(fake.random_int(200, 1500, step=50) + fake.random.random(), 2),
+        "paymentMethod": fake.random_element(["CREDIT_CARD", "BANK_TRANSFER", "CHECK"]),
+        "cardLastFour": fake.numerify(text="####")
     }
 
 
 @pytest.fixture
 def sample_case_data():
-    """Sample case data for testing"""
+    """Sample case data for testing (generated with Faker)"""
+    case_titles = [
+        "Policy Change Request",
+        "Coverage Amount Inquiry",
+        "Claim Status Update",
+        "Payment Issue Resolution",
+        "Document Upload Request",
+        "Policy Cancellation Request"
+    ]
+    entity_type = fake.random_element(["policy", "quote", "claim"])
     return {
-        "title": "Policy Change Request",
-        "description": "Customer requesting coverage amount increase for home policy",
-        "relatedEntityType": "policy",
-        "relatedEntityId": "test-policy-123",
-        "assignee": "Alice Johnson",
-        "priority": "MEDIUM"
+        "title": fake.random_element(case_titles),
+        "description": fake.text(max_nb_chars=200),
+        "relatedEntityType": entity_type,
+        "relatedEntityId": f"{entity_type}-{fake.uuid4()}",
+        "assignee": fake.name(),
+        "priority": fake.random_element(["LOW", "MEDIUM", "HIGH"])
     }
 
 
 # Self-contained test fixtures with automatic cleanup
+
+@pytest.fixture
+def created_customer(api_client, sample_customer_data):
+    """Create a customer for testing, clean up after."""
+    response = api_client.api_request('POST', '/customer', json=sample_customer_data)
+    assert response.status_code == 201, f"Failed to create test customer: {response.status_code}"
+    customer_id = response.json()['id']
+    yield customer_id
+    # Cleanup
+    api_client.api_request('DELETE', f'/customer/{customer_id}')
+
 
 @pytest.fixture
 def created_quote(api_client, sample_quote_data):

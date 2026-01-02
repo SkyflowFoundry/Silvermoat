@@ -14,7 +14,7 @@ class DataStack(Construct):
 
         # Create DynamoDB tables
         self.tables = {}
-        table_types = ["Quotes", "Policies", "Claims", "Payments", "Cases"]
+        table_types = ["Customers", "Quotes", "Policies", "Claims", "Payments", "Cases"]
 
         for table_type in table_types:
             table = dynamodb.Table(

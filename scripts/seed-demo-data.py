@@ -18,16 +18,31 @@ customers = []
 quotes = []
 policies = []
 
-def generate_customers(count=50):
-    """Generate pool of customers for reuse across resources."""
-    print(f"Generating {count} customers...")
-    for _ in range(count):
-        customers.append({
+def seed_customers(count=50):
+    """Seed customer records to database."""
+    print(f"Seeding {count} customers...")
+    for i in range(count):
+        data = {
             "name": fake.name(),
             "email": fake.email(),
-            "address": fake.address().replace('\n', ', ')
+            "address": fake.address().replace('\n', ', '),
+            "phone": fake.phone_number()
+        }
+        response = requests.post(f"{API_BASE_URL}/customer", json=data, timeout=30)
+        response.raise_for_status()
+
+        # Store customer ID and data for quotes/policies
+        customer_id = response.json()['id']
+        customers.append({
+            "id": customer_id,
+            "name": data["name"],
+            "email": data["email"],
+            "address": data["address"]
         })
-    print(f"✓ Generated {count} customers")
+
+        if (i + 1) % 25 == 0:
+            print(f"  Created {i + 1}/{count} customers")
+    print(f"✓ Created {count} customers")
 
 def seed_quotes(count=150):
     """Seed quote records (avg 3 per customer, some customers get 1-5)."""
@@ -37,12 +52,12 @@ def seed_quotes(count=150):
         customer = fake.random_element(customers)
 
         data = {
-            "customer_name": customer["name"],
-            "customer_email": customer["email"],
-            "property_address": customer["address"],
-            "coverage_amount": fake.random_int(50000, 1000000, step=10000),
-            "property_type": fake.random_element(["single_family", "condo", "townhouse"]),
-            "year_built": fake.random_int(1950, 2024)
+            "customerName": customer["name"],
+            "customerEmail": customer["email"],
+            "propertyAddress": customer["address"],
+            "coverageAmount": fake.random_int(50000, 1000000, step=10000),
+            "propertyType": fake.random_element(["SINGLE_FAMILY", "CONDO", "TOWNHOUSE"]),
+            "yearBuilt": fake.random_int(1950, 2024)
         }
         response = requests.post(f"{API_BASE_URL}/quote", json=data, timeout=30)
         response.raise_for_status()
@@ -52,7 +67,7 @@ def seed_quotes(count=150):
         quotes.append({
             "id": quote_id,
             "customer": customer,
-            "coverage_amount": data["coverage_amount"]
+            "coverage_amount": data["coverageAmount"]
         })
 
         if (i + 1) % 25 == 0:
@@ -71,14 +86,15 @@ def seed_policies(count=90):
         expiration_date = fake.date_between(start_date=effective_date, end_date='+1y')
 
         data = {
-            "quote_id": quote["id"],
-            "customer_name": quote["customer"]["name"],
-            "customer_email": quote["customer"]["email"],
-            "property_address": quote["customer"]["address"],
-            "coverage_amount": quote["coverage_amount"],  # Match quote coverage
-            "premium_annual": round(fake.random_int(800, 5000, step=50) + fake.random.random(), 2),
-            "effective_date": effective_date.isoformat(),
-            "expiration_date": expiration_date.isoformat()
+            "quoteId": quote["id"],
+            "policyNumber": fake.bothify(text='POL-####-####'),
+            "holderName": quote["customer"]["name"],
+            "holderEmail": quote["customer"]["email"],
+            "propertyAddress": quote["customer"]["address"],
+            "coverageAmount": quote["coverage_amount"],
+            "premium": round(fake.random_int(800, 5000, step=50) + fake.random.random(), 2),
+            "effectiveDate": effective_date.isoformat(),
+            "expirationDate": expiration_date.isoformat()
         }
         response = requests.post(f"{API_BASE_URL}/policy", json=data, timeout=30)
         response.raise_for_status()
@@ -117,11 +133,14 @@ def seed_claims(count=30):
             )
 
         data = {
-            "policy_id": policy["id"],
-            "claim_type": fake.random_element(["water_damage", "fire", "theft", "liability"]),
+            "policyId": policy["id"],
+            "claimNumber": fake.bothify(text='CLM-####-####'),
+            "claimantName": policy["customer"]["name"],
+            "lossType": fake.random_element(["WATER_DAMAGE", "FIRE", "THEFT", "LIABILITY"]),
             "description": fake.text(max_nb_chars=200),
-            "claim_amount": fake.random_int(1000, 100000, step=1000),
-            "date_of_loss": loss_date.isoformat()
+            "amount": fake.random_int(1000, 100000, step=1000),
+            "estimatedAmount_cents": fake.random_int(1000, 100000, step=1000) * 100,
+            "incidentDate": loss_date.isoformat()
         }
         response = requests.post(f"{API_BASE_URL}/claim", json=data, timeout=30)
         response.raise_for_status()
@@ -137,10 +156,10 @@ def seed_payments(count=270):
         policy = fake.random_element(policies)
 
         data = {
-            "policy_id": policy["id"],
+            "policyId": policy["id"],
             "amount": round(fake.random_int(200, 1500, step=50) + fake.random.random(), 2),
-            "payment_method": fake.random_element(["credit_card", "bank_transfer", "check"]),
-            "card_last_four": fake.numerify(text="####")
+            "paymentMethod": fake.random_element(["CREDIT_CARD", "BANK_TRANSFER", "CHECK"]),
+            "cardLastFour": fake.numerify(text="####")
         }
         response = requests.post(f"{API_BASE_URL}/payment", json=data, timeout=30)
         response.raise_for_status()
@@ -195,8 +214,8 @@ if __name__ == "__main__":
     try:
         print(f"Seeding demo data to {API_BASE_URL}\n")
 
-        # Generate customer pool first
-        generate_customers(50)
+        # Seed customers first
+        seed_customers(50)
         print()
 
         # Seed resources with realistic relationships
@@ -208,7 +227,7 @@ if __name__ == "__main__":
 
         total = 50 + 150 + 90 + 30 + 270 + 40
         print(f"\n✓ Seeding complete: {total} items created")
-        print(f"  - 50 customers (reused across resources)")
+        print(f"  - 50 customers")
         print(f"  - 150 quotes (avg 3 per customer)")
         print(f"  - 90 policies (60% quote conversion)")
         print(f"  - 30 claims (30% of policies)")

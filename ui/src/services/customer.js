@@ -95,11 +95,11 @@ export const getCustomerPayments = async (customerEmail) => {
 };
 
 /**
- * Get all available customers from seeded data
+ * Get all available customers from database
  * @returns {Promise<Array>} - Array of customer info objects
  */
 export const getAvailableCustomers = async () => {
-  const response = await api.get('/policy');
+  const response = await api.get('/customer');
 
   if (!response.items || response.items.length === 0) {
     return [{
@@ -108,19 +108,11 @@ export const getAvailableCustomers = async () => {
     }];
   }
 
-  // Extract unique customers from policies
-  const customersMap = new Map();
-  response.items.forEach(policy => {
-    const email = policy.data?.customer_email;
-    if (email && !customersMap.has(email)) {
-      customersMap.set(email, {
-        name: policy.data?.customer_name || 'Unknown',
-        email: email,
-      });
-    }
-  });
-
-  return Array.from(customersMap.values());
+  // Map customer records to simple format
+  return response.items.map(customer => ({
+    name: customer.data?.name || 'Unknown',
+    email: customer.data?.email || 'unknown@example.com',
+  }));
 };
 
 /**

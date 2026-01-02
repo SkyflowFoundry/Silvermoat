@@ -13,6 +13,7 @@ class DynamoDBBackend(StorageBackend):
     def __init__(self):
         self.ddb = boto3.resource("dynamodb")
         self.tables = {
+            "customer": self.ddb.Table(os.environ["CUSTOMERS_TABLE"]),
             "quote": self.ddb.Table(os.environ["QUOTES_TABLE"]),
             "policy": self.ddb.Table(os.environ["POLICIES_TABLE"]),
             "claim": self.ddb.Table(os.environ["CLAIMS_TABLE"]),

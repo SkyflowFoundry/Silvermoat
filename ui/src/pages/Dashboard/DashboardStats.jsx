@@ -38,10 +38,10 @@ const DashboardStats = () => {
   const cases = casesData?.items || [];
 
   // Calculate financial metrics
-  const totalPremiums = policies.reduce((sum, p) => sum + (p.data?.premium_cents || 0), 0);
+  const totalPremiums = policies.reduce((sum, p) => sum + (p.data?.premium || 0), 0);
   const totalClaimsPaid = claims
     .filter(c => c.status === 'APPROVED')
-    .reduce((sum, c) => sum + (c.data?.paidAmount_cents || c.data?.approvedAmount_cents || 0), 0);
+    .reduce((sum, c) => sum + (c.data?.amount || 0), 0);
   const avgClaimAmount = claims.length > 0
     ? claims.reduce((sum, c) => sum + (c.data?.estimatedAmount_cents || 0), 0) / claims.length
     : 0;
@@ -53,9 +53,9 @@ const DashboardStats = () => {
     },
     policies: {
       total: policies.length,
-      active: policies.filter(p => p.data?.status === 'ACTIVE').length,
-      expired: policies.filter(p => p.data?.status === 'EXPIRED').length,
-      cancelled: policies.filter(p => p.data?.status === 'CANCELLED').length,
+      active: policies.filter(p => p.status === 'ACTIVE').length,
+      expired: policies.filter(p => p.status === 'EXPIRED').length,
+      cancelled: policies.filter(p => p.status === 'CANCELLED').length,
     },
     claims: {
       total: claims.length,
@@ -66,16 +66,16 @@ const DashboardStats = () => {
     },
     payments: {
       total: payments.length,
-      pending: payments.filter(p => p.data?.status === 'PENDING').length,
-      completed: payments.filter(p => p.data?.status === 'COMPLETED').length,
-      failed: payments.filter(p => p.data?.status === 'FAILED').length,
+      pending: payments.filter(p => p.status === 'PENDING').length,
+      completed: payments.filter(p => p.status === 'COMPLETED').length,
+      failed: payments.filter(p => p.status === 'FAILED').length,
     },
     cases: {
       total: cases.length,
-      open: cases.filter(c => c.data?.status === 'OPEN').length,
-      inProgress: cases.filter(c => c.data?.status === 'IN_PROGRESS').length,
-      resolved: cases.filter(c => c.data?.status === 'RESOLVED').length,
-      closed: cases.filter(c => c.data?.status === 'CLOSED').length,
+      open: cases.filter(c => c.status === 'OPEN').length,
+      inProgress: cases.filter(c => c.status === 'IN_PROGRESS').length,
+      resolved: cases.filter(c => c.status === 'RESOLVED').length,
+      closed: cases.filter(c => c.status === 'CLOSED').length,
     },
     financials: {
       totalPremiums,

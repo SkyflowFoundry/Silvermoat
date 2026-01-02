@@ -3,7 +3,7 @@
  * Allows customers to submit new claims
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -16,51 +16,89 @@ import {
   Typography,
   Space,
   Select,
+  Spin,
 } from 'antd';
 import { ArrowLeftOutlined, FileTextOutlined } from '@ant-design/icons';
-import { submitClaim } from '../../services/customer';
+import { submitClaim, getAvailableCustomers, getCustomerPolicies } from '../../services/customer';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
 
-const LOSS_TYPES = [
-  'AUTO_COLLISION',
-  'AUTO_GLASS',
-  'AUTO_THEFT',
-  'PROPERTY_DAMAGE',
-  'WATER_DAMAGE',
-  'FIRE',
-  'THEFT',
-  'VANDALISM',
+const CLAIM_TYPES = [
+  'water_damage',
+  'fire',
+  'theft',
+  'liability',
 ];
 
 const CustomerClaimForm = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [customers, setCustomers] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [policies, setPolicies] = useState([]);
   const navigate = useNavigate();
 
-  // Get customer auth from session storage
-  const auth = JSON.parse(sessionStorage.getItem('customerAuth') || '{}');
+  useEffect(() => {
+    loadCustomers();
+  }, []);
 
-  if (!auth.authenticated) {
-    navigate('/customer/login');
-    return null;
+  const loadCustomers = async () => {
+    try {
+      const customerList = await getAvailableCustomers();
+      setCustomers(customerList);
+      if (customerList.length > 0) {
+        const defaultCustomer = customerList[0];
+        setSelectedCustomer(defaultCustomer);
+        await loadPolicies(defaultCustomer.email);
+      }
+    } catch (error) {
+      message.error('Failed to load customers');
+      console.error(error);
+    } finally {
+      setInitialLoading(false);
+    }
+  };
+
+  const loadPolicies = async (email) => {
+    try {
+      const { policies: customerPolicies } = await getCustomerPolicies(email);
+      setPolicies(customerPolicies);
+    } catch (error) {
+      message.error('Failed to load policies');
+      console.error(error);
+    }
+  };
+
+  const handleCustomerChange = async (email) => {
+    const customer = customers.find(c => c.email === email);
+    setSelectedCustomer(customer);
+    await loadPolicies(email);
+    form.resetFields(['policy_id']);
+  };
+
+  if (initialLoading) {
+    return (
+      <div style={{ padding: '16px', background: '#f0f2f5', minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <Spin size="large" />
+      </div>
+    );
   }
 
   const onFinish = async (values) => {
     setLoading(true);
     try {
       const claimData = {
-        policyNumber: auth.policyNumber,
-        claimantName: auth.holderName,
-        incidentDate: values.incidentDate.format('YYYY-MM-DD'),
-        lossType: values.lossType,
+        policy_id: values.policy_id,
+        claim_type: values.claim_type,
+        date_of_loss: values.date_of_loss.format('YYYY-MM-DD'),
         description: values.description,
-        estimatedAmount_cents: Math.round((values.estimatedAmount || 0) * 100),
+        claim_amount: Math.round(values.claim_amount || 0),
       };
 
-      const response = await submitClaim(claimData);
+      await submitClaim(claimData);
 
       message.success('Claim submitted successfully!');
       navigate('/customer/dashboard');
@@ -73,7 +111,7 @@ const CustomerClaimForm = () => {
   };
 
   return (
-    <div style={{ padding: '24px', background: '#f0f2f5', minHeight: '100vh' }}>
+    <div style={{ padding: '16px', background: '#f0f2f5', minHeight: '100vh' }}>
       <Card style={{ maxWidth: 800, margin: '0 auto' }}>
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div>
@@ -88,40 +126,74 @@ const CustomerClaimForm = () => {
             <Title level={3}>
               <FileTextOutlined /> Submit New Claim
             </Title>
-            <Text type="secondary">
-              Policy: {auth.policyNumber} • {auth.holderName}
-            </Text>
+            {selectedCustomer && (
+              <Text type="secondary">
+                Filing as: {selectedCustomer.name} ({selectedCustomer.email})
+              </Text>
+            )}
           </div>
 
           <Form
             form={form}
             layout="vertical"
             onFinish={onFinish}
-            initialValues={{
-              claimantName: auth.holderName,
-            }}
           >
             <Form.Item
-              name="lossType"
-              label="Type of Loss"
-              rules={[{ required: true, message: 'Please select the type of loss' }]}
+              label="Customer"
+              style={{ marginBottom: 16 }}
             >
               <Select
+                value={selectedCustomer?.email}
+                onChange={handleCustomerChange}
                 size="large"
-                placeholder="Select loss type"
               >
-                {LOSS_TYPES.map(type => (
-                  <Option key={type} value={type}>
-                    {type.replace(/_/g, ' ')}
+                {customers.map(customer => (
+                  <Option key={customer.email} value={customer.email}>
+                    {customer.name} ({customer.email})
                   </Option>
                 ))}
               </Select>
             </Form.Item>
 
             <Form.Item
-              name="incidentDate"
-              label="Incident Date"
-              rules={[{ required: true, message: 'Please select the incident date' }]}
+              name="policy_id"
+              label="Policy"
+              rules={[{ required: true, message: 'Please select a policy' }]}
+            >
+              <Select
+                size="large"
+                placeholder="Select policy"
+                disabled={!policies.length}
+              >
+                {policies.map(policy => (
+                  <Option key={policy.id} value={policy.id}>
+                    {policy.id.substring(0, 8)}... - {policy.data?.property_address || 'No address'}
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+
+            <Form.Item
+              name="claim_type"
+              label="Type of Claim"
+              rules={[{ required: true, message: 'Please select the claim type' }]}
+            >
+              <Select
+                size="large"
+                placeholder="Select claim type"
+              >
+                {CLAIM_TYPES.map(type => (
+                  <Option key={type} value={type}>
+                    {type.replace(/_/g, ' ').toUpperCase()}
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+
+            <Form.Item
+              name="date_of_loss"
+              label="Date of Loss"
+              rules={[{ required: true, message: 'Please select the date of loss' }]}
             >
               <DatePicker
                 size="large"
@@ -132,20 +204,20 @@ const CustomerClaimForm = () => {
             </Form.Item>
 
             <Form.Item
-              name="estimatedAmount"
-              label="Estimated Damage Amount ($)"
+              name="claim_amount"
+              label="Claim Amount ($)"
               rules={[
-                { required: true, message: 'Please enter estimated amount' },
+                { required: true, message: 'Please enter claim amount' },
                 { type: 'number', min: 0, message: 'Amount must be positive' },
               ]}
             >
               <InputNumber
                 size="large"
                 style={{ width: '100%' }}
-                placeholder="0.00"
+                placeholder="0"
                 formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                 parser={value => value.replace(/\$\s?|(,*)/g, '')}
-                precision={2}
+                precision={0}
               />
             </Form.Item>
 

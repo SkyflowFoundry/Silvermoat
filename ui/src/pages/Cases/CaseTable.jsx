@@ -77,14 +77,14 @@ const CaseTable = ({ cases = [], loading = false }) => {
     },
     {
       title: 'Status',
-      dataIndex: ['data', 'status'],
+      dataIndex: 'status',
       key: 'status',
       width: 120,
       filters: CASE_STATUS_OPTIONS.map((opt) => ({
         text: opt.label,
         value: opt.value,
       })),
-      onFilter: (value, record) => record.data?.status === value,
+      onFilter: (value, record) => record.status === value,
       render: (status) => <StatusTag type="case-status" value={status} />,
     },
     {

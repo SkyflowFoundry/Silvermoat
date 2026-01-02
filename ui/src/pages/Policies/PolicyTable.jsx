@@ -69,7 +69,7 @@ const PolicyTable = ({ policies = [], loading = false }) => {
     },
     {
       title: 'Status',
-      dataIndex: ['data', 'status'],
+      dataIndex: 'status',
       key: 'status',
       width: 110,
       filters: [
@@ -77,7 +77,7 @@ const PolicyTable = ({ policies = [], loading = false }) => {
         { text: 'Expired', value: 'EXPIRED' },
         { text: 'Cancelled', value: 'CANCELLED' },
       ],
-      onFilter: (value, record) => record.data?.status === value,
+      onFilter: (value, record) => record.status === value,
       render: (status) => <StatusTag type="policy" value={status} />,
     },
     {

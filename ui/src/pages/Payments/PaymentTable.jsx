@@ -66,7 +66,7 @@ const PaymentTable = ({ payments = [], loading = false }) => {
     },
     {
       title: 'Status',
-      dataIndex: ['data', 'status'],
+      dataIndex: 'status',
       key: 'status',
       width: 120,
       filters: [
@@ -74,7 +74,7 @@ const PaymentTable = ({ payments = [], loading = false }) => {
         { text: 'Completed', value: 'COMPLETED' },
         { text: 'Failed', value: 'FAILED' },
       ],
-      onFilter: (value, record) => record.data?.status === value,
+      onFilter: (value, record) => record.status === value,
       render: (status) => <StatusTag type="payment" value={status} />,
     },
     {

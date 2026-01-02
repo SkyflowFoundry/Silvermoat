@@ -35,7 +35,7 @@ def handler(event, context):
     if not parts:
         return _resp(200, {
             "name": "Silvermoat MVP",
-            "endpoints": ["/quote", "/policy", "/claim", "/payment", "/case", "/chat"]
+            "endpoints": ["/customer", "/quote", "/policy", "/claim", "/payment", "/case", "/chat"]
         })
 
     domain = parts[0]
@@ -49,7 +49,7 @@ def handler(event, context):
             body = {"raw": event["body"]}
 
     # Validate domain
-    valid_domains = ["quote", "policy", "claim", "payment", "case"]
+    valid_domains = ["customer", "quote", "policy", "claim", "payment", "case"]
     if domain not in valid_domains:
         return _resp(404, {"error": "unknown_domain", "domain": domain})
 
@@ -62,6 +62,7 @@ def handler(event, context):
     if method == "POST" and len(parts) == 1:
         # Add default status based on domain type
         default_status = {
+            "customer": "ACTIVE",
             "quote": "PENDING",
             "policy": "ACTIVE",
             "claim": "PENDING",

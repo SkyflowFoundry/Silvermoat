@@ -45,6 +45,7 @@ class ComputeStack(Construct):
             memory_size=256,
             layers=[shared_layer],
             environment={
+                "CUSTOMERS_TABLE": data_stack.tables["customers"].table_name,
                 "QUOTES_TABLE": data_stack.tables["quotes"].table_name,
                 "POLICIES_TABLE": data_stack.tables["policies"].table_name,
                 "CLAIMS_TABLE": data_stack.tables["claims"].table_name,

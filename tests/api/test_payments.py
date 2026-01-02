@@ -19,6 +19,9 @@ def test_create_payment_success(api_client, sample_payment_data):
     assert 'id' in data, "Response should contain payment ID"
     assert isinstance(data['id'], str), "Payment ID should be a string"
 
+    # Cleanup
+    api_client.api_request('DELETE', f'/payment/{data["id"]}')
+
 
 @pytest.mark.api
 @pytest.mark.payments
@@ -32,10 +35,10 @@ def test_get_payment_by_id(api_client, created_payment):
 
     # Validate payment structure (data is nested under 'data' key)
     assert payment['id'] == created_payment
-    assert 'policy_id' in payment['data']
+    assert 'policyId' in payment['data']
     assert 'amount' in payment['data']
-    # Status may be at top level or in data
-    assert 'status' in payment or 'status' in payment.get('data', {})
+    # Status is at top level
+    assert 'status' in payment
 
 
 @pytest.mark.api
@@ -52,6 +55,9 @@ def test_payment_includes_confirmation(api_client, sample_payment_data):
     assert 'item' in data
     # Payment was successfully created (existence of ID is confirmation)
     assert isinstance(data['id'], str)
+
+    # Cleanup
+    api_client.api_request('DELETE', f'/payment/{data["id"]}')
 
 
 @pytest.mark.api

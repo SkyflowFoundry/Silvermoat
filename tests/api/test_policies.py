@@ -19,6 +19,9 @@ def test_create_policy_success(api_client, sample_policy_data):
     assert 'id' in data, "Response should contain policy ID"
     assert isinstance(data['id'], str), "Policy ID should be a string"
 
+    # Cleanup
+    api_client.api_request('DELETE', f'/policy/{data["id"]}')
+
 
 @pytest.mark.api
 @pytest.mark.policies
@@ -32,10 +35,10 @@ def test_get_policy_by_id(api_client, created_policy):
 
     # Validate policy structure (data is nested under 'data' key)
     assert policy['id'] == created_policy
-    assert 'customer_name' in policy['data']
-    assert 'coverage_amount' in policy['data']
-    # Status may be at top level or in data
-    assert 'status' in policy or 'status' in policy.get('data', {})
+    assert 'holderName' in policy['data']
+    assert 'coverageAmount' in policy['data']
+    # Status is at top level
+    assert 'status' in policy
 
 
 @pytest.mark.api
