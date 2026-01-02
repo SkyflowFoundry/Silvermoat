@@ -34,14 +34,19 @@ def seed_policies(count=100):
     """Seed policy records."""
     print(f"Seeding {count} policies...")
     for i in range(count):
+        # Generate dates for policy period
+        effective_date = fake.date_between(start_date='-2y', end_date='today')
+        expiration_date = fake.date_between(start_date=effective_date, end_date='+1y')
+
         data = {
+            "quote_id": f"quote-{fake.uuid4()}",
             "customer_name": fake.name(),
             "customer_email": fake.email(),
             "property_address": fake.address().replace('\n', ', '),
             "coverage_amount": fake.random_int(100000, 2000000, step=10000),
-            "property_type": fake.random_element(["single_family", "condo", "townhouse"]),
-            "year_built": fake.random_int(1950, 2024),
-            "status": fake.random_element(["active", "pending", "cancelled"])
+            "premium_annual": round(fake.random_int(800, 5000, step=50) + fake.random.random(), 2),
+            "effective_date": effective_date.isoformat(),
+            "expiration_date": expiration_date.isoformat()
         }
         response = requests.post(f"{API_BASE_URL}/policy", json=data, timeout=30)
         response.raise_for_status()
@@ -56,9 +61,9 @@ def seed_claims(count=100):
         data = {
             "policy_id": f"policy-{fake.uuid4()}",
             "claim_type": fake.random_element(["water_damage", "fire", "theft", "liability"]),
-            "claim_date": fake.date_this_year().isoformat(),
+            "description": fake.text(max_nb_chars=200),
             "claim_amount": fake.random_int(1000, 100000, step=1000),
-            "description": fake.text(max_nb_chars=200)
+            "date_of_loss": fake.date_between(start_date='-1y', end_date='today').isoformat()
         }
         response = requests.post(f"{API_BASE_URL}/claim", json=data, timeout=30)
         response.raise_for_status()
@@ -72,9 +77,9 @@ def seed_payments(count=100):
     for i in range(count):
         data = {
             "policy_id": f"policy-{fake.uuid4()}",
-            "amount": fake.random_int(500, 5000, step=100),
+            "amount": round(fake.random_int(500, 5000, step=100) + fake.random.random(), 2),
             "payment_method": fake.random_element(["credit_card", "bank_transfer", "check"]),
-            "payment_date": fake.date_this_year().isoformat()
+            "card_last_four": fake.numerify(text="####")
         }
         response = requests.post(f"{API_BASE_URL}/payment", json=data, timeout=30)
         response.raise_for_status()
@@ -86,12 +91,25 @@ def seed_cases(count=100):
     """Seed case records."""
     print(f"Seeding {count} cases...")
     for i in range(count):
+        # Generate case titles based on common scenarios
+        case_titles = [
+            "Policy Change Request",
+            "Coverage Amount Inquiry",
+            "Claim Status Update",
+            "Payment Issue Resolution",
+            "Document Upload Request",
+            "Policy Cancellation Request",
+            "Premium Adjustment Inquiry",
+            "Coverage Extension Request"
+        ]
+
         data = {
-            "entity_type": fake.random_element(["quote", "policy", "claim"]),
-            "entity_id": f"entity-{fake.uuid4()}",
-            "case_type": fake.random_element(["inquiry", "complaint", "follow_up"]),
+            "title": fake.random_element(case_titles),
             "description": fake.text(max_nb_chars=200),
-            "priority": fake.random_element(["low", "medium", "high"])
+            "relatedEntityType": fake.random_element(["policy", "quote", "claim"]),
+            "relatedEntityId": f"{fake.random_element(['policy', 'quote', 'claim'])}-{fake.uuid4()}",
+            "assignee": fake.name(),
+            "priority": fake.random_element(["LOW", "MEDIUM", "HIGH"])
         }
         response = requests.post(f"{API_BASE_URL}/case", json=data, timeout=30)
         response.raise_for_status()
