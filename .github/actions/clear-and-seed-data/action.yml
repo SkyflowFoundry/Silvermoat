@@ -1,0 +1,31 @@
+name: 'Clear and Seed Demo Data'
+description: 'Clear existing demo data and seed fresh data for consistent demo experience'
+
+inputs:
+  api-base-url:
+    description: 'API base URL to clear and seed data'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      shell: bash
+      run: pip install faker==40.1.0 requests
+
+    - name: Clear existing demo data
+      shell: bash
+      run: python scripts/clear-demo-data.py
+      env:
+        API_BASE_URL: ${{ inputs.api-base-url }}
+
+    - name: Seed fresh demo data
+      shell: bash
+      run: python scripts/seed-demo-data.py
+      env:
+        API_BASE_URL: ${{ inputs.api-base-url }}
