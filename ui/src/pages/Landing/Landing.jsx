@@ -67,7 +67,7 @@ const Landing = () => {
           </Paragraph>
         </div>
 
-        <Row gutter={[32, 32]} style={{ width: '100%' }}>
+        <Row gutter={[16, 16]} justify="center">
           <Col xs={24} sm={24} md={12}>
             <Card
               hoverable
