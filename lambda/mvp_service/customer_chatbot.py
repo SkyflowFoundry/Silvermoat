@@ -62,11 +62,19 @@ CUSTOMER_TOOLS = [
 def execute_customer_tool(tool_name, tool_input, storage, customer_email):
     """Execute a customer-scoped tool call and return results"""
 
+    # Normalize customer email for case-insensitive matching
+    customer_email_normalized = customer_email.strip().lower() if customer_email else ""
+
     if tool_name == "search_my_policies":
         items = storage.scan("policy")
 
-        # Filter by customer email
-        items = [i for i in items if i.get("data", {}).get("customer_email") == customer_email]
+        print(f"[DEBUG] search_my_policies: customer_email='{customer_email}', total_policies={len(items)}")
+
+        # Filter by customer email (case-insensitive)
+        items = [i for i in items
+                 if (i.get("data", {}).get("customer_email") or "").strip().lower() == customer_email_normalized]
+
+        print(f"[DEBUG] After email filter: {len(items)} policies")
 
         # Filter by additional criteria
         if tool_input.get("policy_number"):
@@ -74,19 +82,26 @@ def execute_customer_tool(tool_name, tool_input, storage, customer_email):
             items = [i for i in items if pn in i.get("data", {}).get("policyNumber", "").lower()]
         if tool_input.get("status"):
             items = [i for i in items if tool_input["status"] == i.get("status")]
+            print(f"[DEBUG] After status filter ({tool_input['status']}): {len(items)} policies")
 
         return {"policies": items[:10], "count": len(items)}
 
     elif tool_name == "search_my_claims":
         # Get customer's policy IDs
         policies = storage.scan("policy")
-        policy_ids = [p["id"] for p in policies if p.get("data", {}).get("customer_email") == customer_email]
+        policy_ids = [p["id"] for p in policies
+                      if (p.get("data", {}).get("customer_email") or "").strip().lower() == customer_email_normalized]
+
+        print(f"[DEBUG] search_my_claims: customer_email='{customer_email}', policy_ids={len(policy_ids)}")
 
         # Get all claims
         items = storage.scan("claim")
+        total_claims = len(items)
 
         # Filter by customer's policies
         items = [i for i in items if i.get("data", {}).get("policy_id") in policy_ids]
+
+        print(f"[DEBUG] Filtered claims: {len(items)}/{total_claims} (by policy_ids)")
 
         # Filter by criteria
         if tool_input.get("claim_number"):
@@ -94,23 +109,31 @@ def execute_customer_tool(tool_name, tool_input, storage, customer_email):
             items = [i for i in items if cn in i.get("data", {}).get("claimNumber", "").lower()]
         if tool_input.get("status"):
             items = [i for i in items if tool_input["status"] == i.get("status")]
+            print(f"[DEBUG] After status filter ({tool_input['status']}): {len(items)} claims")
 
         return {"claims": items[:10], "count": len(items)}
 
     elif tool_name == "search_my_payments":
         # Get customer's policy IDs
         policies = storage.scan("policy")
-        policy_ids = [p["id"] for p in policies if p.get("data", {}).get("customer_email") == customer_email]
+        policy_ids = [p["id"] for p in policies
+                      if (p.get("data", {}).get("customer_email") or "").strip().lower() == customer_email_normalized]
+
+        print(f"[DEBUG] search_my_payments: customer_email='{customer_email}', policy_ids={len(policy_ids)}")
 
         # Get all payments
         items = storage.scan("payment")
+        total_payments = len(items)
 
         # Filter by customer's policies
         items = [i for i in items if i.get("data", {}).get("policy_id") in policy_ids]
 
+        print(f"[DEBUG] Filtered payments: {len(items)}/{total_payments} (by policy_ids)")
+
         # Filter by criteria
         if tool_input.get("status"):
             items = [i for i in items if tool_input["status"] == i.get("status")]
+            print(f"[DEBUG] After status filter ({tool_input['status']}): {len(items)} payments")
 
         return {"payments": items[:10], "count": len(items)}
 
@@ -124,12 +147,14 @@ def execute_customer_tool(tool_name, tool_input, storage, customer_email):
 
         # Verify ownership
         if entity_type == "policy":
-            if item.get("data", {}).get("customer_email") != customer_email:
+            item_email = (item.get("data", {}).get("customer_email") or "").strip().lower()
+            if item_email != customer_email_normalized:
                 return {"error": "Access denied"}
         elif entity_type in ["claim", "payment"]:
             # Get customer's policy IDs
             policies = storage.scan("policy")
-            policy_ids = [p["id"] for p in policies if p.get("data", {}).get("customer_email") == customer_email]
+            policy_ids = [p["id"] for p in policies
+                          if (p.get("data", {}).get("customer_email") or "").strip().lower() == customer_email_normalized]
 
             if item.get("data", {}).get("policy_id") not in policy_ids:
                 return {"error": "Access denied"}
