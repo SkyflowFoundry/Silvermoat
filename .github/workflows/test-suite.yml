@@ -1,0 +1,132 @@
+name: Test Suite (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      stack_name:
+        description: 'Stack name for test environment'
+        required: true
+        type: string
+      api_url:
+        description: 'API base URL'
+        required: true
+        type: string
+      web_url:
+        description: 'Web application URL'
+        required: true
+        type: string
+      environment:
+        description: 'Environment name (test/production)'
+        required: false
+        type: string
+        default: 'test'
+    secrets:
+      AWS_ROLE_ARN:
+        description: 'AWS role ARN for authentication'
+        required: true
+
+jobs:
+  test-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: [smoke, api, e2e-smoke, e2e-forms, e2e-customer, e2e-navigation]
+        include:
+          - test-type: smoke
+            test-dir: smoke
+            needs-chrome: false
+            pytest-args: ""
+          - test-type: api
+            test-dir: api
+            needs-chrome: false
+            pytest-args: ""
+          - test-type: e2e-smoke
+            test-dir: e2e
+            needs-chrome: true
+            pytest-args: "-m smoke"
+          - test-type: e2e-forms
+            test-dir: e2e
+            needs-chrome: true
+            pytest-args: "-m forms"
+          - test-type: e2e-customer
+            test-dir: e2e
+            needs-chrome: true
+            pytest-args: "-m customer"
+          - test-type: e2e-navigation
+            test-dir: e2e
+            needs-chrome: true
+            pytest-args: "tests/test_landing_page.py -m 'e2e and not smoke'"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install Python dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Install Chrome and ChromeDriver
+        if: matrix.needs-chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+          install-chromedriver: true
+
+      - name: Cache ChromeDriver
+        if: matrix.needs-chrome
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/chromedriver
+          key: ${{ runner.os }}-chromedriver-${{ hashFiles('**/requirements-test.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-chromedriver-
+
+      - name: Run ${{ matrix.test-type }} tests
+        id: test-run
+        continue-on-error: true
+        env:
+          STACK_NAME: ${{ inputs.stack_name }}
+          SILVERMOAT_API_URL: ${{ inputs.api_url }}
+          SILVERMOAT_URL: ${{ inputs.web_url }}
+          HEADLESS: '1'
+        run: |
+          set -o pipefail
+          echo "Running ${{ matrix.test-type }} tests against ${{ inputs.environment }}..."
+          cd tests/${{ matrix.test-dir }}
+          pytest -v --tb=short ${{ matrix.pytest-args }} 2>&1 | tee ../../${{ matrix.test-type }}-tests-output.txt
+
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.test-type }}-test-output
+          path: ${{ matrix.test-type }}-tests-output.txt
+          retention-days: 7
+
+      - name: Upload test artifacts (screenshots, page source, logs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.test-type }}-test-artifacts
+          path: tests/${{ matrix.test-dir }}/test-artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Check test outcome
+        if: always()
+        run: |
+          if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
+            echo "${{ matrix.test-type }} tests failed"
+            exit 1
+          fi
