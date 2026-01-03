@@ -292,17 +292,20 @@ export const getSeedDataSummary = (results) => {
 
 /**
  * Clears all data from all entity types
+ * Deletion order: dependents first (case → payment → claim → policy → quote → customer)
  * @param {Function} onProgress - Callback for progress updates (message, current, total)
  * @returns {Promise<Object>} Object containing deletion counts
  */
 export const clearAllData = async (onProgress) => {
-  const domains = ['quote', 'policy', 'claim', 'payment', 'case'];
+  // Delete in dependency order: dependents before their parents
+  const domains = ['case', 'payment', 'claim', 'policy', 'quote', 'customer'];
   const results = {
-    quotes: 0,
-    policies: 0,
-    claims: 0,
-    payments: 0,
     cases: 0,
+    payments: 0,
+    claims: 0,
+    policies: 0,
+    quotes: 0,
+    customers: 0,
   };
 
   let step = 0;
@@ -310,7 +313,8 @@ export const clearAllData = async (onProgress) => {
 
   try {
     for (const domain of domains) {
-      onProgress?.(`Clearing ${domain}s...`, step, totalSteps);
+      const displayName = domain === 'case' ? 'cases' : `${domain}s`;
+      onProgress?.(`Clearing ${displayName}...`, step, totalSteps);
       const result = await deleteAllEntities(domain);
 
       // Map domain to result key
@@ -318,7 +322,7 @@ export const clearAllData = async (onProgress) => {
       results[key] = result.deleted || 0;
 
       step++;
-      onProgress?.(`Cleared ${result.deleted || 0} ${domain}s`, step, totalSteps);
+      onProgress?.(`Cleared ${result.deleted || 0} ${displayName}`, step, totalSteps);
     }
 
     onProgress?.('All data cleared!', totalSteps, totalSteps);
