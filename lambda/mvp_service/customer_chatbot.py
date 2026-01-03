@@ -73,7 +73,7 @@ def execute_customer_tool(tool_name, tool_input, storage, customer_email):
             pn = tool_input["policy_number"].lower()
             items = [i for i in items if pn in i.get("data", {}).get("policyNumber", "").lower()]
         if tool_input.get("status"):
-            items = [i for i in items if tool_input["status"] == i.get("data", {}).get("status")]
+            items = [i for i in items if tool_input["status"] == i.get("status")]
 
         return {"policies": items[:10], "count": len(items)}
 
@@ -110,7 +110,7 @@ def execute_customer_tool(tool_name, tool_input, storage, customer_email):
 
         # Filter by criteria
         if tool_input.get("status"):
-            items = [i for i in items if tool_input["status"] == i.get("data", {}).get("status")]
+            items = [i for i in items if tool_input["status"] == i.get("status")]
 
         return {"payments": items[:10], "count": len(items)}
 
