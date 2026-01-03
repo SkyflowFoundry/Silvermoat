@@ -3,7 +3,7 @@
  * Provides the overall page structure with header, sidebar, and content area
  */
 
-import { Layout, Drawer, Menu } from 'antd';
+import { Layout, Drawer, Menu, Button } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   DashboardOutlined,
@@ -12,6 +12,7 @@ import {
   ExclamationCircleOutlined,
   DollarOutlined,
   CustomerServiceOutlined,
+  MessageOutlined,
 } from '@ant-design/icons';
 import Header from './Header';
 import Sidebar from './Sidebar';
@@ -25,7 +26,7 @@ const { Content } = Layout;
 const AppLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isMobile, mobileDrawerOpen, closeMobileDrawer, chatDrawerOpen, closeChatDrawer } = useAppContext();
+  const { isMobile, mobileDrawerOpen, closeMobileDrawer, chatDrawerOpen, closeChatDrawer, toggleChatDrawer } = useAppContext();
 
   // Determine active menu item based on current path
   const getSelectedKey = () => {
@@ -120,6 +121,28 @@ const AppLayout = () => {
 
       {/* Mobile Bottom Navigation */}
       {isMobile && <BottomNav />}
+
+      {/* Floating Chat Button */}
+      <Button
+        type="primary"
+        icon={<MessageOutlined />}
+        onClick={toggleChatDrawer}
+        style={{
+          position: 'fixed',
+          bottom: isMobile ? '90px' : '24px',
+          right: '24px',
+          zIndex: 1000,
+          width: isMobile ? '56px' : '60px',
+          height: isMobile ? '56px' : '60px',
+          borderRadius: '50%',
+          fontSize: isMobile ? '20px' : '24px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        aria-label="Open Chat Assistant"
+      />
 
       {/* Mobile Navigation Drawer */}
       <Drawer

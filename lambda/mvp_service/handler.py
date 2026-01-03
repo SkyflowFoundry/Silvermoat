@@ -6,6 +6,7 @@ from shared.responses import _resp
 from shared.events import _emit
 from shared.storage import DynamoDBBackend
 from chatbot import handle_chat
+from customer_chatbot import handle_customer_chat
 
 
 # Initialize storage backend
@@ -29,13 +30,17 @@ def handler(event, context):
     if path == "chat" and method == "POST":
         return handle_chat(event, storage)
 
+    # POST /customer-chat -> customer chatbot endpoint (handle before domain check)
+    if path == "customer-chat" and method == "POST":
+        return handle_customer_chat(event, storage)
+
     parts = [p for p in path.split("/") if p]
 
     # Root endpoint - list available endpoints
     if not parts:
         return _resp(200, {
             "name": "Silvermoat MVP",
-            "endpoints": ["/customer", "/quote", "/policy", "/claim", "/payment", "/case", "/chat"]
+            "endpoints": ["/customer", "/quote", "/policy", "/claim", "/payment", "/case", "/chat", "/customer-chat"]
         })
 
     domain = parts[0]

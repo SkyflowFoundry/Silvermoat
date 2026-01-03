@@ -12,7 +12,6 @@ import {
   ExclamationCircleOutlined,
   DollarOutlined,
   CustomerServiceOutlined,
-  MessageOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppContext } from '../../contexts/AppContext';
@@ -23,7 +22,7 @@ const { Text } = Typography;
 const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isMobile, toggleMobileDrawer, toggleChatDrawer } = useAppContext();
+  const { isMobile, toggleMobileDrawer } = useAppContext();
 
   // Determine active menu item based on current path
   const getSelectedKey = () => {
@@ -148,20 +147,7 @@ const Header = () => {
         />
       )}
 
-      <Space size="middle">
-        <Button
-          type="text"
-          icon={<MessageOutlined />}
-          onClick={toggleChatDrawer}
-          style={{
-            fontSize: '18px',
-            width: isMobile ? 40 : 48,
-            height: isMobile ? 40 : 48,
-            color: '#ffffff',
-          }}
-          title="Open Chat Assistant"
-        />
-      </Space>
+      {/* Chat moved to floating button in bottom-right */}
     </AntHeader>
   );
 };
