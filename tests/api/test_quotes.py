@@ -38,8 +38,7 @@ def test_get_quote_by_id(api_client, created_quote):
 
     # Validate quote structure (data is nested under 'data' key)
     assert quote['id'] == created_quote
-    assert 'customerName' in quote['data']
-    assert 'customerEmail' in quote['data']
+    assert 'customerId' in quote['data']
     assert 'propertyAddress' in quote['data']
     assert 'coverageAmount' in quote['data']
 
@@ -65,8 +64,8 @@ def test_quote_data_persistence(api_client, created_quote, sample_quote_data):
     quote = get_response.json()
 
     # Verify data matches what was submitted (data is nested under 'data' key)
-    assert quote['data']['customerName'] == sample_quote_data['customerName']
-    assert quote['data']['customerEmail'] == sample_quote_data['customerEmail']
+    # Note: customerName/customerEmail are replaced with customerId in new schema
+    assert 'customerId' in quote['data'], "Quote should have customerId"
     assert quote['data']['propertyAddress'] == sample_quote_data['propertyAddress']
     assert quote['data']['coverageAmount'] == sample_quote_data['coverageAmount']
 

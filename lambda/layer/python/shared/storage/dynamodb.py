@@ -94,3 +94,51 @@ class DynamoDBBackend(StorageBackend):
         table = self._get_table(domain)
         response = table.scan()
         return response.get("Items", [])
+
+    def query_by_email(self, domain: str, email: str) -> list:
+        """Query customer by email using GSI"""
+        table = self._get_table(domain)
+        response = table.query(
+            IndexName="EmailIndex",
+            KeyConditionExpression="email = :email",
+            ExpressionAttributeValues={":email": email}
+        )
+        return response.get("Items", [])
+
+    def query_by_customer_id(self, domain: str, customer_id: str) -> list:
+        """Query policies/claims by customerId using GSI"""
+        table = self._get_table(domain)
+        response = table.query(
+            IndexName="CustomerIdIndex",
+            KeyConditionExpression="customerId = :customerId",
+            ExpressionAttributeValues={":customerId": customer_id}
+        )
+        return response.get("Items", [])
+
+    def upsert_customer(self, email: str, data: dict) -> dict:
+        """Create customer if not exists by email, else return existing"""
+        # Check if customer exists
+        existing = self.query_by_email("customer", email)
+        if existing:
+            return existing[0]
+
+        # Create new customer with email at top level for GSI
+        customer_data = dict(data)
+        email_value = customer_data.pop("email", email)
+
+        table = self._get_table("customer")
+        item_id = str(uuid.uuid4())
+
+        clean_data = convert_floats_to_decimal(customer_data)
+
+        item = {
+            "id": item_id,
+            "email": email_value,
+            "createdAt": int(time.time()),
+            "data": clean_data,
+            "status": "ACTIVE"
+        }
+
+        print(f"Creating customer with id={item_id}, email={email_value}")
+        table.put_item(Item=item)
+        return item
