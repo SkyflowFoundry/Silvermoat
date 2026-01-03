@@ -24,21 +24,21 @@ const PaymentsStats = () => {
 
   // Calculate statistics
   const totalPayments = payments.length;
-  const pendingPayments = payments.filter(p => p.data?.status === 'PENDING').length;
-  const completedPayments = payments.filter(p => p.data?.status === 'COMPLETED').length;
-  const failedPayments = payments.filter(p => p.data?.status === 'FAILED').length;
-  const refundedPayments = payments.filter(p => p.data?.status === 'REFUNDED').length;
+  const pendingPayments = payments.filter(p => p.status === 'PENDING').length;
+  const completedPayments = payments.filter(p => p.status === 'COMPLETED').length;
+  const failedPayments = payments.filter(p => p.status === 'FAILED').length;
+  const refundedPayments = payments.filter(p => p.status === 'REFUNDED').length;
 
   const successRate = totalPayments > 0 ? (completedPayments / totalPayments) * 100 : 0;
 
-  // Financial metrics
-  const totalAmount = payments.reduce((sum, p) => sum + (p.data?.amount_cents || 0), 0);
+  // Financial metrics - amount is in dollars, convert to cents for formatCurrencyFromCents
+  const totalAmount = payments.reduce((sum, p) => sum + ((p.data?.amount || 0) * 100), 0);
   const completedAmount = payments
-    .filter(p => p.data?.status === 'COMPLETED')
-    .reduce((sum, p) => sum + (p.data?.amount_cents || 0), 0);
+    .filter(p => p.status === 'COMPLETED')
+    .reduce((sum, p) => sum + ((p.data?.amount || 0) * 100), 0);
   const pendingAmount = payments
-    .filter(p => p.data?.status === 'PENDING')
-    .reduce((sum, p) => sum + (p.data?.amount_cents || 0), 0);
+    .filter(p => p.status === 'PENDING')
+    .reduce((sum, p) => sum + ((p.data?.amount || 0) * 100), 0);
   const avgPayment = totalPayments > 0 ? totalAmount / totalPayments : 0;
 
   // Payment method distribution

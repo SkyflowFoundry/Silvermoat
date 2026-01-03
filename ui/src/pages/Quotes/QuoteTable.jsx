@@ -36,17 +36,21 @@ const QuoteTable = ({ quotes = [], loading = false }) => {
     },
     {
       title: 'Name',
-      dataIndex: ['data', 'name'],
-      key: 'name',
-      sorter: (a, b) => (a.data?.name || '').localeCompare(b.data?.name || ''),
+      dataIndex: ['data', 'customerName'],
+      key: 'customerName',
+      sorter: (a, b) => (a.data?.customerName || '').localeCompare(b.data?.customerName || ''),
       render: (name) => name || '-',
     },
     {
       title: 'ZIP Code',
-      dataIndex: ['data', 'zip'],
       key: 'zip',
       width: 120,
-      render: (zip) => zip || '-',
+      render: (_, record) => {
+        // Extract ZIP from propertyAddress (last 5 digits)
+        const address = record.data?.propertyAddress || '';
+        const zipMatch = address.match(/\b\d{5}\b/);
+        return zipMatch ? zipMatch[0] : '-';
+      },
     },
     {
       title: 'Created',
@@ -107,11 +111,17 @@ const QuoteTable = ({ quotes = [], loading = false }) => {
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
                 <div style={{ flex: 1 }}>
                   <Text type="secondary" style={{ fontSize: 12 }}>Name</Text>
-                  <div><Text style={{ fontSize: 14 }}>{quote.data?.name || '-'}</Text></div>
+                  <div><Text style={{ fontSize: 14 }}>{quote.data?.customerName || '-'}</Text></div>
                 </div>
                 <div>
                   <Text type="secondary" style={{ fontSize: 12 }}>ZIP</Text>
-                  <div><Text style={{ fontSize: 14 }}>{quote.data?.zip || '-'}</Text></div>
+                  <div><Text style={{ fontSize: 14 }}>
+                    {(() => {
+                      const address = quote.data?.propertyAddress || '';
+                      const zipMatch = address.match(/\b\d{5}\b/);
+                      return zipMatch ? zipMatch[0] : '-';
+                    })()}
+                  </Text></div>
                 </div>
               </div>
               <div>

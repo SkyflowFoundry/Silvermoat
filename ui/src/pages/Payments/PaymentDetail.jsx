@@ -76,7 +76,7 @@ const PaymentDetail = () => {
           </Descriptions.Item>
 
           <Descriptions.Item label="Payment Date">
-            {formatDate(payment.data?.paymentDate)}
+            -
           </Descriptions.Item>
 
           <Descriptions.Item label="Amount">
@@ -84,11 +84,11 @@ const PaymentDetail = () => {
           </Descriptions.Item>
 
           <Descriptions.Item label="Method">
-            {payment.data?.method || '-'}
+            {payment.data?.paymentMethod ? payment.data.paymentMethod.replace('_', ' ') : '-'}
           </Descriptions.Item>
 
           <Descriptions.Item label="Status">
-            <StatusTag type="payment" value={payment.data?.status} />
+            <StatusTag type="payment" value={payment.status} />
           </Descriptions.Item>
 
           {payment.data?.policyId && (
