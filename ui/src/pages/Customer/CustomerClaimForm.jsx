@@ -76,7 +76,7 @@ const CustomerClaimForm = () => {
     const customer = customers.find(c => c.email === email);
     setSelectedCustomer(customer);
     await loadPolicies(email);
-    form.resetFields(['policy_id']);
+    form.resetFields(['policyId']);
   };
 
   if (initialLoading) {
@@ -91,7 +91,7 @@ const CustomerClaimForm = () => {
     setLoading(true);
     try {
       const claimData = {
-        policy_id: values.policy_id,
+        policyId: values.policyId,
         claim_type: values.claim_type,
         date_of_loss: values.date_of_loss.format('YYYY-MM-DD'),
         description: values.description,
@@ -156,7 +156,7 @@ const CustomerClaimForm = () => {
             </Form.Item>
 
             <Form.Item
-              name="policy_id"
+              name="policyId"
               label="Policy"
               rules={[{ required: true, message: 'Please select a policy' }]}
             >

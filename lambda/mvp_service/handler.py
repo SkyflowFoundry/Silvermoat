@@ -114,7 +114,7 @@ def handler(event, context):
 
         elif domain == "claim":
             # Denormalize customerId from policy
-            policy_id = body.get("policy_id")
+            policy_id = body.get("policyId")
             top_level_fields = {}
             if policy_id:
                 policy = storage.get("policy", policy_id)

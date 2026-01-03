@@ -53,7 +53,7 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "policy_id": {"type": "string", "description": "Related policy ID"},
+                "policyId": {"type": "string", "description": "Related policy ID"},
                 "status": {"type": "string", "enum": ["PENDING", "COMPLETED", "FAILED"]}
             }
         }
@@ -135,8 +135,8 @@ def execute_tool(tool_name, tool_input, storage):
         items = storage.scan("payment")
 
         # Filter by criteria
-        if tool_input.get("policy_id"):
-            items = [i for i in items if tool_input["policy_id"] == i.get("data", {}).get("policyId")]
+        if tool_input.get("policyId"):
+            items = [i for i in items if tool_input["policyId"] == i.get("data", {}).get("policyId")]
         if tool_input.get("status"):
             items = [i for i in items if tool_input["status"] == i.get("status")]
 
