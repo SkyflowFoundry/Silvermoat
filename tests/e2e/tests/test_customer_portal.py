@@ -119,8 +119,8 @@ def test_customer_portal_policy_currency_display(driver, base_url, api_base_url)
         "zip": "99999",
         "effectiveDate": "2024-01-01",
         "expirationDate": "2025-01-01",
-        "premium_cents": 350000,  # $3,500
-        "coverageLimit_cents": 50000000,  # $500,000
+        "premium": 350000,  # $3,500 in cents (formatCurrency divides by 100)
+        "coverageLimit_cents": 50000000,  # $500,000 in cents
     }
     policy_response = requests.post(f"{api_base_url}/policy", json=policy_data)
     assert policy_response.status_code == 201
