@@ -11,14 +11,10 @@ import api from './api';
  * @returns {Promise<Object>} - Policies response
  */
 export const getCustomerPolicies = async (customerEmail) => {
-  const response = await api.get('/policy');
+  // Use backend filtering via query parameter
+  const response = await api.get(`/policy?customerEmail=${encodeURIComponent(customerEmail)}`);
 
-  // Filter policies by customer email
-  const policies = response.items.filter(
-    policy => policy.data?.customer_email === customerEmail
-  );
-
-  return { policies, count: policies.length };
+  return { policies: response.items, count: response.count };
 };
 
 /**
@@ -37,19 +33,10 @@ export const getCustomerPolicy = async (policyId) => {
  * @returns {Promise<Object>} - Claims response
  */
 export const getCustomerClaims = async (customerEmail) => {
-  // Get customer's policies first to find policy IDs
-  const policiesResponse = await getCustomerPolicies(customerEmail);
-  const policyIds = policiesResponse.policies.map(p => p.id);
+  // Use backend filtering via query parameter
+  const response = await api.get(`/claim?customerEmail=${encodeURIComponent(customerEmail)}`);
 
-  // Get all claims
-  const response = await api.get('/claim');
-
-  // Filter claims by customer's policy IDs
-  const claims = response.items.filter(
-    claim => policyIds.includes(claim.data?.policyId)
-  );
-
-  return { claims, count: claims.length };
+  return { claims: response.items, count: response.count };
 };
 
 /**
@@ -79,19 +66,10 @@ export const uploadClaimDocument = async (claimId, docData) => {
  * @returns {Promise<Object>} - Payments response
  */
 export const getCustomerPayments = async (customerEmail) => {
-  // Get customer's policies first to find policy IDs
-  const policiesResponse = await getCustomerPolicies(customerEmail);
-  const policyIds = policiesResponse.policies.map(p => p.id);
+  // Use backend filtering via query parameter
+  const response = await api.get(`/payment?customerEmail=${encodeURIComponent(customerEmail)}`);
 
-  // Get all payments
-  const response = await api.get('/payment');
-
-  // Filter payments by customer's policy IDs
-  const payments = response.items.filter(
-    payment => policyIds.includes(payment.data?.policyId)
-  );
-
-  return { payments, count: payments.length };
+  return { payments: response.items, count: response.count };
 };
 
 /**
@@ -99,7 +77,8 @@ export const getCustomerPayments = async (customerEmail) => {
  * @returns {Promise<Array>} - Array of customer info objects
  */
 export const getAvailableCustomers = async () => {
-  const response = await api.get('/customer');
+  // Limit to first 10 customers for dropdown
+  const response = await api.get('/customer?limit=10');
 
   if (!response.items || response.items.length === 0) {
     return [{

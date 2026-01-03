@@ -58,9 +58,45 @@ def handler(event, context):
     if domain not in valid_domains:
         return _resp(404, {"error": "unknown_domain", "domain": domain})
 
-    # GET /{domain} -> list all items
+    # GET /{domain} -> list all items (with optional query params)
     if method == "GET" and len(parts) == 1:
+        # Parse query string parameters
+        query_params = event.get("queryStringParameters") or {}
+        customer_email = query_params.get("customerEmail")
+        limit = query_params.get("limit")
+
+        # Filter by customerEmail for policy, claim, payment
+        if customer_email and domain in ["policy", "claim", "payment"]:
+            # Get customer by email to find customerId
+            customers = storage.query_by_email("customer", customer_email)
+            if not customers:
+                return _resp(200, {"items": [], "count": 0})
+
+            customer_id = customers[0]["id"]
+
+            # Query by customerId using GSI
+            if domain in ["policy", "claim"]:
+                items = storage.query_by_customer_id(domain, customer_id)
+            elif domain == "payment":
+                # For payments, get policies first, then filter payments
+                policies = storage.query_by_customer_id("policy", customer_id)
+                policy_ids = [p["id"] for p in policies]
+                all_payments = storage.scan("payment")
+                items = [p for p in all_payments if p.get("data", {}).get("policyId") in policy_ids]
+
+            return _resp(200, {"items": items, "count": len(items)})
+
+        # Get all items
         items = storage.list(domain)
+
+        # Apply limit if specified
+        if limit:
+            try:
+                limit_int = int(limit)
+                items = items[:limit_int]
+            except ValueError:
+                pass  # Ignore invalid limit
+
         return _resp(200, {"items": items, "count": len(items)})
 
     # POST /{domain} -> create
