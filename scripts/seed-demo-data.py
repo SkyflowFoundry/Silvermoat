@@ -153,7 +153,6 @@ def seed_claims(count=30):
 
         data = {
             "policyId": policy["id"],
-            "policy_id": policy["id"],  # Frontend expects this field
             "claimNumber": fake.bothify(text='CLM-####-####'),
             "claimantName": policy["customer"]["name"],
             "lossType": fake.random_element(["WATER_DAMAGE", "FIRE", "THEFT", "LIABILITY"]),
@@ -177,7 +176,6 @@ def seed_payments(count=270):
 
         data = {
             "policyId": policy["id"],
-            "policy_id": policy["id"],  # Frontend expects this field
             "amount": round(fake.random_int(200, 1500, step=50) + fake.random.random(), 2),
             "paymentMethod": fake.random_element(["CREDIT_CARD", "BANK_TRANSFER", "CHECK"]),
             "cardLastFour": fake.numerify(text="####")

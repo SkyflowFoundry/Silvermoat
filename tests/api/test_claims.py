@@ -114,7 +114,7 @@ def test_delete_claim_not_found(api_client):
 def test_create_claim_missing_required_fields(api_client):
     """Test that creating claim without required fields returns 400"""
     invalid_data = {
-        "policy_id": "policy-123"
+        "policyId": "policy-123"
         # Missing claim_type, claim_date, etc.
     }
 
@@ -144,7 +144,7 @@ def test_create_claim_invalid_json(api_client):
 def test_create_claim_invalid_data_types(api_client):
     """Test that invalid data types return 400"""
     invalid_data = {
-        "policy_id": "policy-123",
+        "policyId": "policy-123",
         "claim_type": "water_damage",
         "claim_date": "not-a-date",  # Should be valid date format
         "claim_amount": "not-a-number"  # Should be numeric

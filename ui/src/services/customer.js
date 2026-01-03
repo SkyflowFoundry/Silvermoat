@@ -46,7 +46,7 @@ export const getCustomerClaims = async (customerEmail) => {
 
   // Filter claims by customer's policy IDs
   const claims = response.items.filter(
-    claim => policyIds.includes(claim.data?.policy_id)
+    claim => policyIds.includes(claim.data?.policyId)
   );
 
   return { claims, count: claims.length };
@@ -88,7 +88,7 @@ export const getCustomerPayments = async (customerEmail) => {
 
   // Filter payments by customer's policy IDs
   const payments = response.items.filter(
-    payment => policyIds.includes(payment.data?.policy_id)
+    payment => policyIds.includes(payment.data?.policyId)
   );
 
   return { payments, count: payments.length };

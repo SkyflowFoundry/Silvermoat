@@ -111,7 +111,7 @@ def execute_customer_tool(tool_name, tool_input, storage, customer_email):
 
         # Get all payments and filter by policy_ids
         items = storage.scan("payment")
-        items = [i for i in items if i.get("data", {}).get("policy_id") in policy_ids]
+        items = [i for i in items if i.get("data", {}).get("policyId") in policy_ids]
 
         print(f"[DEBUG] Filtered payments: {len(items)}")
 
@@ -132,19 +132,19 @@ def execute_customer_tool(tool_name, tool_input, storage, customer_email):
 
         # Verify ownership via customerId
         if entity_type == "policy":
-            if item.get("data", {}).get("customerId") != customer_id:
+            if item.get("customerId") != customer_id:
                 return {"error": "Access denied"}
         elif entity_type in ["claim", "payment"]:
             # Check if item's customerId matches (for claim) or via policy (for payment)
             if entity_type == "claim":
-                if item.get("data", {}).get("customerId") != customer_id:
+                if item.get("customerId") != customer_id:
                     return {"error": "Access denied"}
             else:
                 # For payment, check via policy
-                policy_id = item.get("data", {}).get("policy_id")
+                policy_id = item.get("data", {}).get("policyId")
                 if policy_id:
                     policy = storage.get("policy", policy_id)
-                    if not policy or policy.get("data", {}).get("customerId") != customer_id:
+                    if not policy or policy.get("customerId") != customer_id:
                         return {"error": "Access denied"}
                 else:
                     return {"error": "Access denied"}

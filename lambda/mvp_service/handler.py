@@ -114,13 +114,13 @@ def handler(event, context):
 
         elif domain == "claim":
             # Denormalize customerId from policy
-            policy_id = body.get("policy_id")
+            policy_id = body.get("policyId")
             top_level_fields = {}
             if policy_id:
                 policy = storage.get("policy", policy_id)
                 if policy:
-                    # Check top-level first (new schema), fallback to data field (old schema)
-                    customer_id = policy.get("customerId") or policy.get("data", {}).get("customerId")
+                    # Check top-level customerId
+                    customer_id = policy.get("customerId")
                     if customer_id:
                         body["customerId"] = customer_id
                         top_level_fields["customerId"] = customer_id

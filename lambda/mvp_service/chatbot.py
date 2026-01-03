@@ -53,7 +53,7 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "policy_id": {"type": "string", "description": "Related policy ID"},
+                "policyId": {"type": "string", "description": "Related policy ID"},
                 "status": {"type": "string", "enum": ["PENDING", "COMPLETED", "FAILED"]}
             }
         }
@@ -112,7 +112,7 @@ def execute_tool(tool_name, tool_input, storage):
             hn = tool_input["holder_name"].lower()
             items = [i for i in items if hn in i.get("data", {}).get("holderName", "").lower()]
         if tool_input.get("status"):
-            items = [i for i in items if tool_input["status"] == i.get("data", {}).get("status")]
+            items = [i for i in items if tool_input["status"] == i.get("status")]
 
         return {"policies": items[:10], "count": len(items)}
 
@@ -135,10 +135,10 @@ def execute_tool(tool_name, tool_input, storage):
         items = storage.scan("payment")
 
         # Filter by criteria
-        if tool_input.get("policy_id"):
-            items = [i for i in items if tool_input["policy_id"] == i.get("data", {}).get("policyId")]
+        if tool_input.get("policyId"):
+            items = [i for i in items if tool_input["policyId"] == i.get("data", {}).get("policyId")]
         if tool_input.get("status"):
-            items = [i for i in items if tool_input["status"] == i.get("data", {}).get("status")]
+            items = [i for i in items if tool_input["status"] == i.get("status")]
 
         return {"payments": items[:10], "count": len(items)}
 
@@ -155,7 +155,7 @@ def execute_tool(tool_name, tool_input, storage):
         if tool_input.get("priority"):
             items = [i for i in items if tool_input["priority"] == i.get("data", {}).get("priority")]
         if tool_input.get("status"):
-            items = [i for i in items if tool_input["status"] == i.get("data", {}).get("status")]
+            items = [i for i in items if tool_input["status"] == i.get("status")]
 
         return {"cases": items[:10], "count": len(items)}
 

@@ -109,7 +109,7 @@ def test_delete_payment_not_found(api_client):
 def test_create_payment_missing_required_fields(api_client):
     """Test that creating payment without required fields returns 400"""
     invalid_data = {
-        "policy_id": "policy-123"
+        "policyId": "policy-123"
         # Missing amount, payment_method, etc.
     }
 
@@ -139,7 +139,7 @@ def test_create_payment_invalid_json(api_client):
 def test_create_payment_invalid_data_types(api_client):
     """Test that invalid data types return 400"""
     invalid_data = {
-        "policy_id": "policy-123",
+        "policyId": "policy-123",
         "amount": "not-a-number",  # Should be numeric
         "payment_method": "credit_card",
         "payment_date": "not-a-date"  # Should be valid date format
@@ -179,7 +179,7 @@ def test_get_payment_invalid_id_format(api_client):
 def test_create_payment_negative_amount(api_client):
     """Test that negative payment amount returns 400"""
     invalid_data = {
-        "policy_id": "policy-123",
+        "policyId": "policy-123",
         "amount": -100.00,  # Negative amount
         "payment_method": "credit_card"
     }
