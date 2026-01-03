@@ -46,11 +46,13 @@ def seed_customers(count=50):
     print(f"✓ Created {count} customers")
 
 def seed_quotes(count=150):
-    """Seed quote records (avg 3 per customer, some customers get 1-5)."""
+    """Seed quote records ensuring each customer gets at least one."""
     print(f"Seeding {count} quotes...")
-    for i in range(count):
-        # Reuse customer from pool
-        customer = fake.random_element(customers)
+
+    # First pass: ensure each customer gets at least one quote
+    num_customers = len(customers)
+    for i in range(min(count, num_customers)):
+        customer = customers[i]
 
         data = {
             "customerName": customer["name"],
@@ -72,28 +74,46 @@ def seed_quotes(count=150):
         })
 
         if (i + 1) % 25 == 0:
+            print(f"  Created {i + 1}/{count} quotes (ensuring all customers)")
+
+    # Second pass: remaining quotes randomly distributed
+    for i in range(num_customers, count):
+        customer = fake.random_element(customers)
+
+        data = {
+            "customerName": customer["name"],
+            "customerEmail": customer["email"],
+            "propertyAddress": customer["address"],
+            "coverageAmount": fake.random_int(50000, 1000000, step=10000),
+            "propertyType": fake.random_element(["SINGLE_FAMILY", "CONDO", "TOWNHOUSE"]),
+            "yearBuilt": fake.random_int(1950, 2024)
+        }
+        response = requests.post(f"{API_BASE_URL}/quote", json=data, timeout=30)
+        response.raise_for_status()
+
+        quote_id = response.json()['id']
+        quotes.append({
+            "id": quote_id,
+            "customer": customer,
+            "coverage_amount": data["coverageAmount"]
+        })
+
+        if (i + 1) % 25 == 0:
             print(f"  Created {i + 1}/{count} quotes")
+
     print(f"✓ Created {count} quotes")
 
 def seed_policies(count=90):
-    """Seed policy records (60% quote conversion rate).
-
-    Distribution strategy:
-    - First 50 policies: Round-robin across customers (1 per customer)
-    - Remaining 40 policies: Random distribution (some customers get 2-3)
-    """
+    """Seed policy records ensuring each customer gets at least one."""
     print(f"Seeding {count} policies...")
 
-    # Track which customers have policies
-    customer_policy_count = {c["id"]: 0 for c in customers}
+    num_customers = len(customers)
 
     for i in range(count):
-        # First 50 policies: ensure each customer gets one policy (round-robin)
-        if i < len(customers):
-            # Find quote for this specific customer
+        # First N policies: ensure each customer gets one policy
+        if i < num_customers:
             customer = customers[i]
             customer_quotes = [q for q in quotes if q["customer"]["id"] == customer["id"]]
-            # If no quotes for this customer, pick any quote (fallback)
             quote = fake.random_element(customer_quotes) if customer_quotes else fake.random_element(quotes)
         else:
             # Remaining policies: random distribution
@@ -132,11 +152,20 @@ def seed_policies(count=90):
     print(f"✓ Created {count} policies")
 
 def seed_claims(count=30):
-    """Seed claim records (30% of policies have 1-2 claims)."""
+    """Seed claim records ensuring each customer gets at least one."""
     print(f"Seeding {count} claims...")
+
+    num_customers = len(customers)
+
     for i in range(count):
-        # Reference actual policy
-        policy = fake.random_element(policies)
+        # First N claims: ensure each customer gets one claim
+        if i < num_customers:
+            customer = customers[i]
+            customer_policies = [p for p in policies if p["customer"]["id"] == customer["id"]]
+            policy = fake.random_element(customer_policies) if customer_policies else fake.random_element(policies)
+        else:
+            # Remaining claims: random distribution
+            policy = fake.random_element(policies)
 
         # Loss date should be during policy period (but not in the future)
         today = date.today()
@@ -168,11 +197,20 @@ def seed_claims(count=30):
     print(f"✓ Created {count} claims")
 
 def seed_payments(count=270):
-    """Seed payment records (avg 3 payments per policy - quarterly/monthly premiums)."""
+    """Seed payment records ensuring each customer gets at least one."""
     print(f"Seeding {count} payments...")
+
+    num_customers = len(customers)
+
     for i in range(count):
-        # Reference actual policy
-        policy = fake.random_element(policies)
+        # First N payments: ensure each customer gets one payment
+        if i < num_customers:
+            customer = customers[i]
+            customer_policies = [p for p in policies if p["customer"]["id"] == customer["id"]]
+            policy = fake.random_element(customer_policies) if customer_policies else fake.random_element(policies)
+        else:
+            # Remaining payments: random distribution
+            policy = fake.random_element(policies)
 
         data = {
             "policyId": policy["id"],
@@ -187,33 +225,52 @@ def seed_payments(count=270):
     print(f"✓ Created {count} payments")
 
 def seed_cases(count=40):
-    """Seed case records (various customer service issues)."""
+    """Seed case records ensuring each customer gets at least one."""
     print(f"Seeding {count} cases...")
 
     # Generate pool of customer service reps
     assignees = [fake.name() for _ in range(10)]
 
-    for i in range(count):
-        # Generate case titles based on common scenarios
-        case_titles = [
-            "Policy Change Request",
-            "Coverage Amount Inquiry",
-            "Claim Status Update",
-            "Payment Issue Resolution",
-            "Document Upload Request",
-            "Policy Cancellation Request",
-            "Premium Adjustment Inquiry",
-            "Coverage Extension Request"
-        ]
+    # Generate case titles based on common scenarios
+    case_titles = [
+        "Policy Change Request",
+        "Coverage Amount Inquiry",
+        "Claim Status Update",
+        "Payment Issue Resolution",
+        "Document Upload Request",
+        "Policy Cancellation Request",
+        "Premium Adjustment Inquiry",
+        "Coverage Extension Request"
+    ]
 
-        # Reference actual resources
-        entity_type = fake.random_element(["policy", "quote", "claim"])
-        if entity_type == "policy" and policies:
-            entity_id = fake.random_element(policies)["id"]
-        elif entity_type == "quote" and quotes:
-            entity_id = fake.random_element(quotes)["id"]
+    num_customers = len(customers)
+
+    for i in range(count):
+        # First N cases: ensure each customer gets one case (linked to their policy)
+        if i < num_customers:
+            customer = customers[i]
+            customer_policies = [p for p in policies if p["customer"]["id"] == customer["id"]]
+            if customer_policies:
+                entity_type = "policy"
+                entity_id = fake.random_element(customer_policies)["id"]
+            else:
+                # Fallback to random entity if customer has no policy
+                entity_type = fake.random_element(["policy", "quote", "claim"])
+                if entity_type == "policy" and policies:
+                    entity_id = fake.random_element(policies)["id"]
+                elif entity_type == "quote" and quotes:
+                    entity_id = fake.random_element(quotes)["id"]
+                else:
+                    entity_id = f"{entity_type}-{fake.uuid4()}"
         else:
-            entity_id = f"{entity_type}-{fake.uuid4()}"
+            # Remaining cases: random distribution
+            entity_type = fake.random_element(["policy", "quote", "claim"])
+            if entity_type == "policy" and policies:
+                entity_id = fake.random_element(policies)["id"]
+            elif entity_type == "quote" and quotes:
+                entity_id = fake.random_element(quotes)["id"]
+            else:
+                entity_id = f"{entity_type}-{fake.uuid4()}"
 
         data = {
             "title": fake.random_element(case_titles),
@@ -238,20 +295,21 @@ if __name__ == "__main__":
         print()
 
         # Seed resources with realistic relationships
+        # Note: Each customer guaranteed at least 1 of each resource type
         seed_quotes(150)
         seed_policies(90)
-        seed_claims(30)
+        seed_claims(50)
         seed_payments(270)
-        seed_cases(40)
+        seed_cases(50)
 
-        total = 50 + 150 + 90 + 30 + 270 + 40
+        total = 50 + 150 + 90 + 50 + 270 + 50
         print(f"\n✓ Seeding complete: {total} items created")
         print(f"  - 50 customers")
-        print(f"  - 150 quotes (avg 3 per customer)")
-        print(f"  - 90 policies (60% quote conversion)")
-        print(f"  - 30 claims (30% of policies)")
-        print(f"  - 270 payments (avg 3 per policy)")
-        print(f"  - 40 cases (customer service issues)")
+        print(f"  - 150 quotes (each customer has 1-5)")
+        print(f"  - 90 policies (each customer has 1-3)")
+        print(f"  - 50 claims (each customer has 1+)")
+        print(f"  - 270 payments (each customer has 1+)")
+        print(f"  - 50 cases (each customer has 1+)")
 
     except requests.exceptions.RequestException as e:
         print(f"\n✗ Seeding failed: {e}", file=sys.stderr)
