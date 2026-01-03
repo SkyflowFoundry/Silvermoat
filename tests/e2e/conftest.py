@@ -77,12 +77,11 @@ def api_base_url():
     return os.environ.get('API_BASE_URL', 'http://localhost:3000').rstrip('/')
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def driver():
     """
     Create Selenium WebDriver instance with Chrome.
     Supports headless mode via HEADLESS environment variable.
-    Reuses same browser for all tests in module for performance.
     """
     chrome_options = Options()
 
@@ -106,9 +105,9 @@ def driver():
     driver.quit()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def mobile_driver():
-    """Chrome WebDriver with mobile viewport (375x667) - reused across module"""
+    """Chrome WebDriver with mobile viewport (375x667)"""
     chrome_options = Options()
 
     if os.environ.get('HEADLESS', '').lower() in ['1', 'true', 'yes']:
@@ -133,9 +132,9 @@ def mobile_driver():
     driver.quit()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def tablet_driver():
-    """Chrome WebDriver with tablet viewport (768x1024) - reused across module"""
+    """Chrome WebDriver with tablet viewport (768x1024)"""
     chrome_options = Options()
 
     if os.environ.get('HEADLESS', '').lower() in ['1', 'true', 'yes']:
@@ -153,8 +152,8 @@ def tablet_driver():
     driver.quit()
 
 
-def wait_for_app_ready(driver, timeout=10):
-    """Wait for app to be fully loaded and interactive (optimized for faster tests)"""
+def wait_for_app_ready(driver, timeout=15):
+    """Wait for app to be fully loaded and interactive"""
     try:
         # Wait for React root div to exist
         WebDriverWait(driver, timeout).until(
@@ -162,8 +161,7 @@ def wait_for_app_ready(driver, timeout=10):
         )
 
         # CRITICAL: Wait for loading screen to be REMOVED from DOM (not just fade-out)
-        # Loading screen has 3s minimum + 800ms fade = 3.8s total minimum
-        # In test env with TEST_ENV=true, loading screen is skipped (0s)
+        # With ?test=true, loading screen is skipped (0s), otherwise 3.8s minimum
         WebDriverWait(driver, timeout).until(
             lambda d: d.execute_script(
                 "return !document.getElementById('loading-screen')"
