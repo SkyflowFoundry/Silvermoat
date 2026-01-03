@@ -120,15 +120,15 @@ const CustomerDashboard = () => {
     },
     {
       title: 'Coverage',
-      dataIndex: ['data', 'coverage_amount'],
+      dataIndex: ['data', 'coverageLimit_cents'],
       key: 'coverage',
-      render: (amount) => formatCurrency(amount * 100),
+      render: (amount) => formatCurrency(amount),
     },
     {
       title: 'Premium',
-      dataIndex: ['data', 'premium_annual'],
+      dataIndex: ['data', 'premium'],
       key: 'premium',
-      render: (amount) => formatCurrency(amount * 100),
+      render: (amount) => formatCurrency(amount),
     },
     {
       title: 'Effective Date',
@@ -173,7 +173,7 @@ const CustomerDashboard = () => {
       title: 'Amount',
       dataIndex: ['data', 'claim_amount'],
       key: 'claim_amount',
-      render: (amount) => formatCurrency(amount * 100),
+      render: (amount) => formatCurrency(amount),
     },
     {
       title: 'Status',
@@ -194,7 +194,7 @@ const CustomerDashboard = () => {
       title: 'Amount',
       dataIndex: ['data', 'amount'],
       key: 'amount',
-      render: (amount) => formatCurrency(amount * 100),
+      render: (amount) => formatCurrency(amount),
     },
     {
       title: 'Method',
@@ -279,7 +279,7 @@ const CustomerDashboard = () => {
               <Text type="secondary">Total Payments</Text>
               <Title level={2} style={{ margin: 0 }}>
                 {formatCurrency(
-                  payments.reduce((sum, p) => sum + ((p.data?.amount || 0) * 100), 0)
+                  payments.reduce((sum, p) => sum + (p.data?.amount || 0), 0)
                 )}
               </Title>
             </Space>
