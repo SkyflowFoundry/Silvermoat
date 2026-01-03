@@ -106,3 +106,38 @@ def test_customer_submit_claim_flow(driver, base_url, api_base_url):
         # If we can't find the button, that's okay for this test
         # The important part is that the dashboard loaded
         print(f"Claim button not found (expected for MVP): {e}")
+
+
+@pytest.mark.e2e
+@pytest.mark.customer
+def test_customer_portal_policy_currency_display(driver, base_url, api_base_url):
+    """Test that policy currency amounts display correctly (no NaN values)"""
+    # Create test policy with known currency values
+    policy_data = {
+        "policyNumber": "POL-2024-CURRENCY-TEST",
+        "holderName": "Currency Test User",
+        "zip": "99999",
+        "effectiveDate": "2024-01-01",
+        "expirationDate": "2025-01-01",
+        "premium_cents": 350000,  # $3,500
+        "coverageLimit_cents": 50000000,  # $500,000
+    }
+    policy_response = requests.post(f"{api_base_url}/policy", json=policy_data)
+    assert policy_response.status_code == 201
+
+    # Navigate to customer dashboard
+    driver.get(f"{base_url}/customer/dashboard")
+    wait_for_app_ready(driver)
+
+    # Wait for page to load
+    wait = WebDriverWait(driver, 10)
+    wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+
+    # Verify no NaN values in page
+    page_source = driver.page_source
+    assert "NaN" not in page_source, "Page should not contain NaN values"
+
+    # Verify expected currency values are displayed
+    # Should show $3,500 and $500,000
+    assert "$3,500" in page_source or "$3500" in page_source, "Should display $3,500 premium"
+    assert "$500,000" in page_source or "$500000" in page_source, "Should display $500,000 coverage"
