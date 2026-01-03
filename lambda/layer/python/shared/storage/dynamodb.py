@@ -27,8 +27,8 @@ class DynamoDBBackend(StorageBackend):
             raise ValueError(f"Unknown domain: {domain}")
         return self.tables[domain]
 
-    def create(self, domain: str, data: dict, status: str) -> dict:
-        """Create a new item"""
+    def create(self, domain: str, data: dict, status: str, top_level_fields: dict = None) -> dict:
+        """Create a new item with optional top-level fields for GSI indexing"""
         table = self._get_table(domain)
         item_id = str(uuid.uuid4())
 
@@ -41,6 +41,10 @@ class DynamoDBBackend(StorageBackend):
             "data": clean_data,
             "status": status
         }
+
+        # Add top-level fields for GSI indexing (e.g., customerId)
+        if top_level_fields:
+            item.update(top_level_fields)
 
         print(f"Creating {domain} with id={item_id}, status={status}")
         table.put_item(Item=item)

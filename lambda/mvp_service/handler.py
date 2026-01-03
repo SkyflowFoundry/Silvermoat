@@ -101,23 +101,30 @@ def handler(event, context):
             # Extract customer data from policy
             holder_name = body.get("holderName")
             holder_email = body.get("holderEmail") or body.get("customer_email")
+            top_level_fields = {}
             if holder_email:
                 customer = storage.upsert_customer(holder_email, {"name": holder_name, "email": holder_email})
-                # Remove duplicate fields and add customerId
+                # Remove duplicate fields and extract customerId for top-level
                 body.pop("holderName", None)
                 body.pop("holderEmail", None)
                 body.pop("customer_email", None)
                 body["customerId"] = customer["id"]
-            item = storage.create(domain, body, default_status)
+                top_level_fields["customerId"] = customer["id"]
+            item = storage.create(domain, body, default_status, top_level_fields)
 
         elif domain == "claim":
             # Denormalize customerId from policy
             policy_id = body.get("policy_id")
+            top_level_fields = {}
             if policy_id:
                 policy = storage.get("policy", policy_id)
-                if policy and policy.get("data", {}).get("customerId"):
-                    body["customerId"] = policy["data"]["customerId"]
-            item = storage.create(domain, body, default_status)
+                if policy:
+                    # Check top-level first (new schema), fallback to data field (old schema)
+                    customer_id = policy.get("customerId") or policy.get("data", {}).get("customerId")
+                    if customer_id:
+                        body["customerId"] = customer_id
+                        top_level_fields["customerId"] = customer_id
+            item = storage.create(domain, body, default_status, top_level_fields)
 
         else:
             item = storage.create(domain, body, default_status)
