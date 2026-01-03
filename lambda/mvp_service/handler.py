@@ -119,8 +119,8 @@ def handler(event, context):
             if policy_id:
                 policy = storage.get("policy", policy_id)
                 if policy:
-                    # Check top-level first (new schema), fallback to data field (old schema)
-                    customer_id = policy.get("customerId") or policy.get("data", {}).get("customerId")
+                    # Check top-level customerId
+                    customer_id = policy.get("customerId")
                     if customer_id:
                         body["customerId"] = customer_id
                         top_level_fields["customerId"] = customer_id
