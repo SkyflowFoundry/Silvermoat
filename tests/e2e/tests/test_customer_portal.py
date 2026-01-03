@@ -149,7 +149,7 @@ def test_customer_chat_button_appears(driver, base_url, api_base_url):
     policy_data = {
         "policyNumber": "POL-2024-CHAT001",
         "holderName": "Chat Test Customer",
-        "customer_email": "chattest@example.com",
+        "holderEmail": "chattest@example.com",
         "zip": "10001",
         "effectiveDate": "2024-01-01",
         "expirationDate": "2025-01-01",
@@ -186,7 +186,7 @@ def test_customer_chat_drawer_opens(driver, base_url, api_base_url):
     policy_data = {
         "policyNumber": "POL-2024-DRAWER001",
         "holderName": "Chat Drawer Test",
-        "customer_email": "drawer@example.com",
+        "holderEmail": "drawer@example.com",
         "zip": "10002",
         "effectiveDate": "2024-01-01",
         "expirationDate": "2025-01-01",
@@ -229,7 +229,7 @@ def test_customer_chat_starter_prompts(driver, base_url, api_base_url):
     policy_data = {
         "policyNumber": "POL-2024-STARTER001",
         "holderName": "Starter Prompt Test",
-        "customer_email": "starter@example.com",
+        "holderEmail": "starter@example.com",
         "zip": "10003",
         "effectiveDate": "2024-01-01",
         "expirationDate": "2025-01-01",

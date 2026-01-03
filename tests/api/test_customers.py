@@ -36,10 +36,10 @@ def test_get_customer_by_id(api_client, created_customer):
     assert get_response.status_code == 200, f"Expected 200, got {get_response.status_code}"
     customer = get_response.json()
 
-    # Validate customer structure (data is nested under 'data' key)
+    # Validate customer structure (email at top-level for GSI, other fields in data)
     assert customer['id'] == created_customer
+    assert 'email' in customer  # GSI field at top level
     assert 'name' in customer['data']
-    assert 'email' in customer['data']
     assert 'address' in customer['data']
 
 
@@ -63,9 +63,9 @@ def test_customer_data_persistence(api_client, created_customer, sample_customer
     assert get_response.status_code == 200
     customer = get_response.json()
 
-    # Verify data matches what was submitted (data is nested under 'data' key)
+    # Verify data matches what was submitted (email at top-level, other fields in data)
     assert customer['data']['name'] == sample_customer_data['name']
-    assert customer['data']['email'] == sample_customer_data['email']
+    assert customer['email'] == sample_customer_data['email']  # Email stored at top-level for GSI
     assert customer['data']['address'] == sample_customer_data['address']
 
 

@@ -75,7 +75,59 @@ def handler(event, context):
             "case": "OPEN"
         }.get(domain, "PENDING")
 
-        item = storage.create(domain, body, default_status)
+        # Handle customer creation/upsert
+        if domain == "customer":
+            # Use upsert_customer for proper email indexing
+            customer_email = body.get("email")
+            if customer_email:
+                item = storage.upsert_customer(customer_email, body)
+            else:
+                item = storage.create(domain, body, default_status)
+
+        # Handle customer upsert for quote/policy
+        elif domain == "quote":
+            # Extract customer data from quote
+            customer_name = body.get("customerName")
+            customer_email = body.get("customerEmail")
+            if customer_email:
+                customer = storage.upsert_customer(customer_email, {"name": customer_name, "email": customer_email})
+                # Remove duplicate fields and add customerId
+                body.pop("customerName", None)
+                body.pop("customerEmail", None)
+                body["customerId"] = customer["id"]
+            item = storage.create(domain, body, default_status)
+
+        elif domain == "policy":
+            # Extract customer data from policy
+            holder_name = body.get("holderName")
+            holder_email = body.get("holderEmail") or body.get("customer_email")
+            top_level_fields = {}
+            if holder_email:
+                customer = storage.upsert_customer(holder_email, {"name": holder_name, "email": holder_email})
+                # Remove duplicate fields and extract customerId for top-level
+                body.pop("holderName", None)
+                body.pop("holderEmail", None)
+                body.pop("customer_email", None)
+                body["customerId"] = customer["id"]
+                top_level_fields["customerId"] = customer["id"]
+            item = storage.create(domain, body, default_status, top_level_fields)
+
+        elif domain == "claim":
+            # Denormalize customerId from policy
+            policy_id = body.get("policy_id")
+            top_level_fields = {}
+            if policy_id:
+                policy = storage.get("policy", policy_id)
+                if policy:
+                    # Check top-level first (new schema), fallback to data field (old schema)
+                    customer_id = policy.get("customerId") or policy.get("data", {}).get("customerId")
+                    if customer_id:
+                        body["customerId"] = customer_id
+                        top_level_fields["customerId"] = customer_id
+            item = storage.create(domain, body, default_status, top_level_fields)
+
+        else:
+            item = storage.create(domain, body, default_status)
         _emit(f"{domain}.created", {"id": item["id"], "data": body, "status": default_status})
         return _resp(201, {"id": item["id"], "item": item})
 

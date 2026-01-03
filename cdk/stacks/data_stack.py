@@ -26,6 +26,36 @@ class DataStack(Construct):
                 billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
                 removal_policy=RemovalPolicy.DESTROY,
             )
+
+            # Add GSIs for efficient querying
+            if table_type == "Customers":
+                # GSI for querying by email
+                table.add_global_secondary_index(
+                    index_name="EmailIndex",
+                    partition_key=dynamodb.Attribute(
+                        name="email", type=dynamodb.AttributeType.STRING
+                    ),
+                    projection_type=dynamodb.ProjectionType.ALL,
+                )
+            elif table_type == "Policies":
+                # GSI for querying by customerId
+                table.add_global_secondary_index(
+                    index_name="CustomerIdIndex",
+                    partition_key=dynamodb.Attribute(
+                        name="customerId", type=dynamodb.AttributeType.STRING
+                    ),
+                    projection_type=dynamodb.ProjectionType.ALL,
+                )
+            elif table_type == "Claims":
+                # GSI for querying by customerId
+                table.add_global_secondary_index(
+                    index_name="CustomerIdIndex",
+                    partition_key=dynamodb.Attribute(
+                        name="customerId", type=dynamodb.AttributeType.STRING
+                    ),
+                    projection_type=dynamodb.ProjectionType.ALL,
+                )
+
             self.tables[table_type.lower()] = table
 
         # SNS Topic

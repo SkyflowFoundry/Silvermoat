@@ -22,9 +22,10 @@ def seed_customers(count=50):
     """Seed customer records to database."""
     print(f"Seeding {count} customers...")
     for i in range(count):
+        customer_email = fake.email()
         data = {
             "name": fake.name(),
-            "email": fake.email(),
+            "email": customer_email,
             "address": fake.address().replace('\n', ', '),
             "phone": fake.phone_number()
         }
@@ -36,7 +37,7 @@ def seed_customers(count=50):
         customers.append({
             "id": customer_id,
             "name": data["name"],
-            "email": data["email"],
+            "email": customer_email,
             "address": data["address"]
         })
 

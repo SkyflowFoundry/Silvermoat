@@ -35,7 +35,7 @@ def test_get_policy_by_id(api_client, created_policy):
 
     # Validate policy structure (data is nested under 'data' key)
     assert policy['id'] == created_policy
-    assert 'holderName' in policy['data']
+    assert 'customerId' in policy['data']
     assert 'coverageAmount' in policy['data']
     # Status is at top level
     assert 'status' in policy

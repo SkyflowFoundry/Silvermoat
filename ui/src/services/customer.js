@@ -111,7 +111,7 @@ export const getAvailableCustomers = async () => {
   // Map customer records to simple format
   return response.items.map(customer => ({
     name: customer.data?.name || 'Unknown',
-    email: customer.data?.email || 'unknown@example.com',
+    email: customer.email || 'unknown@example.com',
   }));
 };
 
