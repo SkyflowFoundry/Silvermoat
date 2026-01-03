@@ -75,8 +75,17 @@ def handler(event, context):
             "case": "OPEN"
         }.get(domain, "PENDING")
 
+        # Handle customer creation/upsert
+        if domain == "customer":
+            # Use upsert_customer for proper email indexing
+            customer_email = body.get("email")
+            if customer_email:
+                item = storage.upsert_customer(customer_email, body)
+            else:
+                item = storage.create(domain, body, default_status)
+
         # Handle customer upsert for quote/policy
-        if domain == "quote":
+        elif domain == "quote":
             # Extract customer data from quote
             customer_name = body.get("customerName")
             customer_email = body.get("customerEmail")
@@ -86,6 +95,7 @@ def handler(event, context):
                 body.pop("customerName", None)
                 body.pop("customerEmail", None)
                 body["customerId"] = customer["id"]
+            item = storage.create(domain, body, default_status)
 
         elif domain == "policy":
             # Extract customer data from policy
@@ -98,6 +108,7 @@ def handler(event, context):
                 body.pop("holderEmail", None)
                 body.pop("customer_email", None)
                 body["customerId"] = customer["id"]
+            item = storage.create(domain, body, default_status)
 
         elif domain == "claim":
             # Denormalize customerId from policy
@@ -106,8 +117,10 @@ def handler(event, context):
                 policy = storage.get("policy", policy_id)
                 if policy and policy.get("data", {}).get("customerId"):
                     body["customerId"] = policy["data"]["customerId"]
+            item = storage.create(domain, body, default_status)
 
-        item = storage.create(domain, body, default_status)
+        else:
+            item = storage.create(domain, body, default_status)
         _emit(f"{domain}.created", {"id": item["id"], "data": body, "status": default_status})
         return _resp(201, {"id": item["id"], "item": item})
 
