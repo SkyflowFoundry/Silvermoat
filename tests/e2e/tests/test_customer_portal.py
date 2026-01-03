@@ -106,3 +106,28 @@ def test_customer_submit_claim_flow(driver, base_url, api_base_url):
         # If we can't find the button, that's okay for this test
         # The important part is that the dashboard loaded
         print(f"Claim button not found (expected for MVP): {e}")
+
+
+@pytest.mark.e2e
+@pytest.mark.customer
+def test_customer_portal_home_button(driver, base_url):
+    """Test customer portal has home button that navigates to landing page"""
+    # Navigate to customer dashboard
+    driver.get(f"{base_url}/customer/dashboard")
+    wait_for_app_ready(driver)
+
+    # Wait for page to load
+    wait = WebDriverWait(driver, 10)
+    wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+
+    # Should have a Home button with HomeOutlined icon
+    # Look for button with "Home" text
+    home_buttons = driver.find_elements(By.XPATH, "//button[contains(., 'Home')]")
+    assert len(home_buttons) > 0, "Should have a Home button"
+
+    # Click the home button
+    home_buttons[0].click()
+
+    # Should navigate back to landing page (/)
+    wait.until(EC.url_to_be(f"{base_url}/"))
+    assert driver.current_url == f"{base_url}/", "Should navigate to landing page"

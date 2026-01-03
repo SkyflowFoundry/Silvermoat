@@ -63,7 +63,7 @@ def test_employee_portal_navigation(driver, base_url):
 @pytest.mark.e2e
 @pytest.mark.smoke
 def test_loading_screen_appears(driver, base_url):
-    """Test that loading screen appears on landing page"""
+    """Test that loading screen appears on landing page with tagline"""
     # Navigate to landing page
     driver.get(base_url)
 
@@ -79,6 +79,14 @@ def test_loading_screen_appears(driver, base_url):
         loading_screen = driver.find_element(By.ID, "loading-screen")
         # Should have fade-out class or be visible
         assert loading_screen is not None
+
+        # Check for tagline if loading screen is still visible
+        tagline_exists = driver.execute_script(
+            "return document.getElementById('loading-tagline') !== null"
+        )
+        if tagline_exists:
+            tagline = driver.find_element(By.ID, "loading-tagline")
+            assert "Securing your future" in tagline.text
 
     # Wait for app to be ready (loading screen should be removed)
     wait_for_app_ready(driver)
@@ -105,3 +113,30 @@ def test_loading_screen_not_on_dashboard(driver, base_url):
 
     # Loading screen should either not exist or be hidden
     assert not loading_screen_visible, "Loading screen should not be visible on direct dashboard navigation"
+
+
+@pytest.mark.e2e
+def test_employee_portal_logo_navigation(driver, base_url):
+    """Test that clicking logo in employee portal navigates to landing page"""
+    # Navigate to employee dashboard
+    driver.get(f"{base_url}/dashboard")
+    wait_for_app_ready(driver)
+
+    # Find the logo (should be clickable)
+    # Logo is inside a div with onClick that navigates
+    logo_container = driver.find_element(
+        By.XPATH,
+        "//img[@alt='Silvermoat Insurance']//parent::div"
+    )
+
+    # Click the logo
+    logo_container.click()
+
+    # Should navigate to landing page (/)
+    # Wait for navigation to complete
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    wait = WebDriverWait(driver, 10)
+    wait.until(EC.url_to_be(f"{base_url}/"))
+
+    assert driver.current_url == f"{base_url}/", "Logo should navigate to landing page"

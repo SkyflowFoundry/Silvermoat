@@ -107,7 +107,7 @@ const Header = () => {
         )}
         <div
           style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
-          onClick={() => navigate('/dashboard')}
+          onClick={() => navigate('/')}
         >
           <img
             src="/silvermoat-logo.png"

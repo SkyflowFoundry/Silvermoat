@@ -25,6 +25,7 @@ import {
   DollarOutlined,
   PlusOutlined,
   UserOutlined,
+  HomeOutlined,
 } from '@ant-design/icons';
 import {
   getCustomerPolicies,
@@ -217,7 +218,30 @@ const CustomerDashboard = () => {
   ];
 
   return (
-    <div style={{ padding: '16px', background: '#f0f2f5', minHeight: '100vh' }}>
+    <div style={{ padding: '16px', background: '#f0f2f5', minHeight: '100vh', position: 'relative' }}>
+      <Button
+        type="text"
+        icon={<HomeOutlined />}
+        onClick={() => navigate('/')}
+        style={{
+          position: 'fixed',
+          top: '16px',
+          left: '16px',
+          zIndex: 1000,
+          fontSize: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '8px 16px',
+          height: 'auto',
+          background: 'rgba(255, 255, 255, 0.95)',
+          border: '1px solid #d9d9d9',
+          borderRadius: '6px',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+        }}
+      >
+        Home
+      </Button>
       <Card style={{ marginBottom: 16 }}>
         <Row justify="space-between" align="middle">
           <Col>
