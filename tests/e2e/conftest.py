@@ -21,6 +21,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 def base_url():
     """
     Get application base URL from environment or CloudFormation stack.
+    Appends ?test=true to skip loading screen delay for faster tests.
 
     Priority:
     1. SILVERMOAT_URL environment variable
@@ -30,7 +31,7 @@ def base_url():
     # Check environment variable first
     app_url = os.environ.get('SILVERMOAT_URL')
     if app_url:
-        return app_url.rstrip('/')
+        return app_url.rstrip('/') + '?test=true'
 
     # Try to fetch from CloudFormation stack
     stack_name = os.environ.get('STACK_NAME', os.environ.get('TEST_STACK_NAME'))
@@ -42,14 +43,14 @@ def base_url():
             outputs = {o['OutputKey']: o['OutputValue'] for o in response['Stacks'][0].get('Outputs', [])}
             # Try WebUrl first, then CloudFrontUrl
             if 'WebUrl' in outputs:
-                return outputs['WebUrl'].rstrip('/')
+                return outputs['WebUrl'].rstrip('/') + '?test=true'
             if 'CloudFrontUrl' in outputs:
-                return outputs['CloudFrontUrl'].rstrip('/')
+                return outputs['CloudFrontUrl'].rstrip('/') + '?test=true'
         except Exception as e:
             print(f"Warning: Could not fetch stack outputs: {e}")
 
     # Fallback to localhost
-    return os.environ.get('BASE_URL', 'http://localhost:5173').rstrip('/')
+    return os.environ.get('BASE_URL', 'http://localhost:5173').rstrip('/') + '?test=true'
 
 
 @pytest.fixture(scope="session")
@@ -76,11 +77,12 @@ def api_base_url():
     return os.environ.get('API_BASE_URL', 'http://localhost:3000').rstrip('/')
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def driver():
     """
     Create Selenium WebDriver instance with Chrome.
     Supports headless mode via HEADLESS environment variable.
+    Reuses same browser for all tests in module for performance.
     """
     chrome_options = Options()
 
@@ -104,9 +106,9 @@ def driver():
     driver.quit()
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def mobile_driver():
-    """Chrome WebDriver with mobile viewport (375x667)"""
+    """Chrome WebDriver with mobile viewport (375x667) - reused across module"""
     chrome_options = Options()
 
     if os.environ.get('HEADLESS', '').lower() in ['1', 'true', 'yes']:
@@ -131,9 +133,9 @@ def mobile_driver():
     driver.quit()
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def tablet_driver():
-    """Chrome WebDriver with tablet viewport (768x1024)"""
+    """Chrome WebDriver with tablet viewport (768x1024) - reused across module"""
     chrome_options = Options()
 
     if os.environ.get('HEADLESS', '').lower() in ['1', 'true', 'yes']:
@@ -151,8 +153,8 @@ def tablet_driver():
     driver.quit()
 
 
-def wait_for_app_ready(driver, timeout=15):
-    """Wait for app to be fully loaded and interactive (includes 3s+ loading screen)"""
+def wait_for_app_ready(driver, timeout=10):
+    """Wait for app to be fully loaded and interactive (optimized for faster tests)"""
     try:
         # Wait for React root div to exist
         WebDriverWait(driver, timeout).until(
@@ -161,12 +163,12 @@ def wait_for_app_ready(driver, timeout=15):
 
         # CRITICAL: Wait for loading screen to be REMOVED from DOM (not just fade-out)
         # Loading screen has 3s minimum + 800ms fade = 3.8s total minimum
+        # In test env with TEST_ENV=true, loading screen is skipped (0s)
         WebDriverWait(driver, timeout).until(
             lambda d: d.execute_script(
                 "return !document.getElementById('loading-screen')"
             )
         )
-        print("Loading screen removed")
 
         # Wait for any Ant Design loading spinners to disappear
         WebDriverWait(driver, timeout).until(

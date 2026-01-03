@@ -71,8 +71,8 @@ def save_debug_artifacts(driver, test_name, base_url):
         print(f"Error saving debug artifacts: {e}")
 
 
-def wait_for_app_ready(driver, timeout=15):
-    """Wait for app to be fully loaded and interactive (includes 3s+ loading screen)"""
+def wait_for_app_ready(driver, timeout=10):
+    """Wait for app to be fully loaded and interactive (optimized for faster tests)"""
     try:
         # Wait for React root div to exist
         WebDriverWait(driver, timeout).until(
@@ -114,9 +114,9 @@ def test_quote_form_sample_data_button(driver, base_url):
         # Wait for app ready (loading screen removed)
         wait_for_app_ready(driver)
 
-        # Wait for page to load and button to appear
+        # Wait for page to load and button to appear (reduced timeout with ?test=true)
         print(f"[{test_name}] Waiting for sample data button...")
-        WebDriverWait(driver, 20).until(
+        WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']"))
         )
         print(f"[{test_name}] Button found!")
@@ -158,9 +158,9 @@ def test_policy_form_sample_data_button(driver, base_url):
         # Wait for app ready (loading screen removed)
         wait_for_app_ready(driver)
 
-        # Wait for page to load and button to appear
+        # Wait for page to load and button to appear (reduced timeout with ?test=true)
         print(f"[{test_name}] Waiting for sample data button...")
-        WebDriverWait(driver, 20).until(
+        WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']"))
         )
         print(f"[{test_name}] Button found!")
@@ -211,9 +211,9 @@ def test_claim_form_sample_data_button(driver, base_url):
         # Wait for app ready (loading screen removed)
         wait_for_app_ready(driver)
 
-        # Wait for page to load and button to appear
+        # Wait for page to load and button to appear (reduced timeout with ?test=true)
         print(f"[{test_name}] Waiting for sample data button...")
-        WebDriverWait(driver, 20).until(
+        WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']"))
         )
         print(f"[{test_name}] Button found!")
@@ -269,9 +269,9 @@ def test_payment_form_sample_data_button(driver, base_url):
         # Wait for app ready (loading screen removed)
         wait_for_app_ready(driver)
 
-        # Wait for page to load and button to appear
+        # Wait for page to load and button to appear (reduced timeout with ?test=true)
         print(f"[{test_name}] Waiting for sample data button...")
-        WebDriverWait(driver, 20).until(
+        WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']"))
         )
         print(f"[{test_name}] Button found!")
@@ -326,9 +326,9 @@ def test_case_form_sample_data_button(driver, base_url):
         # Wait for app ready (loading screen removed)
         wait_for_app_ready(driver)
 
-        # Wait for page to load and button to appear
+        # Wait for page to load and button to appear (reduced timeout with ?test=true)
         print(f"[{test_name}] Waiting for sample data button...")
-        WebDriverWait(driver, 20).until(
+        WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']"))
         )
         print(f"[{test_name}] Button found!")
@@ -386,9 +386,9 @@ def test_sample_data_buttons_exist_on_all_forms(driver, base_url):
             # Wait for app ready (loading screen removed)
             wait_for_app_ready(driver)
 
-            # Wait for button to be present
+            # Wait for button to be present (reduced timeout with ?test=true)
             print(f"[{test_name}] Waiting for button on {form_name} form...")
-            button = WebDriverWait(driver, 20).until(
+            button = WebDriverWait(driver, 5).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']"))
             )
             print(f"[{test_name}] Button found on {form_name} form!")
@@ -416,9 +416,9 @@ def test_sample_data_button_reusable(driver, base_url):
         # Wait for app ready (loading screen removed)
         wait_for_app_ready(driver)
 
-        # Wait for page to load and button to appear
+        # Wait for page to load and button to appear (reduced timeout with ?test=true)
         print(f"[{test_name}] Waiting for sample data button...")
-        WebDriverWait(driver, 20).until(
+        WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='fill-sample-data-button']"))
         )
         print(f"[{test_name}] Button found!")

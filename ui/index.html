@@ -93,9 +93,12 @@
     <script>
       // Ensure loading screen stays visible for at least 3 seconds
       // Only show loading screen on landing page (/)
+      // Skip loading delay in test environment for faster E2E tests
       window.__loadingStartTime = Date.now();
       window.__appReady = false;
-      window.__minLoadingTime = 3000; // 3 seconds
+      window.__isTestEnv = window.location.search.includes('test=true') ||
+                           window.location.hostname === 'localhost' && window.Cypress;
+      window.__minLoadingTime = window.__isTestEnv ? 0 : 3000; // 0s in tests, 3s in prod
       window.__isLandingPage = window.location.pathname === '/';
 
       window.hideLoadingScreen = function() {
