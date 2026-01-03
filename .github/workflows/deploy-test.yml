@@ -411,17 +411,32 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        test-type: [smoke, api, e2e]
+        test-type: [smoke, api, e2e-smoke, e2e-forms, e2e-customer, e2e-navigation]
         include:
           - test-type: smoke
             test-dir: smoke
             needs-chrome: false
+            pytest-args: ""
           - test-type: api
             test-dir: api
             needs-chrome: false
-          - test-type: e2e
+            pytest-args: ""
+          - test-type: e2e-smoke
             test-dir: e2e
             needs-chrome: true
+            pytest-args: "-m smoke"
+          - test-type: e2e-forms
+            test-dir: e2e
+            needs-chrome: true
+            pytest-args: "-m forms"
+          - test-type: e2e-customer
+            test-dir: e2e
+            needs-chrome: true
+            pytest-args: "-m customer"
+          - test-type: e2e-navigation
+            test-dir: e2e
+            needs-chrome: true
+            pytest-args: "tests/test_landing_page.py -m 'e2e and not smoke'"
 
     steps:
       - name: Checkout code
@@ -467,7 +482,7 @@ jobs:
           set -o pipefail
           echo "Running ${{ matrix.test-type }} tests..."
           cd tests/${{ matrix.test-dir }}
-          pytest -v --tb=short 2>&1 | tee ../../${{ matrix.test-type }}-tests-output.txt
+          pytest -v --tb=short ${{ matrix.pytest-args }} 2>&1 | tee ../../${{ matrix.test-type }}-tests-output.txt
 
       - name: Upload test output
         if: always()
