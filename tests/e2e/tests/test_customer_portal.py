@@ -131,3 +131,130 @@ def test_customer_portal_home_button(driver, base_url):
     # Should navigate back to landing page (/)
     wait.until(EC.url_to_be(f"{base_url}/"))
     assert driver.current_url == f"{base_url}/", "Should navigate to landing page"
+
+
+@pytest.mark.e2e
+@pytest.mark.customer
+def test_customer_chat_button_appears(driver, base_url, api_base_url):
+    """Test customer dashboard has chat button"""
+    # Create test data
+    customer_data = {
+        "name": "Chat Test Customer",
+        "email": "chattest@example.com",
+        "phone": "555-0100"
+    }
+    customer_response = requests.post(f"{api_base_url}/customer", json=customer_data)
+    assert customer_response.status_code == 201
+
+    policy_data = {
+        "policyNumber": "POL-2024-CHAT001",
+        "holderName": "Chat Test Customer",
+        "customer_email": "chattest@example.com",
+        "zip": "10001",
+        "effectiveDate": "2024-01-01",
+        "expirationDate": "2025-01-01",
+        "premium_cents": 150000,
+    }
+    requests.post(f"{api_base_url}/policy", json=policy_data)
+
+    # Navigate to customer dashboard
+    driver.get(f"{base_url}/customer/dashboard")
+    wait_for_app_ready(driver)
+
+    wait = WebDriverWait(driver, 10)
+    wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+
+    # Should have a floating chat button
+    # Look for button with MessageOutlined icon or chat-related aria-label
+    chat_buttons = driver.find_elements(By.XPATH, "//button[contains(@aria-label, 'chat') or contains(@aria-label, 'Chat')]")
+    assert len(chat_buttons) > 0, "Should have a chat button"
+
+
+@pytest.mark.e2e
+@pytest.mark.customer
+def test_customer_chat_drawer_opens(driver, base_url, api_base_url):
+    """Test clicking chat button opens chat drawer"""
+    # Create test data
+    customer_data = {
+        "name": "Chat Drawer Test",
+        "email": "drawer@example.com",
+        "phone": "555-0101"
+    }
+    customer_response = requests.post(f"{api_base_url}/customer", json=customer_data)
+    assert customer_response.status_code == 201
+
+    policy_data = {
+        "policyNumber": "POL-2024-DRAWER001",
+        "holderName": "Chat Drawer Test",
+        "customer_email": "drawer@example.com",
+        "zip": "10002",
+        "effectiveDate": "2024-01-01",
+        "expirationDate": "2025-01-01",
+        "premium_cents": 175000,
+    }
+    requests.post(f"{api_base_url}/policy", json=policy_data)
+
+    # Navigate to customer dashboard
+    driver.get(f"{base_url}/customer/dashboard")
+    wait_for_app_ready(driver)
+
+    wait = WebDriverWait(driver, 10)
+    wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+
+    # Find and click chat button
+    chat_buttons = driver.find_elements(By.XPATH, "//button[contains(@aria-label, 'chat') or contains(@aria-label, 'Chat')]")
+    if len(chat_buttons) > 0:
+        chat_buttons[0].click()
+
+        # Wait for drawer to appear
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "ant-drawer")))
+
+        # Should show chat interface
+        assert "Customer Support Assistant" in driver.page_source or "Chat" in driver.page_source
+
+
+@pytest.mark.e2e
+@pytest.mark.customer
+def test_customer_chat_starter_prompts(driver, base_url, api_base_url):
+    """Test customer chat shows starter prompts"""
+    # Create test data
+    customer_data = {
+        "name": "Starter Prompt Test",
+        "email": "starter@example.com",
+        "phone": "555-0102"
+    }
+    customer_response = requests.post(f"{api_base_url}/customer", json=customer_data)
+    assert customer_response.status_code == 201
+
+    policy_data = {
+        "policyNumber": "POL-2024-STARTER001",
+        "holderName": "Starter Prompt Test",
+        "customer_email": "starter@example.com",
+        "zip": "10003",
+        "effectiveDate": "2024-01-01",
+        "expirationDate": "2025-01-01",
+        "premium_cents": 160000,
+    }
+    requests.post(f"{api_base_url}/policy", json=policy_data)
+
+    # Navigate to customer dashboard
+    driver.get(f"{base_url}/customer/dashboard")
+    wait_for_app_ready(driver)
+
+    wait = WebDriverWait(driver, 10)
+    wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+
+    # Find and click chat button
+    chat_buttons = driver.find_elements(By.XPATH, "//button[contains(@aria-label, 'chat') or contains(@aria-label, 'Chat')]")
+    if len(chat_buttons) > 0:
+        chat_buttons[0].click()
+
+        # Wait for drawer to appear
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "ant-drawer")))
+
+        # Should show starter prompts
+        assert (
+            "View my active policies" in driver.page_source or
+            "Check my claim status" in driver.page_source or
+            "See my payment history" in driver.page_source
+        ), "Should show customer starter prompts"

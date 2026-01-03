@@ -18,6 +18,8 @@ import {
   message,
   Spin,
   Select,
+  Drawer,
+  Grid,
 } from 'antd';
 import {
   SafetyOutlined,
@@ -26,7 +28,9 @@ import {
   PlusOutlined,
   UserOutlined,
   HomeOutlined,
+  MessageOutlined,
 } from '@ant-design/icons';
+import CustomerChatInterface from '../../components/customer-chat/CustomerChatInterface';
 import {
   getCustomerPolicies,
   getCustomerClaims,
@@ -37,6 +41,7 @@ import {
 import { formatCurrency, formatDate } from '../../utils/format';
 
 const { Title, Text } = Typography;
+const { useBreakpoint } = Grid;
 
 const getStatusColor = (status) => {
   const colors = {
@@ -57,7 +62,10 @@ const CustomerDashboard = () => {
   const [policies, setPolicies] = useState([]);
   const [claims, setClaims] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
   const navigate = useNavigate();
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
 
   useEffect(() => {
     loadInitialData();
@@ -242,6 +250,30 @@ const CustomerDashboard = () => {
       >
         Home
       </Button>
+
+      {/* Floating Chat Button */}
+      {customer && (
+        <Button
+          type="primary"
+          icon={<MessageOutlined />}
+          onClick={() => setChatDrawerOpen(true)}
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            zIndex: 1000,
+            width: isMobile ? '56px' : '60px',
+            height: isMobile ? '56px' : '60px',
+            borderRadius: '50%',
+            fontSize: isMobile ? '20px' : '24px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          aria-label="Open chat assistant"
+        />
+      )}
       <Card style={{ marginBottom: 16 }}>
         <Row justify="space-between" align="middle">
           <Col>
@@ -395,6 +427,26 @@ const CustomerDashboard = () => {
           ]}
         />
       </Card>
+
+      {/* Chat Drawer */}
+      {customer && (
+        <Drawer
+          title={null}
+          placement="right"
+          width={isMobile ? '100%' : 450}
+          onClose={() => setChatDrawerOpen(false)}
+          open={chatDrawerOpen}
+          closable={false}
+          bodyStyle={{ padding: 0, height: '100%' }}
+          style={{ height: '100%' }}
+        >
+          <CustomerChatInterface
+            customerEmail={customer.email}
+            onClose={() => setChatDrawerOpen(false)}
+            isMobile={isMobile}
+          />
+        </Drawer>
+      )}
     </div>
   );
 };
