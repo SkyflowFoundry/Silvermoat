@@ -402,27 +402,9 @@ jobs:
           echo "API URL: ${API_URL}"
           echo "Web URL: ${WEB_URL}"
 
-  clear-and-seed-data:
-    needs: [deploy-stack, deploy-ui]
-    if: |
-      always() &&
-      (needs.deploy-stack.result == 'success' || needs.deploy-stack.result == 'skipped') &&
-      needs.deploy-ui.result == 'success'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Clear and seed demo data
-        uses: ./.github/actions/clear-and-seed-data
-        with:
-          api-base-url: ${{ needs.deploy-ui.outputs.api_url }}
-
   test-suite:
-    needs: [deploy-stack, deploy-ui, clear-and-seed-data]
-    if: always() && needs.deploy-ui.result == 'success' && needs.clear-and-seed-data.result == 'success'
+    needs: [deploy-stack, deploy-ui]
+    if: always() && needs.deploy-ui.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -511,6 +493,25 @@ jobs:
             echo "${{ matrix.test-type }} tests failed"
             exit 1
           fi
+
+  clear-and-seed-data:
+    needs: [deploy-stack, deploy-ui, test-suite]
+    if: |
+      always() &&
+      (needs.deploy-stack.result == 'success' || needs.deploy-stack.result == 'skipped') &&
+      needs.deploy-ui.result == 'success' &&
+      needs.test-suite.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Clear and seed demo data
+        uses: ./.github/actions/clear-and-seed-data
+        with:
+          api-base-url: ${{ needs.deploy-ui.outputs.api_url }}
 
   analyze-results:
     needs: [deploy-stack, test-suite]
