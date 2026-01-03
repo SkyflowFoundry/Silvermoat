@@ -36,11 +36,9 @@ const PaymentTable = ({ payments = [], loading = false }) => {
     },
     {
       title: 'Payment Date',
-      dataIndex: ['data', 'paymentDate'],
       key: 'paymentDate',
       width: 130,
-      sorter: (a, b) => (a.data?.paymentDate || '').localeCompare(b.data?.paymentDate || ''),
-      render: (date) => formatDate(date),
+      render: () => '-', // Payment date not in seed data
     },
     {
       title: 'Amount',
@@ -53,16 +51,16 @@ const PaymentTable = ({ payments = [], loading = false }) => {
     },
     {
       title: 'Method',
-      dataIndex: ['data', 'method'],
-      key: 'method',
-      width: 100,
+      dataIndex: ['data', 'paymentMethod'],
+      key: 'paymentMethod',
+      width: 130,
       filters: [
-        { text: 'Card', value: 'CARD' },
-        { text: 'ACH', value: 'ACH' },
+        { text: 'Credit Card', value: 'CREDIT_CARD' },
+        { text: 'Bank Transfer', value: 'BANK_TRANSFER' },
         { text: 'Check', value: 'CHECK' },
       ],
-      onFilter: (value, record) => record.data?.method === value,
-      render: (method) => method || '-',
+      onFilter: (value, record) => record.data?.paymentMethod === value,
+      render: (method) => method ? method.replace('_', ' ') : '-',
     },
     {
       title: 'Status',
@@ -134,16 +132,16 @@ const PaymentTable = ({ payments = [], loading = false }) => {
                     </Text>
                   </div>
                 </div>
-                <StatusTag type="payment" value={payment.data?.status} />
+                <StatusTag type="payment" value={payment.status} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
                 <div style={{ flex: 1 }}>
                   <Text type="secondary" style={{ fontSize: 12 }}>Payment Date</Text>
-                  <div><Text style={{ fontSize: 14 }}>{formatDate(payment.data?.paymentDate)}</Text></div>
+                  <div><Text style={{ fontSize: 14 }}>-</Text></div>
                 </div>
                 <div>
                   <Text type="secondary" style={{ fontSize: 12 }}>Method</Text>
-                  <div><Text style={{ fontSize: 14 }}>{payment.data?.method || '-'}</Text></div>
+                  <div><Text style={{ fontSize: 14 }}>{payment.data?.paymentMethod ? payment.data.paymentMethod.replace('_', ' ') : '-'}</Text></div>
                 </div>
               </div>
               <div>

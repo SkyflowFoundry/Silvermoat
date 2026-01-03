@@ -81,11 +81,15 @@ const QuoteDetail = () => {
           </Descriptions.Item>
 
           <Descriptions.Item label="Customer Name">
-            {quote.data?.name || '-'}
+            {quote.data?.customerName || '-'}
           </Descriptions.Item>
 
           <Descriptions.Item label="ZIP Code">
-            {quote.data?.zip || '-'}
+            {(() => {
+              const address = quote.data?.propertyAddress || '';
+              const zipMatch = address.match(/\b\d{5}\b/);
+              return zipMatch ? zipMatch[0] : '-';
+            })()}
           </Descriptions.Item>
 
           <Descriptions.Item label="Created At" span={2}>

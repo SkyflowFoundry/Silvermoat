@@ -24,24 +24,24 @@ const QuotesStats = () => {
 
   // Calculate statistics
   const totalQuotes = quotes.length;
-  const pendingQuotes = quotes.filter(q => q.data?.status === 'PENDING').length;
-  const acceptedQuotes = quotes.filter(q => q.data?.status === 'ACCEPTED').length;
-  const declinedQuotes = quotes.filter(q => q.data?.status === 'DECLINED').length;
-  const expiredQuotes = quotes.filter(q => q.data?.status === 'EXPIRED').length;
+  const pendingQuotes = quotes.filter(q => q.status === 'PENDING').length;
+  const acceptedQuotes = quotes.filter(q => q.status === 'ACCEPTED').length;
+  const declinedQuotes = quotes.filter(q => q.status === 'DECLINED').length;
+  const expiredQuotes = quotes.filter(q => q.status === 'EXPIRED').length;
 
   const conversionRate = totalQuotes > 0 ? (acceptedQuotes / totalQuotes) * 100 : 0;
 
-  // Financial metrics
-  const totalQuoteValue = quotes.reduce((sum, q) => sum + (q.data?.premium_cents || 0), 0);
+  // Financial metrics - coverageAmount is in dollars, convert to cents for formatCurrencyFromCents
+  const totalQuoteValue = quotes.reduce((sum, q) => sum + ((q.data?.coverageAmount || 0) * 100), 0);
   const avgQuoteValue = totalQuotes > 0 ? totalQuoteValue / totalQuotes : 0;
   const acceptedValue = quotes
-    .filter(q => q.data?.status === 'ACCEPTED')
-    .reduce((sum, q) => sum + (q.data?.premium_cents || 0), 0);
+    .filter(q => q.status === 'ACCEPTED')
+    .reduce((sum, q) => sum + ((q.data?.coverageAmount || 0) * 100), 0);
 
-  // Coverage type distribution
+  // Coverage type distribution (propertyType in API)
   const coverageTypes = {};
   quotes.forEach(q => {
-    const type = q.data?.coverageType || 'UNKNOWN';
+    const type = q.data?.propertyType || 'UNKNOWN';
     coverageTypes[type] = (coverageTypes[type] || 0) + 1;
   });
   const topCoverage = Object.entries(coverageTypes).sort((a, b) => b[1] - a[1])[0];
