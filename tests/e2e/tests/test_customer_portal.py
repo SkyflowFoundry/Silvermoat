@@ -112,10 +112,21 @@ def test_customer_submit_claim_flow(driver, base_url, api_base_url):
 @pytest.mark.customer
 def test_customer_portal_policy_currency_display(driver, base_url, api_base_url):
     """Test that policy currency amounts display correctly (no NaN values)"""
+    # Create test customer first
+    customer_data = {
+        "name": "Currency Test User",
+        "email": "currency-test@silvermoat.test",
+        "phone": "555-0199",
+        "address": "999 Test St, Test City, TC 99999"
+    }
+    customer_response = requests.post(f"{api_base_url}/customer", json=customer_data)
+    assert customer_response.status_code == 201
+
     # Create test policy with known currency values
     policy_data = {
         "policyNumber": "POL-2024-CURRENCY-TEST",
         "holderName": "Currency Test User",
+        "customer_email": "currency-test@silvermoat.test",
         "zip": "99999",
         "effectiveDate": "2024-01-01",
         "expirationDate": "2025-01-01",
