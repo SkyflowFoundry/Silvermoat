@@ -351,75 +351,14 @@ jobs:
   test-suite:
     needs: [deploy-ui]
     if: always() && needs.deploy-ui.result == 'success'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    strategy:
-      fail-fast: false
-      matrix:
-        test-type: [smoke, api, e2e]
-        include:
-          - test-type: smoke
-            test-dir: smoke
-            needs-chrome: false
-          - test-type: api
-            test-dir: api
-            needs-chrome: false
-          - test-type: e2e
-            test-dir: e2e
-            needs-chrome: true
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup environment
-        uses: ./.github/actions/setup-env
-
-      - name: Install Python dependencies
-        run: pip install -r requirements-test.txt
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Install Chrome and ChromeDriver
-        if: matrix.needs-chrome
-        uses: browser-actions/setup-chrome@v1
-        with:
-          chrome-version: stable
-
-      - name: Run ${{ matrix.test-type }} tests
-        id: test-run
-        continue-on-error: true
-        env:
-          STACK_NAME: silvermoat
-          SILVERMOAT_API_URL: ${{ needs.deploy-ui.outputs.api_url }}
-          SILVERMOAT_URL: ${{ needs.deploy-ui.outputs.web_url }}
-          HEADLESS: '1'
-        run: |
-          set -o pipefail
-          echo "Running ${{ matrix.test-type }} tests against production..."
-          cd tests/${{ matrix.test-dir }}
-          pytest -v --tb=short 2>&1 | tee ../../${{ matrix.test-type }}-tests-output.txt
-
-      - name: Upload test output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.test-type }}-test-output
-          path: ${{ matrix.test-type }}-tests-output.txt
-          retention-days: 7
-
-      - name: Check test outcome
-        if: always()
-        run: |
-          if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
-            echo "${{ matrix.test-type }} tests failed"
-            exit 1
-          fi
+    uses: ./.github/workflows/test-suite.yml
+    with:
+      stack_name: silvermoat
+      api_url: ${{ needs.deploy-ui.outputs.api_url }}
+      web_url: ${{ needs.deploy-ui.outputs.web_url }}
+      environment: 'production'
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   clear-and-seed-data:
     needs: [deploy-ui, test-suite]

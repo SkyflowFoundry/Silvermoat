@@ -86,7 +86,8 @@ def test_loading_screen_appears(driver, base_url):
         )
         if tagline_exists:
             tagline = driver.find_element(By.ID, "loading-tagline")
-            assert "Securing your future" in tagline.text
+            # Use textContent to read DOM regardless of visibility (element may be animating in)
+            assert "Securing your future" in tagline.get_attribute('textContent')
 
     # Wait for app to be ready (loading screen should be removed)
     wait_for_app_ready(driver)
