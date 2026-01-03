@@ -10,6 +10,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
+from ..conftest import wait_for_app_ready
 
 
 def save_debug_artifacts(driver, test_name, base_url):
@@ -69,37 +70,6 @@ def save_debug_artifacts(driver, test_name, base_url):
 
     except Exception as e:
         print(f"Error saving debug artifacts: {e}")
-
-
-def wait_for_app_ready(driver, timeout=15):
-    """Wait for app to be fully loaded and interactive (includes 3s+ loading screen)"""
-    try:
-        # Wait for React root div to exist
-        WebDriverWait(driver, timeout).until(
-            EC.presence_of_element_located((By.ID, "root"))
-        )
-
-        # CRITICAL: Wait for loading screen to be REMOVED from DOM (not just fade-out)
-        # Loading screen has 3s minimum + 800ms fade = 3.8s total minimum
-        WebDriverWait(driver, timeout).until(
-            lambda d: d.execute_script(
-                "return !document.getElementById('loading-screen')"
-            )
-        )
-        print("Loading screen removed")
-
-        # Wait for any Ant Design loading spinners to disappear
-        WebDriverWait(driver, timeout).until(
-            lambda d: d.execute_script(
-                "return document.readyState === 'complete' && "
-                "document.querySelectorAll('.ant-spin').length === 0"
-            )
-        )
-
-        return True
-    except TimeoutException:
-        print("Warning: App ready check timed out")
-        return False
 
 
 @pytest.mark.e2e
