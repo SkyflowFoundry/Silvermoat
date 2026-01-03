@@ -3,6 +3,7 @@
 Clear all demo data from API.
 
 Deletes all records from all resource types to ensure clean slate for seeding.
+Deletion order: dependents first (case → payment → claim → policy → quote → customer)
 """
 
 import os
@@ -15,7 +16,8 @@ if not API_BASE_URL:
     print("Error: API_BASE_URL environment variable not set", file=sys.stderr)
     sys.exit(1)
 
-RESOURCE_TYPES = ['customer', 'quote', 'policy', 'claim', 'payment', 'case']
+# Delete in dependency order: dependents before their parents
+RESOURCE_TYPES = ['case', 'payment', 'claim', 'policy', 'quote', 'customer']
 
 def clear_resource(resource_type):
     """Delete all records of a given resource type."""

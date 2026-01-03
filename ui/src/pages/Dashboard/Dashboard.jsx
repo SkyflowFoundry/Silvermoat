@@ -75,7 +75,7 @@ const Dashboard = () => {
       const total = Object.values(results).reduce((sum, count) => sum + count, 0);
       message.success(
         `Successfully cleared ${total} records! ` +
-        `(${results.quotes} quotes, ${results.policies} policies, ` +
+        `(${results.customers} customers, ${results.quotes} quotes, ${results.policies} policies, ` +
         `${results.claims} claims, ${results.payments} payments, ${results.cases} cases)`
       );
 
@@ -339,6 +339,7 @@ const Dashboard = () => {
             This will permanently delete all data from all entity types:
           </Text>
           <ul style={{ paddingLeft: 20 }}>
+            <li>All Customers</li>
             <li>All Quotes</li>
             <li>All Policies</li>
             <li>All Claims</li>
