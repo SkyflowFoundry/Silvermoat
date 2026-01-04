@@ -215,6 +215,19 @@ graph TB
     style Seeder fill:#FF9900
 ```
 
+### AWS Architecture Diagram
+
+Professional architecture diagram with official AWS icons, generated using the Python [diagrams](https://diagrams.mingrammer.com/) library:
+
+![Silvermoat AWS Architecture](docs/architecture.png)
+
+This diagram provides a visual representation of the complete infrastructure using standard AWS service icons. The diagram is generated programmatically from `scripts/generate-architecture-diagram.py` and can be regenerated on infrastructure changes:
+
+```bash
+pip install -r requirements-docs.txt
+python scripts/generate-architecture-diagram.py
+```
+
 ### CloudFormation Stack Hierarchy
 
 This diagram shows the nested CloudFormation stack structure that organizes infrastructure into logical components. The parent stack orchestrates five nested stacks (Data, Storage, Compute, API, and Frontend) plus custom resources for seeding and cleanup, enabling modular infrastructure management and reusable templates.
