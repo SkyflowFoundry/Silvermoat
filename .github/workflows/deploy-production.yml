@@ -255,12 +255,20 @@ jobs:
       - name: Get CloudFront distribution ID
         id: cloudfront
         run: |
-          # Extract distribution ID from UiDistribution resource
-          DISTRIBUTION_ID=$(aws cloudformation describe-stack-resources \
+          # Get distribution ID from CloudFormation output
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
             --stack-name silvermoat \
-            --logical-resource-id UiDistribution \
-            --query 'StackResources[0].PhysicalResourceId' \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
             --output text 2>/dev/null || echo "")
+
+          # Fallback to resource query for backwards compatibility during rollout
+          if [ -z "$DISTRIBUTION_ID" ] || [ "$DISTRIBUTION_ID" == "None" ]; then
+            echo "Output not found, trying resource query (fallback)..."
+            DISTRIBUTION_ID=$(aws cloudformation describe-stack-resources \
+              --stack-name silvermoat \
+              --query 'StackResources[?ResourceType==`AWS::CloudFront::Distribution`].PhysicalResourceId | [0]' \
+              --output text 2>/dev/null || echo "")
+          fi
 
           if [ -n "$DISTRIBUTION_ID" ] && [ "$DISTRIBUTION_ID" != "None" ]; then
             echo "distribution_id=${DISTRIBUTION_ID}" >> $GITHUB_OUTPUT

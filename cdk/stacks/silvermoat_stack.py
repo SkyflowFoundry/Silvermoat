@@ -168,6 +168,13 @@ class SilvermoatStack(Stack):
                 value=frontend.distribution.distribution_domain_name,
                 export_name=f"{self.stack_name}-CloudFrontDomain",
             )
+            CfnOutput(
+                self,
+                "CloudFrontDistributionId",
+                value=frontend.distribution.distribution_id,
+                export_name=f"{self.stack_name}-CloudFrontDistributionId",
+                description="CloudFront distribution ID for cache invalidation",
+            )
 
         if config.domain_name:
             CfnOutput(
