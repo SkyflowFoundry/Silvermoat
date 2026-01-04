@@ -272,7 +272,7 @@ graph TB
 
 ### CI/CD Pipeline
 
-This diagram illustrates the complete CI/CD workflow from development through production deployment. Developers create feature branches and open pull requests, which trigger ephemeral B stack deployments with full test suites. Upon merge to main, the production A stack is deployed with smart DNS updates, CloudFront cache invalidation, and smoke tests before going live.
+This diagram illustrates the complete CI/CD workflow from development through production deployment. Developers create feature branches and open pull requests, which trigger ephemeral test stack deployments with full test suites. Upon merge to main, the production stack is deployed with smart DNS updates, CloudFront cache invalidation, and smoke tests before going live.
 
 ```mermaid
 graph LR
@@ -287,7 +287,6 @@ graph LR
         Package1 --> Deploy1[Deploy CFN Stack<br/>silvermoat-pr-123]
         Deploy1 --> Upload1[Upload UI to S3]
         Upload1 --> Tests1[Run Tests:<br/>API + E2E + Smoke]
-        Tests1 --> Comment[Comment on PR<br/>URLs + Results]
         Tests1 -.->|PR Closed| Cleanup[pr-stack-cleanup.yml<br/>Delete Stack]
     end
 
@@ -413,7 +412,7 @@ graph TD
 
 ### Test Execution
 
-This diagram shows the comprehensive test matrix executed during deployments. Tests flow sequentially from smoke tests (stack validation, outputs verification, URL reachability) through API contract tests (CRUD operations for all entities, security validation) to E2E browser tests (user workflows, navigation, forms, responsive design), with results aggregated and reported via PR comments before automated cleanup.
+This diagram shows the comprehensive test matrix executed during deployments. Tests flow sequentially from smoke tests (stack validation, outputs verification, URL reachability) through API contract tests (CRUD operations for all entities, security validation) to E2E browser tests (user workflows, navigation, forms, responsive design), followed by automated cleanup.
 
 ```mermaid
 graph TB
@@ -452,7 +451,6 @@ graph TB
 
     subgraph "Test Results"
         Results[Aggregate Results]
-        Comment[Comment on PR]
         Cleanup[Cleanup Test Stack]
     end
 
@@ -480,8 +478,7 @@ graph TB
     E7 --> E8
 
     E8 --> Results
-    Results --> Comment
-    Comment --> Cleanup
+    Results --> Cleanup
 
     style Trigger fill:#2088FF
     style S1 fill:#FFA500
