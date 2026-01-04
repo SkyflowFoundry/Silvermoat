@@ -70,6 +70,9 @@ else
   npm install --silent
 fi
 
+echo "Syncing README.md to public folder..."
+cp "$PROJECT_ROOT/README.md" "$UI_DIR/public/README.md"
+
 echo "Building React app..."
 npm run build
 
