@@ -86,35 +86,12 @@ jobs:
             echo "ℹ️ Stack ${STACK_NAME} does not exist (first run)"
           fi
 
-  unit-tests:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup environment
-        uses: ./.github/actions/setup-env
-
-      - name: Install UI dependencies
-        uses: ./.github/actions/install-deps
-        with:
-          install-ui: 'true'
-
-      - name: Run JavaScript unit tests
-        run: |
-          cd ui
-          npm test -- --run
-
   deploy-stack:
-    needs: [detect-changes, unit-tests]
+    needs: [detect-changes]
     if: |
-      always() &&
-      needs.unit-tests.result == 'success' &&
-      (needs.detect-changes.outputs.infrastructure_changed == 'true' ||
-       needs.detect-changes.outputs.stack_exists == 'false' ||
-       inputs.force_deploy == 'true')
+      needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+      needs.detect-changes.outputs.stack_exists == 'false' ||
+      inputs.force_deploy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
 

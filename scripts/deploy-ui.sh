@@ -58,6 +58,12 @@ if [ -n "$API_BASE" ]; then
   export VITE_API_BASE_URL="$API_BASE"
 fi
 
+# Generate architecture diagram before building UI
+echo "Generating architecture diagram..."
+pip install -q -r "$PROJECT_ROOT/requirements-docs.txt"
+cd "$PROJECT_ROOT"
+python3 "$PROJECT_ROOT/scripts/generate-architecture-diagram.py"
+
 # Build React app
 cd "$UI_DIR"
 echo "Installing dependencies (if needed)..."
@@ -70,7 +76,7 @@ else
   npm install --silent
 fi
 
-echo "Syncing architecture diagram to public folder..."
+echo "Copying architecture diagram to public folder..."
 cp "$PROJECT_ROOT/docs/architecture.png" "$UI_DIR/public/architecture.png"
 
 echo "Building React app..."

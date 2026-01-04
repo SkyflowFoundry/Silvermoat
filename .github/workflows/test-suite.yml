@@ -26,39 +26,192 @@ on:
         required: true
 
 jobs:
-  run:
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: unit-utils
+            pattern: "src/utils/**/*.test.{js,jsx,ts,tsx}"
+          - name: unit-components
+            pattern: "src/components/**/*.test.{js,jsx,ts,tsx}"
+          - name: unit-hooks
+            pattern: "src/hooks/**/*.test.{js,jsx,ts,tsx}"
+          - name: unit-contexts
+            pattern: "src/contexts/**/*.test.{js,jsx,ts,tsx}"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install UI dependencies
+        run: |
+          cd ui
+          npm ci --silent
+
+      - name: Run ${{ matrix.name }} tests
+        id: test-run
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cd ui
+          # Run tests matching the pattern, exit 0 if no tests found
+          npm test -- --run "${{ matrix.pattern }}" 2>&1 | tee ../${{ matrix.name }}-tests-output.txt || {
+            if grep -q "No test files found" ../${{ matrix.name }}-tests-output.txt; then
+              echo "No tests found for ${{ matrix.pattern }}, skipping..."
+              echo "SKIPPED=true" >> $GITHUB_OUTPUT
+              exit 0
+            else
+              exit 1
+            fi
+          }
+
+      - name: Upload test output
+        if: always() && steps.test-run.outputs.SKIPPED != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-test-output
+          path: ${{ matrix.name }}-tests-output.txt
+          retention-days: 7
+
+      - name: Check test outcome
+        if: always() && steps.test-run.outputs.SKIPPED != 'true'
+        run: |
+          if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
+            echo "${{ matrix.name }} tests failed"
+            exit 1
+          fi
+
+  api-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: api-smoke
+            file: ""
+            args: ""
+          - name: api-cases
+            file: test_cases.py
+            args: ""
+          - name: api-security
+            file: test_security.py
+            args: ""
+          - name: api-chatbot
+            file: test_chatbot.py
+            args: ""
+          - name: api-customer-chatbot
+            file: test_customer_chatbot.py
+            args: ""
+          - name: api-customers
+            file: test_customers.py
+            args: ""
+          - name: api-payments
+            file: test_payments.py
+            args: ""
+          - name: api-policies
+            file: test_policies.py
+            args: ""
+          - name: api-quotes
+            file: test_quotes.py
+            args: ""
+          - name: api-claims
+            file: test_claims.py
+            args: ""
+          - name: api-root
+            file: test_root.py
+            args: ""
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install Python dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Run ${{ matrix.name }} tests
+        id: test-run
+        continue-on-error: true
+        env:
+          STACK_NAME: ${{ inputs.stack_name }}
+          SILVERMOAT_API_URL: ${{ inputs.api_url }}
+          SILVERMOAT_URL: ${{ inputs.web_url }}
+        run: |
+          set -o pipefail
+          echo "Running ${{ matrix.name }} tests against ${{ inputs.environment }}..."
+          cd tests/api
+          pytest -v --tb=short ${{ matrix.file }} ${{ matrix.args }} 2>&1 | tee ../../${{ matrix.name }}-tests-output.txt
+
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-test-output
+          path: ${{ matrix.name }}-tests-output.txt
+          retention-days: 7
+
+      - name: Upload test artifacts (screenshots, page source, logs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-test-artifacts
+          path: tests/api/test-artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Check test outcome
+        if: always()
+        run: |
+          if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
+            echo "${{ matrix.name }} tests failed"
+            exit 1
+          fi
+
+  e2e-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     strategy:
       fail-fast: false
       matrix:
-        test-type: [smoke, api, e2e-smoke, e2e-forms, e2e-customer, e2e-navigation]
         include:
-          - test-type: smoke
-            test-dir: smoke
+          - name: e2e-smoke-deployment
+            dir: smoke
+            args: ""
             needs-chrome: false
-            pytest-args: ""
-          - test-type: api
-            test-dir: api
-            needs-chrome: false
-            pytest-args: ""
-          - test-type: e2e-smoke
-            test-dir: e2e
+          - name: e2e-smoke-landing
+            dir: e2e
+            args: "-m smoke"
             needs-chrome: true
-            pytest-args: "-m smoke"
-          - test-type: e2e-forms
-            test-dir: e2e
+          - name: e2e-forms
+            dir: e2e
+            args: "-m forms"
             needs-chrome: true
-            pytest-args: "-m forms"
-          - test-type: e2e-customer
-            test-dir: e2e
+          - name: e2e-customer
+            dir: e2e
+            args: "-m customer"
             needs-chrome: true
-            pytest-args: "-m customer"
-          - test-type: e2e-navigation
-            test-dir: e2e
+          - name: e2e-navigation
+            dir: e2e
+            args: "tests/test_landing_page.py -m 'e2e and not smoke'"
             needs-chrome: true
-            pytest-args: "tests/test_landing_page.py -m 'e2e and not smoke'"
 
     steps:
       - name: Checkout code
@@ -92,7 +245,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-chromedriver-
 
-      - name: Run ${{ matrix.test-type }} tests
+      - name: Run ${{ matrix.name }} tests
         id: test-run
         continue-on-error: true
         env:
@@ -102,24 +255,24 @@ jobs:
           HEADLESS: '1'
         run: |
           set -o pipefail
-          echo "Running ${{ matrix.test-type }} tests against ${{ inputs.environment }}..."
-          cd tests/${{ matrix.test-dir }}
-          pytest -v --tb=short ${{ matrix.pytest-args }} 2>&1 | tee ../../${{ matrix.test-type }}-tests-output.txt
+          echo "Running ${{ matrix.name }} tests against ${{ inputs.environment }}..."
+          cd tests/${{ matrix.dir }}
+          pytest -v --tb=short ${{ matrix.args }} 2>&1 | tee ../../${{ matrix.name }}-tests-output.txt
 
       - name: Upload test output
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.test-type }}-test-output
-          path: ${{ matrix.test-type }}-tests-output.txt
+          name: ${{ matrix.name }}-test-output
+          path: ${{ matrix.name }}-tests-output.txt
           retention-days: 7
 
       - name: Upload test artifacts (screenshots, page source, logs)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.test-type }}-test-artifacts
-          path: tests/${{ matrix.test-dir }}/test-artifacts/
+          name: ${{ matrix.name }}-test-artifacts
+          path: tests/${{ matrix.dir }}/test-artifacts/
           retention-days: 7
           if-no-files-found: ignore
 
@@ -127,6 +280,6 @@ jobs:
         if: always()
         run: |
           if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
-            echo "${{ matrix.test-type }} tests failed"
+            echo "${{ matrix.name }} tests failed"
             exit 1
           fi
