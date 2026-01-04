@@ -89,10 +89,12 @@ class ApiStack(Construct):
         # /chat -> AI handler
         chat_resource = self.api.root.add_resource("chat")
         chat_resource.add_method("POST", ai_integration)
+        chat_resource.add_method("OPTIONS", ai_integration)  # CORS preflight
 
         # /customer-chat -> AI handler
         customer_chat_resource = self.api.root.add_resource("customer-chat")
         customer_chat_resource.add_method("POST", ai_integration)
+        customer_chat_resource.add_method("OPTIONS", ai_integration)  # CORS preflight
 
         # API URL (exact match to CloudFormation)
         self.api_url = self.api.url
