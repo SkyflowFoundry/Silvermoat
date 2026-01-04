@@ -33,11 +33,116 @@ class ComputeStack(Construct):
             description="Shared utilities for Lambda functions",
         )
 
-        # MVP Service Lambda
-        self.mvp_function = PythonFunction(
+        # Customer Handler - Manages customer and quote operations
+        self.customer_function = PythonFunction(
             self,
-            "MvpServiceFunction",
-            entry="../lambda/mvp_service",
+            "CustomerFunction",
+            entry="../lambda/customer_handler",
+            index="handler.py",
+            handler="handler",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            layers=[shared_layer],
+            environment={
+                "CUSTOMERS_TABLE": data_stack.tables["customers"].table_name,
+                "QUOTES_TABLE": data_stack.tables["quotes"].table_name,
+                "POLICIES_TABLE": data_stack.tables["policies"].table_name,
+                "CLAIMS_TABLE": data_stack.tables["claims"].table_name,
+                "PAYMENTS_TABLE": data_stack.tables["payments"].table_name,
+                "CASES_TABLE": data_stack.tables["cases"].table_name,
+                "DOCS_BUCKET": storage_stack.docs_bucket.bucket_name,
+                "SNS_TOPIC_ARN": data_stack.topic.topic_arn,
+            },
+        )
+
+        # Customer handler permissions - full access for demo platform
+        for table in data_stack.tables.values():
+            table.grant_read_write_data(self.customer_function)
+        storage_stack.docs_bucket.grant_read_write(self.customer_function)
+        data_stack.topic.grant_publish(self.customer_function)
+        self.customer_function.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["events:PutEvents"],
+                resources=[f"arn:aws:events:{Stack.of(self).region}:{Stack.of(self).account}:event-bus/default"],
+            )
+        )
+
+        # Claims Handler - Manages policies, claims, payments, and cases
+        self.claims_function = PythonFunction(
+            self,
+            "ClaimsFunction",
+            entry="../lambda/claims_handler",
+            index="handler.py",
+            handler="handler",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            layers=[shared_layer],
+            environment={
+                "CUSTOMERS_TABLE": data_stack.tables["customers"].table_name,
+                "QUOTES_TABLE": data_stack.tables["quotes"].table_name,
+                "POLICIES_TABLE": data_stack.tables["policies"].table_name,
+                "CLAIMS_TABLE": data_stack.tables["claims"].table_name,
+                "PAYMENTS_TABLE": data_stack.tables["payments"].table_name,
+                "CASES_TABLE": data_stack.tables["cases"].table_name,
+                "DOCS_BUCKET": storage_stack.docs_bucket.bucket_name,
+                "SNS_TOPIC_ARN": data_stack.topic.topic_arn,
+            },
+        )
+
+        # Claims handler permissions - full access for demo platform
+        for table in data_stack.tables.values():
+            table.grant_read_write_data(self.claims_function)
+        storage_stack.docs_bucket.grant_read_write(self.claims_function)
+        data_stack.topic.grant_publish(self.claims_function)
+        self.claims_function.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["events:PutEvents"],
+                resources=[f"arn:aws:events:{Stack.of(self).region}:{Stack.of(self).account}:event-bus/default"],
+            )
+        )
+
+        # Documents Handler - Manages document uploads to S3
+        self.documents_function = PythonFunction(
+            self,
+            "DocumentsFunction",
+            entry="../lambda/documents_handler",
+            index="handler.py",
+            handler="handler",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            layers=[shared_layer],
+            environment={
+                "CUSTOMERS_TABLE": data_stack.tables["customers"].table_name,
+                "QUOTES_TABLE": data_stack.tables["quotes"].table_name,
+                "POLICIES_TABLE": data_stack.tables["policies"].table_name,
+                "CLAIMS_TABLE": data_stack.tables["claims"].table_name,
+                "PAYMENTS_TABLE": data_stack.tables["payments"].table_name,
+                "CASES_TABLE": data_stack.tables["cases"].table_name,
+                "DOCS_BUCKET": storage_stack.docs_bucket.bucket_name,
+                "SNS_TOPIC_ARN": data_stack.topic.topic_arn,
+            },
+        )
+
+        # Documents handler permissions - full access for demo platform
+        for table in data_stack.tables.values():
+            table.grant_read_write_data(self.documents_function)
+        storage_stack.docs_bucket.grant_read_write(self.documents_function)
+        data_stack.topic.grant_publish(self.documents_function)
+        self.documents_function.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["events:PutEvents"],
+                resources=[f"arn:aws:events:{Stack.of(self).region}:{Stack.of(self).account}:event-bus/default"],
+            )
+        )
+
+        # AI Handler - Manages AI chatbot operations
+        self.ai_function = PythonFunction(
+            self,
+            "AiFunction",
+            entry="../lambda/ai_handler",
             index="handler.py",
             handler="handler",
             runtime=lambda_.Runtime.PYTHON_3_12,
@@ -58,15 +163,18 @@ class ComputeStack(Construct):
             },
         )
 
-        # Grant permissions to MVP function
+        # AI handler permissions - full access for demo platform
         for table in data_stack.tables.values():
-            table.grant_read_write_data(self.mvp_function)
-
-        storage_stack.docs_bucket.grant_read_write(self.mvp_function)
-        data_stack.topic.grant_publish(self.mvp_function)
-
-        # Bedrock permissions
-        self.mvp_function.add_to_role_policy(
+            table.grant_read_write_data(self.ai_function)
+        storage_stack.docs_bucket.grant_read_write(self.ai_function)
+        data_stack.topic.grant_publish(self.ai_function)
+        self.ai_function.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["events:PutEvents"],
+                resources=[f"arn:aws:events:{Stack.of(self).region}:{Stack.of(self).account}:event-bus/default"],
+            )
+        )
+        self.ai_function.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["bedrock:InvokeModel"],
                 resources=[
@@ -75,12 +183,8 @@ class ComputeStack(Construct):
             )
         )
 
-        # EventBridge permissions
-        self.mvp_function.add_to_role_policy(
-            iam.PolicyStatement(
-                actions=["events:PutEvents"],
-                resources=[f"arn:aws:events:{Stack.of(self).region}:{Stack.of(self).account}:event-bus/default"],
-            )
-        )
+        # Keep mvp_function reference for backwards compatibility during transition
+        # This can be removed once all references are updated
+        self.mvp_function = self.customer_function
 
         # Note: Outputs must be defined in parent Stack, not here in Construct
