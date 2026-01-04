@@ -30,6 +30,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: unit-utils
+            pattern: "src/utils/**/*.test.{js,jsx,ts,tsx}"
+          - name: unit-components
+            pattern: "src/components/**/*.test.{js,jsx,ts,tsx}"
+          - name: unit-hooks
+            pattern: "src/hooks/**/*.test.{js,jsx,ts,tsx}"
+          - name: unit-contexts
+            pattern: "src/contexts/**/*.test.{js,jsx,ts,tsx}"
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -42,27 +55,36 @@ jobs:
           cd ui
           npm ci --silent
 
-      - name: Run JavaScript unit tests
+      - name: Run ${{ matrix.name }} tests
         id: test-run
         continue-on-error: true
         run: |
           set -o pipefail
           cd ui
-          npm test -- --run 2>&1 | tee ../unit-tests-output.txt
+          # Run tests matching the pattern, exit 0 if no tests found
+          npm test -- --run "${{ matrix.pattern }}" 2>&1 | tee ../${{ matrix.name }}-tests-output.txt || {
+            if grep -q "No test files found" ../${{ matrix.name }}-tests-output.txt; then
+              echo "No tests found for ${{ matrix.pattern }}, skipping..."
+              echo "SKIPPED=true" >> $GITHUB_OUTPUT
+              exit 0
+            else
+              exit 1
+            fi
+          }
 
       - name: Upload test output
-        if: always()
+        if: always() && steps.test-run.outputs.SKIPPED != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: unit-test-output
-          path: unit-tests-output.txt
+          name: ${{ matrix.name }}-test-output
+          path: ${{ matrix.name }}-tests-output.txt
           retention-days: 7
 
       - name: Check test outcome
-        if: always()
+        if: always() && steps.test-run.outputs.SKIPPED != 'true'
         run: |
           if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
-            echo "unit tests failed"
+            echo "${{ matrix.name }} tests failed"
             exit 1
           fi
 
