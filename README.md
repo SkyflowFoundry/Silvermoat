@@ -1,60 +1,66 @@
-# Silvermoat MVP - E2E Insurance Demo
+# Silvermoat - Cloud Insurance Platform
 
-A one-shot deployable insurance MVP demo built on AWS CloudFormation, featuring a React SPA frontend and serverless backend.
+**Silvermoat** is a production-ready, full-stack insurance platform built entirely on AWS serverless infrastructure. This repository provides a complete, deployable demonstration of a modern insurance system featuring quote management, policy administration, claims processing, payment handling, and AI-powered customer service.
+
+The platform showcases enterprise-grade patterns including Infrastructure as Code with nested CloudFormation stacks, A-B deployment workflows for zero-downtime releases, comprehensive test automation, and seamless integration with Claude AI for intelligent customer interactions.
 
 ## Table of Contents
 
 - [Overview](#overview)
-- [System Architecture](#system-architecture)
+- [Architecture](#architecture)
   - [High-Level Architecture](#high-level-architecture)
   - [Request Flow](#request-flow)
-  - [AWS Services Architecture](#aws-services-architecture)
-  - [Nested CloudFormation Stack Hierarchy](#nested-cloudformation-stack-hierarchy)
-- [CI/CD & DevOps](#cicd--devops)
-  - [Pipeline Overview](#pipeline-overview)
+  - [AWS Services](#aws-services)
+  - [CloudFormation Stack Hierarchy](#cloudformation-stack-hierarchy)
+- [Development & Deployment](#development--deployment)
+  - [CI/CD Pipeline](#cicd-pipeline)
   - [A-B Deployment Model](#a-b-deployment-model)
-  - [Deployment Decision Tree](#deployment-decision-tree)
-  - [Test Matrix Execution](#test-matrix-execution)
-- [Data Architecture](#data-architecture)
-  - [DynamoDB Schema](#dynamodb-schema)
+  - [Deployment Decision Flow](#deployment-decision-flow)
+  - [Test Execution](#test-execution)
+- [Data Layer](#data-layer)
+  - [Database Schema](#database-schema)
   - [Document Upload Flow](#document-upload-flow)
   - [AI Chatbot Integration](#ai-chatbot-integration)
-- [Frontend Architecture](#frontend-architecture)
-  - [React Component Hierarchy](#react-component-hierarchy)
-  - [React Query Data Flow](#react-query-data-flow)
-  - [Routing Structure](#routing-structure)
-- [Lambda Architecture](#lambda-architecture)
-  - [Handler Routing](#handler-routing)
+- [Frontend](#frontend)
+  - [Component Architecture](#component-architecture)
+  - [Data Management](#data-management)
+  - [Application Routes](#application-routes)
+- [Backend](#backend)
+  - [API Handler Routing](#api-handler-routing)
 - [Technology Stack](#technology-stack)
 - [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Quick Start](#quick-start)
-- [API Endpoints](#api-endpoints)
-- [Development](#development)
-- [Stack Deletion](#stack-deletion)
-- [Troubleshooting](#troubleshooting)
-- [Configuration](#configuration)
-- [Custom Domain Setup](#custom-domain-setup)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Quick Start](#quick-start)
+- [API Reference](#api-reference)
+- [Development Guide](#development-guide)
+- [Operations](#operations)
+  - [Stack Deletion](#stack-deletion)
+  - [Troubleshooting](#troubleshooting)
+  - [Configuration](#configuration)
+  - [Custom Domain Setup](#custom-domain-setup)
 - [Important Notes](#important-notes)
 
 ## Overview
 
-Silvermoat is a complete end-to-end demo MVP that showcases:
+Silvermoat demonstrates a complete end-to-end insurance platform with the following capabilities:
 
-- **Infrastructure as Code**: CloudFormation template for all AWS resources
+- **Infrastructure as Code**: Complete CloudFormation templates for reproducible deployments
 - **A-B Deployment Model**: Production (A) and ephemeral PR testing (B) stacks
 - **Static Website Hosting**: S3 website hosting with CloudFront CDN
-- **Serverless API**: API Gateway REST API proxying to a single Lambda function
-- **Data Storage**: DynamoDB tables for domain entities (quotes, policies, claims, payments, cases, customers)
-- **Document Storage**: S3 bucket for documents/attachments
-- **AI Integration**: Claude-powered chatbot for customer service
-- **Notifications**: SNS topic for demo notifications
-- **Automated Cleanup**: Custom Resource Lambda that empties buckets on stack deletion
+- **Serverless API**: API Gateway REST API proxying to Lambda functions
+- **Data Storage**: DynamoDB tables for all domain entities (quotes, policies, claims, payments, cases, customers)
+- **Document Management**: S3 bucket for secure document storage
+- **AI Integration**: Claude-powered chatbot for intelligent customer service
+- **Notifications**: SNS topic for event-driven notifications
+- **Automated Cleanup**: Custom Resource Lambda for graceful stack teardown
 - **Comprehensive Testing**: API contract tests, E2E browser tests, and smoke tests
 
-## System Architecture
+## Architecture
 
 ### High-Level Architecture
+
+This diagram shows the primary components and data flow within the Silvermoat platform. Users interact with a React single-page application served through CloudFront CDN, while API requests flow through API Gateway to Lambda functions that orchestrate interactions with DynamoDB, S3, SNS, and the Claude AI service.
 
 ```mermaid
 graph TB
@@ -78,6 +84,8 @@ graph TB
 ```
 
 ### Request Flow
+
+This sequence diagram illustrates the three primary request flows: static asset delivery through CloudFront and S3, API requests for creating and managing insurance entities through API Gateway and DynamoDB, AI chatbot conversations that leverage customer context from DynamoDB with Claude AI, and document uploads that store files in S3 while maintaining references in DynamoDB.
 
 ```mermaid
 sequenceDiagram
@@ -127,7 +135,9 @@ sequenceDiagram
     APIGateway-->>Browser: Document uploaded
 ```
 
-### AWS Services Architecture
+### AWS Services
+
+This diagram details the complete AWS service architecture, showing how CloudFront serves the frontend with ACM certificates, API Gateway routes requests to Lambda functions, DynamoDB tables store domain data across seven entity types, S3 buckets manage documents and UI assets, SNS and EventBridge handle notifications and scheduled events, and IAM roles and policies secure the entire infrastructure.
 
 ```mermaid
 graph TB
@@ -139,7 +149,7 @@ graph TB
 
     subgraph "API Layer"
         APIGW[API Gateway<br/>REST API]
-        APIGW --> Lambda[Lambda Function<br/>MVP Service]
+        APIGW --> Lambda[Lambda Function<br/>Service Handler]
     end
 
     subgraph "Data Layer"
@@ -205,7 +215,9 @@ graph TB
     style Seeder fill:#FF9900
 ```
 
-### Nested CloudFormation Stack Hierarchy
+### CloudFormation Stack Hierarchy
+
+This diagram shows the nested CloudFormation stack structure that organizes infrastructure into logical components. The parent stack orchestrates five nested stacks (Data, Storage, Compute, API, and Frontend) plus custom resources for seeding and cleanup, enabling modular infrastructure management and reusable templates.
 
 ```mermaid
 graph TB
@@ -256,9 +268,11 @@ graph TB
     style Seeder fill:#FF9900
 ```
 
-## CI/CD & DevOps
+## Development & Deployment
 
-### Pipeline Overview
+### CI/CD Pipeline
+
+This diagram illustrates the complete CI/CD workflow from development through production deployment. Developers create feature branches and open pull requests, which trigger ephemeral B stack deployments with full test suites. Upon merge to main, the production A stack is deployed with smart DNS updates, CloudFront cache invalidation, and smoke tests before going live.
 
 ```mermaid
 graph LR
@@ -297,6 +311,8 @@ graph LR
 ```
 
 ### A-B Deployment Model
+
+This diagram compares the two deployment environments. B stacks are ephemeral, lightweight environments for PR testing that use HTTP-only S3 URLs, run comprehensive test suites, and are automatically cleaned up when PRs close. A stacks are persistent production environments with CloudFront CDN, custom HTTPS domains, smart DNS routing, and optimized smoke testing.
 
 ```mermaid
 graph TB
@@ -347,7 +363,9 @@ graph TB
     style Compare fill:#6B4FBB
 ```
 
-### Deployment Decision Tree
+### Deployment Decision Flow
+
+This diagram shows the automated decision tree for deployments based on code changes. Infrastructure changes trigger Lambda packaging and CloudFormation deployment with conditional DNS updates and cache invalidation. UI changes trigger React builds and S3 uploads. Test changes run the test suite without deployment, while documentation changes skip deployment entirely.
 
 ```mermaid
 graph TD
@@ -393,7 +411,9 @@ graph TD
     style Done fill:#28A745
 ```
 
-### Test Matrix Execution
+### Test Execution
+
+This diagram shows the comprehensive test matrix executed during deployments. Tests flow sequentially from smoke tests (stack validation, outputs verification, URL reachability) through API contract tests (CRUD operations for all entities, security validation) to E2E browser tests (user workflows, navigation, forms, responsive design), with results aggregated and reported via PR comments before automated cleanup.
 
 ```mermaid
 graph TB
@@ -487,9 +507,11 @@ graph TB
     style Cleanup fill:#FF4F8B
 ```
 
-## Data Architecture
+## Data Layer
 
-### DynamoDB Schema
+### Database Schema
+
+This entity-relationship diagram shows the DynamoDB schema design with relationships between all domain entities. Customers create quotes that convert to policies, policies have claims and require payments, claims may escalate to cases, and all customer conversations are logged for the AI chatbot to maintain context across interactions.
 
 ```mermaid
 erDiagram
@@ -588,6 +610,8 @@ erDiagram
 
 ### Document Upload Flow
 
+This sequence diagram details the document attachment workflow for claims. The Lambda handler validates the claim exists in DynamoDB, generates a unique document ID and S3 key, uploads the file to S3, updates the claim record with the document reference, publishes an SNS notification for downstream processing, and returns the document metadata to the browser.
+
 ```mermaid
 sequenceDiagram
     participant Browser
@@ -624,6 +648,8 @@ sequenceDiagram
 ```
 
 ### AI Chatbot Integration
+
+This sequence diagram shows both customer-facing and internal chatbot flows. The customer chatbot retrieves customer profiles, chat history, active policies, and recent claims from DynamoDB to build context before calling the Claude Messages API, then logs both user messages and assistant responses for conversation continuity. The internal chatbot provides data analysis for administrators by querying business data and using Claude to generate insights.
 
 ```mermaid
 sequenceDiagram
@@ -676,9 +702,11 @@ sequenceDiagram
     API Gateway-->>Browser: Analysis result
 ```
 
-## Frontend Architecture
+## Frontend
 
-### React Component Hierarchy
+### Component Architecture
+
+This diagram shows the React component hierarchy and organization. The App root provides QueryClientProvider and Router, which renders the AppLayout wrapper containing Header, Sidebar, and Breadcrumbs components alongside route-specific page components. Each domain module (Quotes, Policies, Claims, etc.) follows a consistent pattern with List, Table, Form, and Detail components, promoting code reusability and maintainability.
 
 ```mermaid
 graph TB
@@ -740,7 +768,9 @@ graph TB
     style CustomerPage fill:#722ED1
 ```
 
-### React Query Data Flow
+### Data Management
+
+This sequence diagram illustrates React Query's caching and mutation patterns. Query flows show cache-first data access with automatic background refetching when data becomes stale, optimizing performance while maintaining data freshness. Mutation flows demonstrate how data updates trigger automatic cache invalidation and query refetching, ensuring the UI stays synchronized with backend state without manual cache management.
 
 ```mermaid
 sequenceDiagram
@@ -800,7 +830,9 @@ sequenceDiagram
     ReactQuery->>Component: Silently update UI
 ```
 
-### Routing Structure
+### Application Routes
+
+This diagram shows the React Router structure with all application routes. The landing page serves as the entry point, followed by a dashboard overview and dedicated routes for each domain entity (quotes, policies, claims, payments, cases) with consistent list, create, and detail views. The customer portal provides a separate interface for end-users with AI chatbot access.
 
 ```mermaid
 graph TB
@@ -853,9 +885,11 @@ graph TB
     style NotFound fill:#FF4D4F
 ```
 
-## Lambda Architecture
+## Backend
 
-### Handler Routing
+### API Handler Routing
+
+This diagram shows the Lambda function's request routing architecture. The API Gateway forwards all requests to the main handler.py entry point, which routes to specific handlers based on HTTP method and path. Each handler performs input validation, interacts with DynamoDB or S3, and returns standardized responses. Chatbot endpoints integrate with Claude API and log conversations for context continuity.
 
 ```mermaid
 graph TB
@@ -1063,7 +1097,9 @@ Silvermoat/
 └── README.md                             # This file
 ```
 
-## Prerequisites
+## Getting Started
+
+### Prerequisites
 
 - **AWS CLI** configured with appropriate credentials
 - **AWS Permissions** to create:
@@ -1082,9 +1118,9 @@ Silvermoat/
 - **jq** (optional, for JSON parsing in scripts)
 - **Cloudflare Account** (optional, for custom domain setup)
 
-## Quick Start
+### Quick Start
 
-### 1. Deploy Infrastructure
+#### 1. Deploy Infrastructure
 
 Deploy the CloudFormation stack:
 
@@ -1111,7 +1147,7 @@ UI_SEEDING_MODE=external \
 
 Wait for `CREATE_COMPLETE` status.
 
-### 2. Get Stack Outputs
+#### 2. Get Stack Outputs
 
 View stack outputs:
 
@@ -1126,7 +1162,7 @@ Key outputs:
 - `DocsBucketName`: S3 bucket for documents
 - `CloudFrontUrl`: CloudFront distribution URL (HTTPS)
 
-### 3. Deploy UI
+#### 3. Deploy UI
 
 Build and deploy the React SPA:
 
@@ -1140,7 +1176,7 @@ This will:
 3. Sync to S3 with proper cache headers
 4. Display the website URL
 
-### 4. Verify Deployment
+#### 4. Verify Deployment
 
 Run smoke tests:
 
@@ -1154,7 +1190,7 @@ Or manually test:
 - Check API responses
 - Try the customer chatbot
 
-## API Endpoints
+## API Reference
 
 The API supports CRUD operations for all entities:
 
@@ -1208,7 +1244,7 @@ POST /chatbot            # Internal chatbot (data analysis)
 POST /customer-chatbot   # Customer-facing chatbot
 ```
 
-## Development
+## Development Guide
 
 ### Local UI Development
 
@@ -1256,7 +1292,9 @@ STACK_NAME=silvermoat pytest -v
 pytest -v
 ```
 
-## Stack Deletion
+## Operations
+
+### Stack Deletion
 
 Delete the entire stack:
 
@@ -1271,9 +1309,9 @@ Delete the entire stack:
 
 If deletion fails with "bucket not empty", check CloudWatch logs for the `SeederFunction` Lambda to see if cleanup completed successfully.
 
-## Troubleshooting
+### Troubleshooting
 
-### Stack Creation Fails
+#### Stack Creation Fails
 
 **Issue**: Custom Resource fails during stack creation
 
@@ -1285,7 +1323,7 @@ If deletion fails with "bucket not empty", check CloudWatch logs for the `Seeder
 2. Verify IAM permissions are correct
 3. Check that all dependencies are created before the Custom Resource runs
 
-### UI Not Loading
+#### UI Not Loading
 
 **Issue**: CloudFront or S3 website returns 403 or 404
 
@@ -1298,7 +1336,7 @@ If deletion fails with "bucket not empty", check CloudWatch logs for the `Seeder
 3. Ensure CloudFront distribution is fully deployed
 4. Check CloudFront origin settings
 
-### API Returns CORS Errors
+#### API Returns CORS Errors
 
 **Issue**: Browser shows CORS errors when calling API
 
@@ -1307,7 +1345,7 @@ If deletion fails with "bucket not empty", check CloudWatch logs for the `Seeder
 2. Verify API Gateway integration is `AWS_PROXY`
 3. Ensure the request includes proper headers
 
-### Stack Deletion Stuck on Buckets
+#### Stack Deletion Stuck on Buckets
 
 **Issue**: Stack deletion fails because buckets are not empty
 
@@ -1319,7 +1357,7 @@ If deletion fails with "bucket not empty", check CloudWatch logs for the `Seeder
    aws s3 rm s3://<bucket-name> --recursive
    ```
 
-### React App Can't Find API
+#### React App Can't Find API
 
 **Issue**: UI shows "API base URL not configured"
 
@@ -1328,7 +1366,7 @@ If deletion fails with "bucket not empty", check CloudWatch logs for the `Seeder
 2. Or manually set it in `ui/src/App.jsx`
 3. Or set `window.API_BASE_URL` in `ui/index.html` before the app loads
 
-### Chatbot Returns Errors
+#### Chatbot Returns Errors
 
 **Issue**: Chatbot API returns 500 errors
 
@@ -1338,9 +1376,9 @@ If deletion fails with "bucket not empty", check CloudWatch logs for the `Seeder
 3. Ensure Lambda has internet access (via NAT Gateway if in VPC)
 4. Verify Claude API quota/billing
 
-## Configuration
+### Configuration
 
-### Environment Variables
+#### Environment Variables
 
 Scripts support the following environment variables:
 
@@ -1352,7 +1390,7 @@ Scripts support the following environment variables:
 - `DOMAIN_NAME`: Custom domain for CloudFront (default: `silvermoat.net`)
 - `CREATE_CLOUDFRONT`: Create CloudFront distribution (default: `true`)
 
-### CloudFormation Parameters
+#### CloudFormation Parameters
 
 The template accepts these parameters:
 
@@ -1366,9 +1404,9 @@ The template accepts these parameters:
 - `MvpServiceCodeS3Key`: S3 key for MVP service Lambda package
 - `SeederCodeS3Key`: S3 key for seeder Lambda package
 
-## Custom Domain Setup
+### Custom Domain Setup
 
-### Quick Start (With Default Domain)
+#### Quick Start (With Default Domain)
 
 Deploy the stack normally - it will create ACM certificate for `silvermoat.net`:
 
@@ -1378,9 +1416,9 @@ Deploy the stack normally - it will create ACM certificate for `silvermoat.net`:
 
 **Important**: The stack will wait for ACM certificate validation. You must add the validation CNAME to Cloudflare or the deployment will fail after ~30 minutes.
 
-### Enable Custom Domain
+#### Enable Custom Domain
 
-#### Step 1: Deploy Stack
+##### Step 1: Deploy Stack
 
 ```bash
 ./scripts/deploy-all.sh
@@ -1398,7 +1436,7 @@ To disable custom domain (CloudFront default only):
 DOMAIN_NAME="" ./scripts/deploy-stack.sh
 ```
 
-#### Step 2: Get DNS Validation Record
+##### Step 2: Get DNS Validation Record
 
 Stack creates ACM certificate and waits for DNS validation. Get the validation record:
 
@@ -1418,7 +1456,7 @@ You'll see a CNAME record like:
 - **Name**: `_abc123def456.silvermoat.net`
 - **Value**: `_xyz789.acm-validations.aws.`
 
-#### Step 3: Add DNS Validation Record in Cloudflare
+##### Step 3: Add DNS Validation Record in Cloudflare
 
 1. Log in to Cloudflare dashboard
 2. Select your domain (`silvermoat.net`)
@@ -1433,7 +1471,7 @@ You'll see a CNAME record like:
 
 **Wait 5-15 minutes** for validation to complete. The CloudFormation stack will proceed once validated.
 
-#### Step 4: Add CloudFront Alias Record in Cloudflare
+##### Step 4: Add CloudFront Alias Record in Cloudflare
 
 Once stack deployment completes, get the CloudFront domain:
 
@@ -1455,7 +1493,7 @@ Add the alias CNAME in Cloudflare:
 
 **Important**: Cloudflare proxy must be **disabled** (DNS only, gray cloud) for CloudFront to work properly.
 
-#### Step 5: Test
+##### Step 5: Test
 
 Visit your custom domain:
 ```
@@ -1464,7 +1502,7 @@ https://silvermoat.net
 
 Should load Silvermoat UI with valid HTTPS certificate.
 
-### DNS Records Summary
+#### DNS Records Summary
 
 You need **2 CNAME records** in Cloudflare:
 
@@ -1480,7 +1518,7 @@ You need **2 CNAME records** in Cloudflare:
 
 Both must have **Proxy status: DNS only** (gray cloud).
 
-### Troubleshooting
+#### Troubleshooting Custom Domain
 
 **Stack stuck on certificate creation:**
 - Verify validation CNAME is correct in Cloudflare
@@ -1534,7 +1572,7 @@ Both must have **Proxy status: DNS only** (gray cloud).
 
 ## License
 
-This is a demo project for educational purposes.
+This is a demonstration project for educational purposes.
 
 ## Support
 
