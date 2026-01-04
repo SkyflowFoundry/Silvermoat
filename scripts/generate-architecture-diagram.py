@@ -24,6 +24,8 @@ from diagrams.aws.database import Dynamodb
 from diagrams.aws.storage import S3
 from diagrams.aws.integration import SNS, Eventbridge
 from diagrams.aws.security import CertificateManager, IAM
+from diagrams.aws.ml import Bedrock
+from diagrams.saas.cdn import Cloudflare
 
 def generate_architecture_diagram():
     """Generate the Silvermoat AWS architecture diagram."""
@@ -42,6 +44,10 @@ def generate_architecture_diagram():
         graph_attr=graph_attr,
         outformat="png"
     ):
+        # DNS Layer
+        with Cluster("DNS Management"):
+            cloudflare = Cloudflare("Cloudflare DNS\nsilvermoat.net")
+
         # Frontend Layer
         with Cluster("Frontend Distribution"):
             cloudfront = CloudFront("CloudFront CDN")
@@ -86,9 +92,12 @@ def generate_architecture_diagram():
         with Cluster("Security & Permissions"):
             lambda_role = IAM("Lambda Execution\nRole")
 
-        # External Integration
+        # AI Integration
         with Cluster("AI Integration"):
-            claude_api = Lambda("Claude API\nChatbot Engine")
+            bedrock = Bedrock("AWS Bedrock\nClaude 3.5 Sonnet")
+
+        # DNS routing to CloudFront
+        cloudflare >> Edge(label="CNAME\nDNS routing") >> cloudfront
 
         # Frontend to API flow
         cloudfront >> Edge(label="HTTPS\nAPI requests") >> apigw
@@ -114,8 +123,8 @@ def generate_architecture_diagram():
         # IAM permissions
         lambda_role >> Edge(label="grants", style="dotted", color="gray") >> lambda_fn
 
-        # Claude API integration
-        lambda_fn >> Edge(label="chatbot\nrequests") >> claude_api
+        # Bedrock integration for AI chatbot
+        lambda_fn >> Edge(label="InvokeModel\n(Claude 3.5)") >> bedrock
 
 if __name__ == "__main__":
     print("Generating Silvermoat architecture diagram...")
