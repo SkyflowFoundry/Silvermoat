@@ -47,13 +47,19 @@ class ComputeStack(Construct):
             environment={
                 "CUSTOMERS_TABLE": data_stack.tables["customers"].table_name,
                 "QUOTES_TABLE": data_stack.tables["quotes"].table_name,
+                "POLICIES_TABLE": data_stack.tables["policies"].table_name,
+                "CLAIMS_TABLE": data_stack.tables["claims"].table_name,
+                "PAYMENTS_TABLE": data_stack.tables["payments"].table_name,
+                "CASES_TABLE": data_stack.tables["cases"].table_name,
+                "DOCS_BUCKET": storage_stack.docs_bucket.bucket_name,
                 "SNS_TOPIC_ARN": data_stack.topic.topic_arn,
             },
         )
 
-        # Customer handler permissions
-        data_stack.tables["customers"].grant_read_write_data(self.customer_function)
-        data_stack.tables["quotes"].grant_read_write_data(self.customer_function)
+        # Customer handler permissions - full access for demo platform
+        for table in data_stack.tables.values():
+            table.grant_read_write_data(self.customer_function)
+        storage_stack.docs_bucket.grant_read_write(self.customer_function)
         data_stack.topic.grant_publish(self.customer_function)
         self.customer_function.add_to_role_policy(
             iam.PolicyStatement(
@@ -75,20 +81,20 @@ class ComputeStack(Construct):
             layers=[shared_layer],
             environment={
                 "CUSTOMERS_TABLE": data_stack.tables["customers"].table_name,
+                "QUOTES_TABLE": data_stack.tables["quotes"].table_name,
                 "POLICIES_TABLE": data_stack.tables["policies"].table_name,
                 "CLAIMS_TABLE": data_stack.tables["claims"].table_name,
                 "PAYMENTS_TABLE": data_stack.tables["payments"].table_name,
                 "CASES_TABLE": data_stack.tables["cases"].table_name,
+                "DOCS_BUCKET": storage_stack.docs_bucket.bucket_name,
                 "SNS_TOPIC_ARN": data_stack.topic.topic_arn,
             },
         )
 
-        # Claims handler permissions
-        data_stack.tables["customers"].grant_read_data(self.claims_function)  # Read-only for customer upsert
-        data_stack.tables["policies"].grant_read_write_data(self.claims_function)
-        data_stack.tables["claims"].grant_read_write_data(self.claims_function)
-        data_stack.tables["payments"].grant_read_write_data(self.claims_function)
-        data_stack.tables["cases"].grant_read_write_data(self.claims_function)
+        # Claims handler permissions - full access for demo platform
+        for table in data_stack.tables.values():
+            table.grant_read_write_data(self.claims_function)
+        storage_stack.docs_bucket.grant_read_write(self.claims_function)
         data_stack.topic.grant_publish(self.claims_function)
         self.claims_function.add_to_role_policy(
             iam.PolicyStatement(
@@ -109,16 +115,28 @@ class ComputeStack(Construct):
             memory_size=256,
             layers=[shared_layer],
             environment={
+                "CUSTOMERS_TABLE": data_stack.tables["customers"].table_name,
+                "QUOTES_TABLE": data_stack.tables["quotes"].table_name,
+                "POLICIES_TABLE": data_stack.tables["policies"].table_name,
                 "CLAIMS_TABLE": data_stack.tables["claims"].table_name,
+                "PAYMENTS_TABLE": data_stack.tables["payments"].table_name,
+                "CASES_TABLE": data_stack.tables["cases"].table_name,
                 "DOCS_BUCKET": storage_stack.docs_bucket.bucket_name,
                 "SNS_TOPIC_ARN": data_stack.topic.topic_arn,
             },
         )
 
-        # Documents handler permissions
-        data_stack.tables["claims"].grant_read_data(self.documents_function)  # Read-only to verify claim exists
-        storage_stack.docs_bucket.grant_put(self.documents_function, "claims/*")  # Scoped to claims prefix
+        # Documents handler permissions - full access for demo platform
+        for table in data_stack.tables.values():
+            table.grant_read_write_data(self.documents_function)
+        storage_stack.docs_bucket.grant_read_write(self.documents_function)
         data_stack.topic.grant_publish(self.documents_function)
+        self.documents_function.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["events:PutEvents"],
+                resources=[f"arn:aws:events:{Stack.of(self).region}:{Stack.of(self).account}:event-bus/default"],
+            )
+        )
 
         # AI Handler - Manages AI chatbot operations
         self.ai_function = PythonFunction(
@@ -138,16 +156,24 @@ class ComputeStack(Construct):
                 "CLAIMS_TABLE": data_stack.tables["claims"].table_name,
                 "PAYMENTS_TABLE": data_stack.tables["payments"].table_name,
                 "CASES_TABLE": data_stack.tables["cases"].table_name,
+                "DOCS_BUCKET": storage_stack.docs_bucket.bucket_name,
+                "SNS_TOPIC_ARN": data_stack.topic.topic_arn,
                 "BEDROCK_MODEL_ID": "anthropic.claude-3-5-sonnet-20240620-v1:0",
                 "BEDROCK_REGION": Stack.of(self).region,
             },
         )
 
-        # AI handler permissions - read-only access to all tables
+        # AI handler permissions - full access for demo platform
         for table in data_stack.tables.values():
-            table.grant_read_data(self.ai_function)
-
-        # Bedrock permissions for AI handler
+            table.grant_read_write_data(self.ai_function)
+        storage_stack.docs_bucket.grant_read_write(self.ai_function)
+        data_stack.topic.grant_publish(self.ai_function)
+        self.ai_function.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["events:PutEvents"],
+                resources=[f"arn:aws:events:{Stack.of(self).region}:{Stack.of(self).account}:event-bus/default"],
+            )
+        )
         self.ai_function.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["bedrock:InvokeModel"],
