@@ -17,13 +17,13 @@ import {
   SafetyCertificateOutlined,
   InfoCircleOutlined
 } from '@ant-design/icons';
-import ReadmeViewer from '../../components/common/ReadmeViewer';
+import ArchitectureViewer from '../../components/common/ArchitectureViewer';
 
 const { Title, Text, Paragraph } = Typography;
 
 const Landing = () => {
   const navigate = useNavigate();
-  const [readmeVisible, setReadmeVisible] = useState(false);
+  const [architectureVisible, setArchitectureVisible] = useState(false);
 
   return (
     <div
@@ -260,13 +260,13 @@ const Landing = () => {
 
       {/* Floating Info Icon */}
       <div
-        onClick={() => setReadmeVisible(true)}
+        onClick={() => setArchitectureVisible(true)}
         style={{
           position: 'fixed',
           bottom: 24,
           right: 24,
-          width: 56,
-          height: 56,
+          width: 44,
+          height: 44,
           borderRadius: '50%',
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           display: 'flex',
@@ -286,13 +286,13 @@ const Landing = () => {
           e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
         }}
       >
-        <InfoCircleOutlined style={{ fontSize: 28, color: 'white' }} />
+        <InfoCircleOutlined style={{ fontSize: 22, color: 'white' }} />
       </div>
 
-      {/* README Viewer Modal */}
-      <ReadmeViewer
-        open={readmeVisible}
-        onClose={() => setReadmeVisible(false)}
+      {/* Architecture Viewer Modal */}
+      <ArchitectureViewer
+        open={architectureVisible}
+        onClose={() => setArchitectureVisible(false)}
       />
     </div>
   );

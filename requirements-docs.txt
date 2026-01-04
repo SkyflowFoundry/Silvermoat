@@ -1,0 +1,4 @@
+# Documentation Dependencies for Silvermoat
+
+# Architecture diagram generation
+diagrams==0.25.1
