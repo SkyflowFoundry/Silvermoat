@@ -25,6 +25,7 @@ from diagrams.aws.storage import S3
 from diagrams.aws.integration import SNS, Eventbridge
 from diagrams.aws.security import CertificateManager, IAM
 from diagrams.aws.ml import Bedrock
+from diagrams.saas.cdn import Cloudflare
 
 def generate_architecture_diagram():
     """Generate the Silvermoat AWS architecture diagram."""
@@ -43,6 +44,10 @@ def generate_architecture_diagram():
         graph_attr=graph_attr,
         outformat="png"
     ):
+        # DNS Layer
+        with Cluster("DNS Management"):
+            cloudflare = Cloudflare("Cloudflare DNS\nsilvermoat.net")
+
         # Frontend Layer
         with Cluster("Frontend Distribution"):
             cloudfront = CloudFront("CloudFront CDN")
@@ -90,6 +95,9 @@ def generate_architecture_diagram():
         # AI Integration
         with Cluster("AI Integration"):
             bedrock = Bedrock("AWS Bedrock\nClaude 3.5 Sonnet")
+
+        # DNS routing to CloudFront
+        cloudflare >> Edge(label="CNAME\nDNS routing") >> cloudfront
 
         # Frontend to API flow
         cloudfront >> Edge(label="HTTPS\nAPI requests") >> apigw
