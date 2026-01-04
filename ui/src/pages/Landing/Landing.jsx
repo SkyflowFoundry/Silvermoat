@@ -3,6 +3,7 @@
  * Unified entry point for Customer and Employee portals
  */
 
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Button, Typography, Space, Row, Col, Divider } from 'antd';
 import {
@@ -13,13 +14,16 @@ import {
   BarChartOutlined,
   TeamOutlined,
   ClockCircleOutlined,
-  SafetyCertificateOutlined
+  SafetyCertificateOutlined,
+  InfoCircleOutlined
 } from '@ant-design/icons';
+import ReadmeViewer from '../../components/common/ReadmeViewer';
 
 const { Title, Text, Paragraph } = Typography;
 
 const Landing = () => {
   const navigate = useNavigate();
+  const [readmeVisible, setReadmeVisible] = useState(false);
 
   return (
     <div
@@ -253,6 +257,43 @@ const Landing = () => {
           </Col>
         </Row>
       </div>
+
+      {/* Floating Info Icon */}
+      <div
+        onClick={() => setReadmeVisible(true)}
+        style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          width: 56,
+          height: 56,
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+          transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+          zIndex: 1000,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'scale(1.1)';
+          e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.4)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
+        }}
+      >
+        <InfoCircleOutlined style={{ fontSize: 28, color: 'white' }} />
+      </div>
+
+      {/* README Viewer Modal */}
+      <ReadmeViewer
+        open={readmeVisible}
+        onClose={() => setReadmeVisible(false)}
+      />
     </div>
   );
 };
