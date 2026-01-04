@@ -8,6 +8,7 @@ ui/build/
 *.log
 
 # Generated during build
+docs/architecture.png
 ui/public/architecture.png
 
 # Environment variables

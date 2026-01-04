@@ -70,7 +70,10 @@ else
   npm install --silent
 fi
 
-echo "Syncing architecture diagram to public folder..."
+echo "Generating architecture diagram..."
+pip install -q -r "$PROJECT_ROOT/requirements-docs.txt"
+python3 "$PROJECT_ROOT/scripts/generate-architecture-diagram.py"
+echo "Copying architecture diagram to public folder..."
 cp "$PROJECT_ROOT/docs/architecture.png" "$UI_DIR/public/architecture.png"
 
 echo "Building React app..."
