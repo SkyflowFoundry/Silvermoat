@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Modal, Spin, Alert } from 'antd';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -17,6 +17,7 @@ const ReadmeViewer = ({ open, onClose }) => {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const contentRef = useRef(null);
 
   useEffect(() => {
     if (open) {
@@ -25,26 +26,42 @@ const ReadmeViewer = ({ open, onClose }) => {
   }, [open]);
 
   useEffect(() => {
-    if (content && open) {
+    if (content && open && contentRef.current) {
       // Render mermaid diagrams after content is set
       const renderMermaid = async () => {
-        try {
-          const mermaidElements = document.querySelectorAll('.mermaid');
-          for (const element of mermaidElements) {
-            if (element.getAttribute('data-processed') !== 'true') {
-              const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
-              element.setAttribute('data-processed', 'true');
-              const { svg } = await mermaid.render(id, element.textContent);
-              element.innerHTML = svg;
+        let attempts = 0;
+        const maxAttempts = 10;
+        const retryInterval = 50;
+
+        const tryRender = async () => {
+          try {
+            const mermaidElements = document.querySelectorAll('.mermaid');
+
+            if (mermaidElements.length === 0 && attempts < maxAttempts) {
+              attempts++;
+              setTimeout(tryRender, retryInterval);
+              return;
             }
+
+            for (const element of mermaidElements) {
+              if (element.getAttribute('data-processed') !== 'true') {
+                const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
+                element.setAttribute('data-processed', 'true');
+                const { svg } = await mermaid.render(id, element.textContent);
+                element.innerHTML = svg;
+              }
+            }
+          } catch (err) {
+            console.error('Mermaid rendering error:', err);
           }
-        } catch (err) {
-          console.error('Mermaid rendering error:', err);
-        }
+        };
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(tryRender);
+        });
       };
 
-      // Small delay to ensure DOM is updated
-      setTimeout(renderMermaid, 100);
+      renderMermaid();
     }
   }, [content, open]);
 
@@ -96,7 +113,7 @@ const ReadmeViewer = ({ open, onClose }) => {
       )}
 
       {!loading && !error && content && (
-        <div className="readme-content">
+        <div className="readme-content" ref={contentRef}>
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeRaw]}
