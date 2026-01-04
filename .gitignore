@@ -7,6 +7,9 @@ ui/dist/
 ui/build/
 *.log
 
+# Generated during build
+ui/public/architecture.png
+
 # Environment variables
 .env
 .env.local
