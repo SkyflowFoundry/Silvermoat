@@ -60,9 +60,19 @@ def generate_architecture_diagram():
         # API Layer
         with Cluster("API Layer"):
             apigw = APIGateway("API Gateway\nREST API")
-            lambda_fn = Lambda("Lambda Handler\nPython 3.12")
 
-            apigw >> Edge(label="proxy+") >> lambda_fn
+        # Lambda Handlers (Split by domain)
+        with Cluster("Lambda Handlers"):
+            customer_fn = Lambda("customer-handler\nCustomer & Quotes")
+            claims_fn = Lambda("claims-handler\nPolicies, Claims,\nPayments, Cases")
+            docs_fn = Lambda("documents-handler\nDocument Uploads")
+            ai_fn = Lambda("ai-handler\nChatbots (Claude)")
+
+        # API Gateway routing
+        apigw >> Edge(label="/customer, /quote") >> customer_fn
+        apigw >> Edge(label="/policy, /claim,\n/payment, /case") >> claims_fn
+        apigw >> Edge(label="/claim/{id}/doc") >> docs_fn
+        apigw >> Edge(label="/chat,\n/customer-chat") >> ai_fn
 
         # Data Layer - DynamoDB Tables
         with Cluster("Data Layer"):
@@ -102,29 +112,42 @@ def generate_architecture_diagram():
         # Frontend to API flow
         cloudfront >> Edge(label="HTTPS\nAPI requests") >> apigw
 
-        # Lambda to Data Layer
-        lambda_fn >> Edge(label="read/write", style="dashed") >> customers_table
-        lambda_fn >> Edge(label="read/write", style="dashed") >> quotes_table
-        lambda_fn >> Edge(label="read/write", style="dashed") >> policies_table
-        lambda_fn >> Edge(label="read/write", style="dashed") >> claims_table
-        lambda_fn >> Edge(label="read/write", style="dashed") >> payments_table
-        lambda_fn >> Edge(label="read/write", style="dashed") >> cases_table
-        lambda_fn >> Edge(label="read/write", style="dashed") >> conversations_table
+        # Customer Handler Data Access
+        customer_fn >> Edge(label="read/write", style="dashed", color="blue") >> customers_table
+        customer_fn >> Edge(label="read/write", style="dashed", color="blue") >> quotes_table
+        customer_fn >> Edge(label="publish", color="blue") >> sns_topic
 
-        # Lambda to Storage
-        lambda_fn >> Edge(label="upload/download", style="dashed") >> docs_bucket
+        # Claims Handler Data Access
+        claims_fn >> Edge(label="read-only", style="dotted", color="green") >> customers_table
+        claims_fn >> Edge(label="read/write", style="dashed", color="green") >> policies_table
+        claims_fn >> Edge(label="read/write", style="dashed", color="green") >> claims_table
+        claims_fn >> Edge(label="read/write", style="dashed", color="green") >> payments_table
+        claims_fn >> Edge(label="read/write", style="dashed", color="green") >> cases_table
+        claims_fn >> Edge(label="publish", color="green") >> sns_topic
 
-        # Lambda to Notifications
-        lambda_fn >> Edge(label="publish") >> sns_topic
+        # Documents Handler Access
+        docs_fn >> Edge(label="read-only", style="dotted", color="orange") >> claims_table
+        docs_fn >> Edge(label="upload (claims/*)", style="dashed", color="orange") >> docs_bucket
+        docs_fn >> Edge(label="publish", color="orange") >> sns_topic
 
-        # EventBridge triggers
-        eventbridge >> Edge(label="schedule") >> lambda_fn
+        # AI Handler Data Access (read-only)
+        ai_fn >> Edge(label="read-only", style="dotted", color="purple") >> customers_table
+        ai_fn >> Edge(label="read-only", style="dotted", color="purple") >> quotes_table
+        ai_fn >> Edge(label="read-only", style="dotted", color="purple") >> policies_table
+        ai_fn >> Edge(label="read-only", style="dotted", color="purple") >> claims_table
+        ai_fn >> Edge(label="read-only", style="dotted", color="purple") >> payments_table
+        ai_fn >> Edge(label="read-only", style="dotted", color="purple") >> cases_table
+        ai_fn >> Edge(label="read-only", style="dotted", color="purple") >> conversations_table
+        ai_fn >> Edge(label="InvokeModel\n(Claude 3.5)", color="purple") >> bedrock
+
+        # EventBridge triggers (kept for potential scheduled tasks)
+        eventbridge >> Edge(label="schedule") >> customer_fn
 
         # IAM permissions
-        lambda_role >> Edge(label="grants", style="dotted", color="gray") >> lambda_fn
-
-        # Bedrock integration for AI chatbot
-        lambda_fn >> Edge(label="InvokeModel\n(Claude 3.5)") >> bedrock
+        lambda_role >> Edge(label="grants", style="dotted", color="gray") >> customer_fn
+        lambda_role >> Edge(label="grants", style="dotted", color="gray") >> claims_fn
+        lambda_role >> Edge(label="grants", style="dotted", color="gray") >> docs_fn
+        lambda_role >> Edge(label="grants", style="dotted", color="gray") >> ai_fn
 
 if __name__ == "__main__":
     print("Generating Silvermoat architecture diagram...")

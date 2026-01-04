@@ -39,7 +39,10 @@ class SilvermoatStack(Stack):
             "ApiStack",
             config.app_name,
             config.stage_name,
-            compute.mvp_function,
+            compute.customer_function,
+            compute.claims_function,
+            compute.documents_function,
+            compute.ai_function,
             config.api_deployment_token,
         )
 

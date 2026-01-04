@@ -23,7 +23,7 @@ Every plan MUST include:
 2. Assumptions (if any)
 3. Phases (numbered)
 4. File-level changes per phase
-5. Unresolved questions (required)
+5. Unresolved questions with recommended answers (required)
 
 ### Plan Communication
 - **Always post final plan to GitHub issue** before requesting approval.
@@ -34,6 +34,7 @@ Every plan MUST include:
 - Always include an **Unresolved Questions** section.
 - Questions must be concise.
 - Ask only what blocks execution.
+- Always include recommended answers per question.
 - Stop after listing questions.
 
 ## Multi-Phase Work
@@ -75,6 +76,13 @@ Every plan MUST include:
 
 - Ask.
 - Do not guess.
+
+## Validation Strategy
+
+**Never run local CDK validation.** Use CI/CD pipeline for validation:
+- Open PR and monitor GitHub Actions build job
+- CDK synth/deploy runs in CI with proper AWS credentials
+- Local validation wastes time and requires complex setup
 
 ## Testing
 

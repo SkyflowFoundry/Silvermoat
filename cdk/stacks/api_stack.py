@@ -6,7 +6,7 @@ from constructs import Construct
 
 
 class ApiStack(Construct):
-    """API layer: API Gateway REST API with Lambda proxy integration"""
+    """API layer: API Gateway REST API with path-based routing to Lambda functions"""
 
     def __init__(
         self,
@@ -14,7 +14,10 @@ class ApiStack(Construct):
         id: str,
         app_name: str,
         stage_name: str,
-        mvp_function: lambda_.Function,
+        customer_function: lambda_.Function,
+        claims_function: lambda_.Function,
+        documents_function: lambda_.Function,
+        ai_function: lambda_.Function,
         api_deployment_token: str,
     ):
         super().__init__(scope, id)
@@ -30,17 +33,66 @@ class ApiStack(Construct):
             ),
         )
 
-        # Lambda integration
-        integration = apigw.LambdaIntegration(mvp_function)
+        # Create Lambda integrations
+        customer_integration = apigw.LambdaIntegration(customer_function)
+        claims_integration = apigw.LambdaIntegration(claims_function)
+        documents_integration = apigw.LambdaIntegration(documents_function)
+        ai_integration = apigw.LambdaIntegration(ai_function)
 
-        # Root method (/)
-        self.api.root.add_method("ANY", integration)
+        # Root endpoint (/) -> customer handler
+        self.api.root.add_method("ANY", customer_integration)
 
-        # Proxy resource (/{proxy+})
-        self.api.root.add_proxy(
-            default_integration=integration,
-            any_method=True,
-        )
+        # /customer resource
+        customer_resource = self.api.root.add_resource("customer")
+        customer_resource.add_method("ANY", customer_integration)
+        customer_id_resource = customer_resource.add_resource("{id}")
+        customer_id_resource.add_method("ANY", customer_integration)
+
+        # /quote resource
+        quote_resource = self.api.root.add_resource("quote")
+        quote_resource.add_method("ANY", customer_integration)
+        quote_id_resource = quote_resource.add_resource("{id}")
+        quote_id_resource.add_method("ANY", customer_integration)
+
+        # /policy resource -> claims handler
+        policy_resource = self.api.root.add_resource("policy")
+        policy_resource.add_method("ANY", claims_integration)
+        policy_id_resource = policy_resource.add_resource("{id}")
+        policy_id_resource.add_method("ANY", claims_integration)
+
+        # /claim resource -> claims handler (except /claim/{id}/doc)
+        claim_resource = self.api.root.add_resource("claim")
+        claim_resource.add_method("ANY", claims_integration)
+        claim_id_resource = claim_resource.add_resource("{id}")
+        claim_id_resource.add_method("ANY", claims_integration)
+
+        # /claim/{id}/status -> claims handler
+        claim_status_resource = claim_id_resource.add_resource("status")
+        claim_status_resource.add_method("POST", claims_integration)
+
+        # /claim/{id}/doc -> documents handler
+        claim_doc_resource = claim_id_resource.add_resource("doc")
+        claim_doc_resource.add_method("POST", documents_integration)
+
+        # /payment resource -> claims handler
+        payment_resource = self.api.root.add_resource("payment")
+        payment_resource.add_method("ANY", claims_integration)
+        payment_id_resource = payment_resource.add_resource("{id}")
+        payment_id_resource.add_method("ANY", claims_integration)
+
+        # /case resource -> claims handler
+        case_resource = self.api.root.add_resource("case")
+        case_resource.add_method("ANY", claims_integration)
+        case_id_resource = case_resource.add_resource("{id}")
+        case_id_resource.add_method("ANY", claims_integration)
+
+        # /chat -> AI handler
+        chat_resource = self.api.root.add_resource("chat")
+        chat_resource.add_method("POST", ai_integration)
+
+        # /customer-chat -> AI handler
+        customer_chat_resource = self.api.root.add_resource("customer-chat")
+        customer_chat_resource.add_method("POST", ai_integration)
 
         # API URL (exact match to CloudFormation)
         self.api_url = self.api.url
