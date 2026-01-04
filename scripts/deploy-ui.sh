@@ -70,8 +70,8 @@ else
   npm install --silent
 fi
 
-echo "Syncing README.md to public folder..."
-cp "$PROJECT_ROOT/README.md" "$UI_DIR/public/README.md"
+echo "Syncing architecture diagram to public folder..."
+cp "$PROJECT_ROOT/docs/architecture.png" "$UI_DIR/public/architecture.png"
 
 echo "Building React app..."
 npm run build
