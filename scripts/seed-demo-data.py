@@ -4,6 +4,7 @@ import os
 import sys
 import requests
 from datetime import date
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from faker import Faker
 
 API_BASE_URL = os.environ.get('API_BASE_URL', '').rstrip('/')
@@ -13,102 +14,140 @@ if not API_BASE_URL:
 
 fake = Faker()
 
+# Parallel execution configuration
+MAX_WORKERS = 10  # Number of concurrent API requests
+
 # Global storage for created resources to maintain relationships
 customers = []
 quotes = []
 policies = []
 
+def create_customer(index):
+    """Create a single customer and return data."""
+    customer_email = fake.email()
+    data = {
+        "name": fake.name(),
+        "email": customer_email,
+        "address": fake.address().replace('\n', ', '),
+        "phone": fake.phone_number()
+    }
+    response = requests.post(f"{API_BASE_URL}/customer", json=data, timeout=30)
+    response.raise_for_status()
+
+    customer_id = response.json()['id']
+    return {
+        "id": customer_id,
+        "name": data["name"],
+        "email": customer_email,
+        "address": data["address"]
+    }
+
 def seed_customers(count=50):
-    """Seed customer records to database."""
+    """Seed customer records to database in parallel."""
     print(f"Seeding {count} customers...")
-    for i in range(count):
-        customer_email = fake.email()
-        data = {
-            "name": fake.name(),
-            "email": customer_email,
-            "address": fake.address().replace('\n', ', '),
-            "phone": fake.phone_number()
-        }
-        response = requests.post(f"{API_BASE_URL}/customer", json=data, timeout=30)
-        response.raise_for_status()
 
-        # Store customer ID and data for quotes/policies
-        customer_id = response.json()['id']
-        customers.append({
-            "id": customer_id,
-            "name": data["name"],
-            "email": customer_email,
-            "address": data["address"]
-        })
+    completed = 0
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(create_customer, i) for i in range(count)]
 
-        if (i + 1) % 25 == 0:
-            print(f"  Created {i + 1}/{count} customers")
+        for future in as_completed(futures):
+            customer = future.result()
+            customers.append(customer)
+            completed += 1
+
+            if completed % 25 == 0:
+                print(f"  Created {completed}/{count} customers")
+
     print(f"✓ Created {count} customers")
 
+def create_quote(customer):
+    """Create a single quote for a customer."""
+    data = {
+        "customerName": customer["name"],
+        "customerEmail": customer["email"],
+        "propertyAddress": customer["address"],
+        "coverageAmount": fake.random_int(50000, 1000000, step=10000),
+        "propertyType": fake.random_element(["SINGLE_FAMILY", "CONDO", "TOWNHOUSE"]),
+        "yearBuilt": fake.random_int(1950, 2024)
+    }
+    response = requests.post(f"{API_BASE_URL}/quote", json=data, timeout=30)
+    response.raise_for_status()
+
+    quote_id = response.json()['id']
+    return {
+        "id": quote_id,
+        "customer": customer,
+        "coverage_amount": data["coverageAmount"]
+    }
+
 def seed_quotes(count=150):
-    """Seed quote records ensuring each customer gets at least one."""
+    """Seed quote records ensuring each customer gets at least one (parallel)."""
     print(f"Seeding {count} quotes...")
 
-    # First pass: ensure each customer gets at least one quote
+    # Build list of customers for quotes
     num_customers = len(customers)
+    customer_assignments = []
+
+    # First pass: one quote per customer
     for i in range(min(count, num_customers)):
-        customer = customers[i]
-
-        data = {
-            "customerName": customer["name"],
-            "customerEmail": customer["email"],
-            "propertyAddress": customer["address"],
-            "coverageAmount": fake.random_int(50000, 1000000, step=10000),
-            "propertyType": fake.random_element(["SINGLE_FAMILY", "CONDO", "TOWNHOUSE"]),
-            "yearBuilt": fake.random_int(1950, 2024)
-        }
-        response = requests.post(f"{API_BASE_URL}/quote", json=data, timeout=30)
-        response.raise_for_status()
-
-        # Store quote ID and customer for policy generation
-        quote_id = response.json()['id']
-        quotes.append({
-            "id": quote_id,
-            "customer": customer,
-            "coverage_amount": data["coverageAmount"]
-        })
-
-        if (i + 1) % 25 == 0:
-            print(f"  Created {i + 1}/{count} quotes (ensuring all customers)")
+        customer_assignments.append(customers[i])
 
     # Second pass: remaining quotes randomly distributed
     for i in range(num_customers, count):
-        customer = fake.random_element(customers)
+        customer_assignments.append(fake.random_element(customers))
 
-        data = {
-            "customerName": customer["name"],
-            "customerEmail": customer["email"],
-            "propertyAddress": customer["address"],
-            "coverageAmount": fake.random_int(50000, 1000000, step=10000),
-            "propertyType": fake.random_element(["SINGLE_FAMILY", "CONDO", "TOWNHOUSE"]),
-            "yearBuilt": fake.random_int(1950, 2024)
-        }
-        response = requests.post(f"{API_BASE_URL}/quote", json=data, timeout=30)
-        response.raise_for_status()
+    # Create quotes in parallel
+    completed = 0
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(create_quote, customer) for customer in customer_assignments]
 
-        quote_id = response.json()['id']
-        quotes.append({
-            "id": quote_id,
-            "customer": customer,
-            "coverage_amount": data["coverageAmount"]
-        })
+        for future in as_completed(futures):
+            quote = future.result()
+            quotes.append(quote)
+            completed += 1
 
-        if (i + 1) % 25 == 0:
-            print(f"  Created {i + 1}/{count} quotes")
+            if completed % 25 == 0:
+                print(f"  Created {completed}/{count} quotes")
 
     print(f"✓ Created {count} quotes")
 
+def create_policy(quote):
+    """Create a single policy for a quote."""
+    # Generate dates for policy period
+    effective_date = fake.date_between(start_date='-2y', end_date='today')
+    expiration_date = fake.date_between(start_date=effective_date, end_date='+1y')
+
+    data = {
+        "quoteId": quote["id"],
+        "policyNumber": fake.bothify(text='POL-####-####'),
+        "holderName": quote["customer"]["name"],
+        "holderEmail": quote["customer"]["email"],
+        "customer_email": quote["customer"]["email"],  # Frontend expects this field
+        "propertyAddress": quote["customer"]["address"],
+        "coverageAmount": quote["coverage_amount"],
+        "premium": round(fake.random_int(800, 5000, step=50) + fake.random.random(), 2),
+        "effectiveDate": effective_date.isoformat(),
+        "expirationDate": expiration_date.isoformat()
+    }
+    response = requests.post(f"{API_BASE_URL}/policy", json=data, timeout=30)
+    response.raise_for_status()
+
+    policy_id = response.json()['id']
+    return {
+        "id": policy_id,
+        "customer": quote["customer"],
+        "effective_date": effective_date,
+        "expiration_date": expiration_date
+    }
+
 def seed_policies(count=90):
-    """Seed policy records ensuring each customer gets at least one."""
+    """Seed policy records ensuring each customer gets at least one (parallel)."""
     print(f"Seeding {count} policies...")
 
     num_customers = len(customers)
+    quote_assignments = []
 
+    # Build list of quotes for policies
     for i in range(count):
         # First N policies: ensure each customer gets one policy
         if i < num_customers:
@@ -118,45 +157,60 @@ def seed_policies(count=90):
         else:
             # Remaining policies: random distribution
             quote = fake.random_element(quotes)
+        quote_assignments.append(quote)
 
-        # Generate dates for policy period
-        effective_date = fake.date_between(start_date='-2y', end_date='today')
-        expiration_date = fake.date_between(start_date=effective_date, end_date='+1y')
+    # Create policies in parallel
+    completed = 0
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(create_policy, quote) for quote in quote_assignments]
 
-        data = {
-            "quoteId": quote["id"],
-            "policyNumber": fake.bothify(text='POL-####-####'),
-            "holderName": quote["customer"]["name"],
-            "holderEmail": quote["customer"]["email"],
-            "customer_email": quote["customer"]["email"],  # Frontend expects this field
-            "propertyAddress": quote["customer"]["address"],
-            "coverageAmount": quote["coverage_amount"],
-            "premium": round(fake.random_int(800, 5000, step=50) + fake.random.random(), 2),
-            "effectiveDate": effective_date.isoformat(),
-            "expirationDate": expiration_date.isoformat()
-        }
-        response = requests.post(f"{API_BASE_URL}/policy", json=data, timeout=30)
-        response.raise_for_status()
+        for future in as_completed(futures):
+            policy = future.result()
+            policies.append(policy)
+            completed += 1
 
-        # Store policy ID for claims/payments
-        policy_id = response.json()['id']
-        policies.append({
-            "id": policy_id,
-            "customer": quote["customer"],
-            "effective_date": effective_date,
-            "expiration_date": expiration_date
-        })
+            if completed % 25 == 0:
+                print(f"  Created {completed}/{count} policies")
 
-        if (i + 1) % 25 == 0:
-            print(f"  Created {i + 1}/{count} policies")
     print(f"✓ Created {count} policies")
 
-def seed_claims(count=30):
-    """Seed claim records ensuring each customer gets at least one."""
+def create_claim(policy):
+    """Create a single claim for a policy."""
+    # Loss date should be during policy period (but not in the future)
+    today = date.today()
+    end_date = min(policy["expiration_date"], today)
+
+    # If policy is brand new (effective_date >= today), use effective_date as loss date
+    if policy["effective_date"] >= end_date:
+        loss_date = policy["effective_date"]
+    else:
+        loss_date = fake.date_between(
+            start_date=policy["effective_date"],
+            end_date=end_date
+        )
+
+    data = {
+        "policyId": policy["id"],
+        "claimNumber": fake.bothify(text='CLM-####-####'),
+        "claimantName": policy["customer"]["name"],
+        "lossType": fake.random_element(["WATER_DAMAGE", "FIRE", "THEFT", "LIABILITY"]),
+        "description": fake.text(max_nb_chars=200),
+        "amount": fake.random_int(1000, 100000, step=1000),
+        "estimatedAmount_cents": fake.random_int(1000, 100000, step=1000) * 100,
+        "incidentDate": loss_date.isoformat()
+    }
+    response = requests.post(f"{API_BASE_URL}/claim", json=data, timeout=30)
+    response.raise_for_status()
+    return response.json()['id']
+
+def seed_claims(count=50):
+    """Seed claim records ensuring each customer gets at least one (parallel)."""
     print(f"Seeding {count} claims...")
 
     num_customers = len(customers)
+    policy_assignments = []
 
+    # Build list of policies for claims
     for i in range(count):
         # First N claims: ensure each customer gets one claim
         if i < num_customers:
@@ -166,42 +220,42 @@ def seed_claims(count=30):
         else:
             # Remaining claims: random distribution
             policy = fake.random_element(policies)
+        policy_assignments.append(policy)
 
-        # Loss date should be during policy period (but not in the future)
-        today = date.today()
-        end_date = min(policy["expiration_date"], today)
+    # Create claims in parallel
+    completed = 0
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(create_claim, policy) for policy in policy_assignments]
 
-        # If policy is brand new (effective_date >= today), use effective_date as loss date
-        if policy["effective_date"] >= end_date:
-            loss_date = policy["effective_date"]
-        else:
-            loss_date = fake.date_between(
-                start_date=policy["effective_date"],
-                end_date=end_date
-            )
+        for future in as_completed(futures):
+            future.result()  # Just need to complete, don't store claim IDs
+            completed += 1
 
-        data = {
-            "policyId": policy["id"],
-            "claimNumber": fake.bothify(text='CLM-####-####'),
-            "claimantName": policy["customer"]["name"],
-            "lossType": fake.random_element(["WATER_DAMAGE", "FIRE", "THEFT", "LIABILITY"]),
-            "description": fake.text(max_nb_chars=200),
-            "amount": fake.random_int(1000, 100000, step=1000),
-            "estimatedAmount_cents": fake.random_int(1000, 100000, step=1000) * 100,
-            "incidentDate": loss_date.isoformat()
-        }
-        response = requests.post(f"{API_BASE_URL}/claim", json=data, timeout=30)
-        response.raise_for_status()
-        if (i + 1) % 25 == 0:
-            print(f"  Created {i + 1}/{count} claims")
+            if completed % 25 == 0:
+                print(f"  Created {completed}/{count} claims")
+
     print(f"✓ Created {count} claims")
 
+def create_payment(policy):
+    """Create a single payment for a policy."""
+    data = {
+        "policyId": policy["id"],
+        "amount": round(fake.random_int(200, 1500, step=50) + fake.random.random(), 2),
+        "paymentMethod": fake.random_element(["CREDIT_CARD", "BANK_TRANSFER", "CHECK"]),
+        "cardLastFour": fake.numerify(text="####")
+    }
+    response = requests.post(f"{API_BASE_URL}/payment", json=data, timeout=30)
+    response.raise_for_status()
+    return response.json()['id']
+
 def seed_payments(count=270):
-    """Seed payment records ensuring each customer gets at least one."""
+    """Seed payment records ensuring each customer gets at least one (parallel)."""
     print(f"Seeding {count} payments...")
 
     num_customers = len(customers)
+    policy_assignments = []
 
+    # Build list of policies for payments
     for i in range(count):
         # First N payments: ensure each customer gets one payment
         if i < num_customers:
@@ -211,21 +265,30 @@ def seed_payments(count=270):
         else:
             # Remaining payments: random distribution
             policy = fake.random_element(policies)
+        policy_assignments.append(policy)
 
-        data = {
-            "policyId": policy["id"],
-            "amount": round(fake.random_int(200, 1500, step=50) + fake.random.random(), 2),
-            "paymentMethod": fake.random_element(["CREDIT_CARD", "BANK_TRANSFER", "CHECK"]),
-            "cardLastFour": fake.numerify(text="####")
-        }
-        response = requests.post(f"{API_BASE_URL}/payment", json=data, timeout=30)
-        response.raise_for_status()
-        if (i + 1) % 25 == 0:
-            print(f"  Created {i + 1}/{count} payments")
+    # Create payments in parallel
+    completed = 0
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(create_payment, policy) for policy in policy_assignments]
+
+        for future in as_completed(futures):
+            future.result()  # Just need to complete
+            completed += 1
+
+            if completed % 25 == 0:
+                print(f"  Created {completed}/{count} payments")
+
     print(f"✓ Created {count} payments")
 
-def seed_cases(count=40):
-    """Seed case records ensuring each customer gets at least one."""
+def create_case(case_data):
+    """Create a single case."""
+    response = requests.post(f"{API_BASE_URL}/case", json=case_data, timeout=30)
+    response.raise_for_status()
+    return response.json()['id']
+
+def seed_cases(count=50):
+    """Seed case records ensuring each customer gets at least one (parallel)."""
     print(f"Seeding {count} cases...")
 
     # Generate pool of customer service reps
@@ -244,7 +307,9 @@ def seed_cases(count=40):
     ]
 
     num_customers = len(customers)
+    case_assignments = []
 
+    # Build list of cases to create
     for i in range(count):
         # First N cases: ensure each customer gets one case (linked to their policy)
         if i < num_customers:
@@ -272,7 +337,7 @@ def seed_cases(count=40):
             else:
                 entity_id = f"{entity_type}-{fake.uuid4()}"
 
-        data = {
+        case_data = {
             "title": fake.random_element(case_titles),
             "description": fake.text(max_nb_chars=200),
             "relatedEntityType": entity_type,
@@ -280,10 +345,20 @@ def seed_cases(count=40):
             "assignee": fake.random_element(assignees),
             "priority": fake.random_element(["LOW", "MEDIUM", "HIGH"])
         }
-        response = requests.post(f"{API_BASE_URL}/case", json=data, timeout=30)
-        response.raise_for_status()
-        if (i + 1) % 25 == 0:
-            print(f"  Created {i + 1}/{count} cases")
+        case_assignments.append(case_data)
+
+    # Create cases in parallel
+    completed = 0
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(create_case, case_data) for case_data in case_assignments]
+
+        for future in as_completed(futures):
+            future.result()  # Just need to complete
+            completed += 1
+
+            if completed % 25 == 0:
+                print(f"  Created {completed}/{count} cases")
+
     print(f"✓ Created {count} cases")
 
 if __name__ == "__main__":
