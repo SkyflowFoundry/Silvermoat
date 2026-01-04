@@ -26,6 +26,46 @@ on:
         required: true
 
 jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install UI dependencies
+        run: |
+          cd ui
+          npm ci --silent
+
+      - name: Run JavaScript unit tests
+        id: test-run
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cd ui
+          npm test -- --run 2>&1 | tee ../unit-tests-output.txt
+
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-output
+          path: unit-tests-output.txt
+          retention-days: 7
+
+      - name: Check test outcome
+        if: always()
+        run: |
+          if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
+            echo "unit tests failed"
+            exit 1
+          fi
+
   api-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 10
