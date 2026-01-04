@@ -396,7 +396,7 @@ jobs:
           echo "API URL: ${API_URL}"
           echo "Web URL: ${WEB_URL}"
 
-  test-suite:
+  tests:
     needs: [deploy-stack, deploy-ui]
     if: always() && needs.deploy-ui.result == 'success'
     uses: ./.github/workflows/test-suite.yml
@@ -409,12 +409,12 @@ jobs:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   clear-and-seed-data:
-    needs: [deploy-stack, deploy-ui, test-suite]
+    needs: [deploy-stack, deploy-ui, tests]
     if: |
       always() &&
       (needs.deploy-stack.result == 'success' || needs.deploy-stack.result == 'skipped') &&
       needs.deploy-ui.result == 'success' &&
-      needs.test-suite.result == 'success'
+      needs.tests.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 

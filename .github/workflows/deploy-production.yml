@@ -348,10 +348,10 @@ jobs:
           fi
 
   # Phase 1: Comprehensive Test Suite (Matrix Strategy)
-  test-suite:
+  tests:
     needs: [deploy-ui]
     if: always() && needs.deploy-ui.result == 'success'
-    uses: ./.github/workflows/test-suite.yml
+    uses: ./.github/workflows/tests.yml
     with:
       stack_name: silvermoat
       api_url: ${{ needs.deploy-ui.outputs.api_url }}
@@ -361,8 +361,8 @@ jobs:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   clear-and-seed-data:
-    needs: [deploy-ui, test-suite]
-    if: always() && needs.deploy-ui.result == 'success' && needs.test-suite.result == 'success'
+    needs: [deploy-ui, tests]
+    if: always() && needs.deploy-ui.result == 'success' && needs.tests.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -377,7 +377,7 @@ jobs:
 
   # Phase 4: Verify Deployment with Enhanced Reporting
   verify-deployment:
-    needs: [deploy-ui, test-suite]
+    needs: [deploy-ui, tests]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -419,9 +419,9 @@ jobs:
         run: |
           echo "Aggregating test results..."
 
-          SMOKE_RESULT="${{ needs.test-suite.result }}"
-          API_RESULT="${{ needs.test-suite.result }}"
-          E2E_RESULT="${{ needs.test-suite.result }}"
+          SMOKE_RESULT="${{ needs.tests.result }}"
+          API_RESULT="${{ needs.tests.result }}"
+          E2E_RESULT="${{ needs.tests.result }}"
 
           # Count test results
           TOTAL_TESTS=0
@@ -472,9 +472,9 @@ jobs:
 
           **Overall:** ${{ steps.aggregate.outputs.passed_tests }}/${{ steps.aggregate.outputs.total_tests }} tests passed (${{ steps.aggregate.outputs.pass_rate }}%)
 
-          - **Smoke Tests:** ${{ needs.test-suite.result }}
-          - **API Tests:** ${{ needs.test-suite.result }}
-          - **E2E Tests:** ${{ needs.test-suite.result }}
+          - **Smoke Tests:** ${{ needs.tests.result }}
+          - **API Tests:** ${{ needs.tests.result }}
+          - **E2E Tests:** ${{ needs.tests.result }}
 
           ## Optimization Savings
 
@@ -498,7 +498,7 @@ jobs:
       - name: Check deployment status
         if: always()
         run: |
-          if [ "${{ needs.test-suite.result }}" = "failure" ]; then
+          if [ "${{ needs.tests.result }}" = "failure" ]; then
             echo "❌ One or more test suites failed"
             exit 1
           fi
