@@ -54,6 +54,9 @@ const ChatInterface = () => {
       },
       {
         onSuccess: (data) => {
+          // Update status messages from response FIRST
+          setStatusMessages(data.status_messages || []);
+
           // Add assistant response to UI
           const assistantMessage = {
             role: 'assistant',
@@ -64,9 +67,6 @@ const ChatInterface = () => {
 
           // Update conversation history for context
           setConversationHistory(data.conversation || []);
-
-          // Update status messages from response
-          setStatusMessages(data.status_messages || []);
         },
         onError: (error) => {
           // Show error message
