@@ -13,7 +13,6 @@ The platform showcases enterprise-grade patterns including Infrastructure as Cod
   - [AWS Services](#aws-services)
   - [CloudFormation Stack Hierarchy](#cloudformation-stack-hierarchy)
 - [Development & Deployment](#development--deployment)
-  - [CI/CD Pipeline](#cicd-pipeline)
   - [A-B Deployment Model](#a-b-deployment-model)
   - [Deployment Decision Flow](#deployment-decision-flow)
   - [Test Execution](#test-execution)
@@ -249,12 +248,6 @@ Illustrates the data model with relationships and cardinality between core entit
 Documents customer and agent workflows through the platform:
 
 ![Silvermoat User Journeys](docs/user-journey.png)
-
-#### CI/CD Pipeline
-
-Visualizes the complete deployment process from pull request to production:
-
-![Silvermoat CI/CD Pipeline](docs/cicd-pipeline.png)
 
 All diagrams are generated at build time and automatically deployed with the application.
 
