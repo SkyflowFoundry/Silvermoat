@@ -40,7 +40,10 @@ def generate_architecture_diagram():
     graph_attr = {
         "fontsize": "14",
         "bgcolor": "white",
-        "pad": "0.5",
+        "pad": "1.0",
+        "ranksep": "1.5",
+        "nodesep": "1.0",
+        "splines": "ortho",
     }
 
     with Diagram(
@@ -162,7 +165,10 @@ def generate_data_flow_diagram():
     graph_attr = {
         "fontsize": "14",
         "bgcolor": "white",
-        "pad": "0.5",
+        "pad": "1.0",
+        "ranksep": "1.5",
+        "nodesep": "1.0",
+        "splines": "ortho",
     }
 
     with Diagram(
@@ -254,7 +260,10 @@ def generate_user_journey_diagram():
     graph_attr = {
         "fontsize": "14",
         "bgcolor": "white",
-        "pad": "0.5",
+        "pad": "1.0",
+        "ranksep": "1.5",
+        "nodesep": "1.0",
+        "splines": "ortho",
     }
 
     with Diagram(
