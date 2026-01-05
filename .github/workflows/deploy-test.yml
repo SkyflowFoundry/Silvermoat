@@ -85,7 +85,7 @@ jobs:
           fi
 
   deploy-stack:
-    name: Deploy Stack
+    name: Deploy Infra
     needs: [detect-changes]
     if: |
       needs.detect-changes.outputs.infrastructure_changed == 'true' ||
@@ -430,7 +430,7 @@ jobs:
 
           ---
 
-          ### 📦 Stack Deployment
+          ### 📦 Infrastructure Deployment
           EOF
 
           # Stack deployment status

@@ -139,7 +139,7 @@ jobs:
           fi
 
   deploy-stack:
-    name: Deploy Stack
+    name: Deploy Infra
     needs: [detect-changes]
     if: |
       always() &&
