@@ -37,7 +37,7 @@ from diagrams.onprem.ci import GithubActions
 from diagrams.programming.framework import React
 
 def generate_architecture_diagram():
-    """Generate simplified Silvermoat AWS architecture diagram."""
+    """Generate the Silvermoat AWS architecture diagram."""
 
     graph_attr = {
         "fontsize": "14",
@@ -49,32 +49,114 @@ def generate_architecture_diagram():
         "Silvermoat AWS Architecture",
         filename="docs/architecture",
         show=False,
-        direction="LR",
+        direction="TB",
         graph_attr=graph_attr,
         outformat="png"
     ):
-        # Frontend
-        cloudflare = Cloudflare("Cloudflare")
-        cloudfront = CloudFront("CloudFront")
-        ui = S3("UI")
+        # DNS Layer
+        with Cluster("DNS Management"):
+            cloudflare = Cloudflare("Cloudflare")
 
-        # API
-        api = APIGateway("API")
+        # Frontend Layer
+        with Cluster("Frontend Distribution"):
+            cloudfront = CloudFront("CloudFront")
+            acm = CertificateManager("ACM Certificate")
+            ui_bucket = S3("UI Bucket")
 
-        # Backend
-        lambda_fn = Lambda("Lambda")
-        dynamodb = Dynamodb("DynamoDB")
-        docs = S3("Documents")
-        bedrock = Bedrock("Bedrock")
-        sns = SNS("SNS")
+            cloudfront >> Edge(label="SSL/TLS") << acm
+            cloudfront >> Edge(label="origin") >> ui_bucket
 
-        # Simple flow
-        cloudflare >> cloudfront >> ui
-        cloudfront >> api >> lambda_fn
-        lambda_fn >> dynamodb
-        lambda_fn >> docs
-        lambda_fn >> bedrock
-        lambda_fn >> sns
+        # API Layer
+        with Cluster("API Layer"):
+            apigw = APIGateway("API Gateway")
+
+        # Lambda Handlers (Split by domain)
+        with Cluster("Lambda Handlers"):
+            customer_fn = Lambda("customer-handler")
+            claims_fn = Lambda("claims-handler")
+            docs_fn = Lambda("documents-handler")
+            ai_fn = Lambda("ai-handler")
+
+        # API Gateway routing
+        apigw >> Edge(label="proxy+") >> customer_fn
+        apigw >> Edge(label="proxy+") >> claims_fn
+        apigw >> Edge(label="proxy+") >> docs_fn
+        apigw >> Edge(label="proxy+") >> ai_fn
+
+        # Data Layer - DynamoDB Tables
+        with Cluster("Data Layer"):
+            with Cluster("Core Entities"):
+                customers_table = Dynamodb("Customers")
+                quotes_table = Dynamodb("Quotes")
+                policies_table = Dynamodb("Policies")
+
+            with Cluster("Operations"):
+                claims_table = Dynamodb("Claims")
+                payments_table = Dynamodb("Payments")
+                cases_table = Dynamodb("Cases")
+
+            with Cluster("AI Context"):
+                conversations_table = Dynamodb("Conversations")
+
+        # Storage Layer
+        with Cluster("Document Storage"):
+            docs_bucket = S3("Documents Bucket")
+
+        # Notifications & Events
+        with Cluster("Notifications & Events"):
+            sns_topic = SNS("SNS Topic")
+            eventbridge = Eventbridge("EventBridge")
+
+        # Security & IAM
+        with Cluster("Security & Permissions"):
+            lambda_role = IAM("Lambda Role")
+
+        # AI Integration
+        with Cluster("AI Integration"):
+            bedrock = Bedrock("Claude API")
+
+        # DNS routing to CloudFront
+        cloudflare >> cloudfront
+
+        # Frontend to API flow
+        cloudfront >> apigw
+
+        # Customer Handler Data Access
+        customer_fn >> Edge(label="read/write") >> customers_table
+        customer_fn >> Edge(label="read/write") >> quotes_table
+        customer_fn >> sns_topic
+
+        # Claims Handler Data Access
+        claims_fn >> Edge(label="read-only") >> customers_table
+        claims_fn >> Edge(label="read/write") >> policies_table
+        claims_fn >> Edge(label="read/write") >> claims_table
+        claims_fn >> Edge(label="read/write") >> payments_table
+        claims_fn >> Edge(label="read/write") >> cases_table
+        claims_fn >> sns_topic
+
+        # Documents Handler Access
+        docs_fn >> Edge(label="read-only") >> claims_table
+        docs_fn >> Edge(label="upload/download") >> docs_bucket
+        docs_fn >> sns_topic
+
+        # AI Handler Data Access (read-only)
+        ai_fn >> Edge(label="read-only") >> customers_table
+        ai_fn >> Edge(label="read-only") >> quotes_table
+        ai_fn >> Edge(label="read-only") >> policies_table
+        ai_fn >> Edge(label="read-only") >> claims_table
+        ai_fn >> Edge(label="read-only") >> payments_table
+        ai_fn >> Edge(label="read-only") >> cases_table
+        ai_fn >> Edge(label="read/write") >> conversations_table
+        ai_fn >> bedrock
+
+        # EventBridge triggers
+        eventbridge >> Edge(label="schedule") >> customer_fn
+
+        # IAM permissions
+        lambda_role >> Edge(label="grants") >> customer_fn
+        lambda_role >> Edge(label="grants") >> claims_fn
+        lambda_role >> Edge(label="grants") >> docs_fn
+        lambda_role >> Edge(label="grants") >> ai_fn
 
 def generate_data_flow_diagram():
     """Generate simplified data flow diagram showing key request flows."""
