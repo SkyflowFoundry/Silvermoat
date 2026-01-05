@@ -85,6 +85,7 @@ jobs:
           fi
 
   deploy-stack:
+    name: Deploy Stack
     needs: [detect-changes]
     if: |
       needs.detect-changes.outputs.infrastructure_changed == 'true' ||
@@ -227,6 +228,7 @@ jobs:
           ./scripts/deploy-stack.sh
 
   deploy-ui:
+    name: Deploy UI
     needs: [deploy-stack]
     if: |
       always() &&
@@ -372,6 +374,7 @@ jobs:
           echo "Web URL: ${WEB_URL}"
 
   tests:
+    name: Run Tests
     needs: [deploy-stack, deploy-ui]
     if: always() && needs.deploy-ui.result == 'success'
     uses: ./.github/workflows/test-suite.yml
@@ -384,6 +387,7 @@ jobs:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   clear-and-seed-data:
+    name: Seed Demo Data
     needs: [deploy-stack, deploy-ui, tests]
     if: |
       always() &&

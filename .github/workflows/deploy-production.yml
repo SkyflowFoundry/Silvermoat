@@ -21,6 +21,7 @@ permissions:
 
 jobs:
   cleanup-test:
+    name: Cleanup Test Stack
     if: |
       (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number != '' && github.event.inputs.skip_cleanup != 'true')
@@ -84,6 +85,7 @@ jobs:
           fi
 
   detect-changes:
+    name: Detect Changed Files
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -137,6 +139,7 @@ jobs:
           fi
 
   deploy-stack:
+    name: Deploy Stack
     needs: [detect-changes]
     if: |
       always() &&
@@ -185,6 +188,7 @@ jobs:
           ./scripts/deploy-stack.sh
 
   configure-dns:
+    name: Configure DNS
     needs: [deploy-stack]
     if: always() && needs.deploy-stack.result == 'success'
     runs-on: ubuntu-latest
@@ -222,6 +226,7 @@ jobs:
           ./scripts/update-cloudflare-dns.sh
 
   deploy-ui:
+    name: Deploy UI
     needs: [deploy-stack, configure-dns]
     if: |
       always() &&
@@ -358,6 +363,7 @@ jobs:
 
   # Phase 1: Comprehensive Test Suite (Matrix Strategy)
   tests:
+    name: Run Tests
     needs: [deploy-ui]
     if: always() && needs.deploy-ui.result == 'success'
     uses: ./.github/workflows/test-suite.yml
@@ -370,6 +376,7 @@ jobs:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   clear-and-seed-data:
+    name: Seed Demo Data
     needs: [deploy-ui, tests]
     if: always() && needs.deploy-ui.result == 'success' && needs.tests.result == 'success'
     runs-on: ubuntu-latest
@@ -386,6 +393,7 @@ jobs:
 
   # Phase 4: Verify Deployment with Enhanced Reporting
   verify-deployment:
+    name: Verify Deployment
     needs: [deploy-ui, tests]
     if: always()
     runs-on: ubuntu-latest
