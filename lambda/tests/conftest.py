@@ -33,8 +33,10 @@ def dynamodb_tables(aws_credentials):
         os.environ["CLAIMS_TABLE"] = "test-claims"
         os.environ["PAYMENTS_TABLE"] = "test-payments"
         os.environ["CASES_TABLE"] = "test-cases"
+        os.environ["DOCS_BUCKET"] = "test-docs-bucket"
 
         dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+        s3 = boto3.client("s3", region_name="us-east-1")
 
         # Create customers table with EmailIndex GSI
         dynamodb.create_table(
@@ -90,6 +92,9 @@ def dynamodb_tables(aws_credentials):
                 ],
                 BillingMode="PAY_PER_REQUEST",
             )
+
+        # Create S3 bucket for document uploads
+        s3.create_bucket(Bucket="test-docs-bucket")
 
         yield dynamodb
 

@@ -98,9 +98,11 @@ def handler(event, context):
         # Handle customer upsert for quote
         elif domain == "quote":
             customer_id = upsert_customer_for_quote(storage, body)
+            top_level_fields = {}
             if customer_id:
                 body["customerId"] = customer_id
-            item = storage.create(domain, body, default_status)
+                top_level_fields["customerId"] = customer_id
+            item = storage.create(domain, body, default_status, top_level_fields)
 
         _emit(f"{domain}.created", {"id": item["id"], "data": body, "status": default_status})
         return _resp(201, {"id": item["id"], "item": item})

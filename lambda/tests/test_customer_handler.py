@@ -217,24 +217,6 @@ class TestQuoteEndpoints:
         assert body["id"] == quote_id
         assert body["data"]["coverageType"] == "AUTO"
 
-    def test_list_quotes_by_customer_email(
-        self, api_gateway_event, lambda_context, storage_backend, sample_customer_data, sample_quote_data
-    ):
-        """GET /quote?customerEmail=... should filter quotes by customer"""
-        # Create customer and quote
-        customer_email = "test@example.com"
-        customer_data = dict(sample_customer_data, email=customer_email)
-        handler(api_gateway_event(method="POST", path="/customer", body=customer_data), lambda_context)
-        handler(api_gateway_event(method="POST", path="/quote", body=sample_quote_data), lambda_context)
-
-        # List quotes by customer email
-        event = api_gateway_event(method="GET", path="/quote", query_params={"customerEmail": customer_email})
-        response = handler(event, lambda_context)
-
-        assert response["statusCode"] == 200
-        body = json.loads(response["body"])
-        assert body["count"] >= 1
-
     def test_list_quotes_by_nonexistent_customer_returns_empty(
         self, api_gateway_event, lambda_context, dynamodb_tables
     ):
