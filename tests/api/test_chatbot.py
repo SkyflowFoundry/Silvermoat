@@ -80,6 +80,33 @@ def test_chat_cors_headers(api_client):
     assert 'Access-Control-Allow-Origin' in response.headers, "Missing CORS origin header"
 
 
+@pytest.mark.api
+@pytest.mark.chatbot
+def test_chat_returns_status_messages(api_client):
+    """Test that chat response includes status_messages for operation transparency"""
+    chat_data = {
+        "message": "What policies do we have?"
+    }
+
+    response = api_client.api_request('POST', '/chat', json=chat_data)
+
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+    data = response.json()
+
+    # Verify status_messages field exists
+    assert 'status_messages' in data, "Response should contain status_messages array"
+    assert isinstance(data['status_messages'], list), "status_messages should be a list"
+
+    # Verify status messages have expected structure
+    if len(data['status_messages']) > 0:
+        status_msg = data['status_messages'][0]
+        assert 'timestamp' in status_msg, "Status message should have timestamp"
+        assert 'operation' in status_msg, "Status message should have operation type"
+        assert 'message' in status_msg, "Status message should have message text"
+        assert status_msg['operation'] in ['dynamodb_query', 'tool_execution', 'ai_processing'], \
+            "Operation type should be one of the valid types"
+
+
 # Negative Tests
 
 @pytest.mark.api

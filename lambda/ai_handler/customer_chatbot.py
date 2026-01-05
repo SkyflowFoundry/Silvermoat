@@ -1,9 +1,11 @@
 """Customer chatbot endpoint logic using AWS Bedrock"""
 import os
 import json
+import time
 import boto3
 from shared.responses import _resp, decimal_default
 from shared.storage import DynamoDBBackend
+from shared.status import StatusTracker
 
 
 # Initialize Bedrock client
@@ -59,8 +61,11 @@ CUSTOMER_TOOLS = [
 ]
 
 
-def execute_customer_tool(tool_name, tool_input, storage, customer_email):
+def execute_customer_tool(tool_name, tool_input, storage, customer_email, status_tracker=None):
     """Execute a customer-scoped tool call and return results"""
+
+    if status_tracker:
+        status_tracker.add("tool_execution", f"Executing tool: {tool_name}", {"tool": tool_name})
 
     # Get customer by email using GSI
     customers = storage.query_by_email("customer", customer_email)
@@ -154,7 +159,7 @@ def execute_customer_tool(tool_name, tool_input, storage, customer_email):
     return {"error": "Unknown tool"}
 
 
-def handle_customer_chat(event, storage):
+def handle_customer_chat(event, storage=None):
     """Handle POST /customer-chat endpoint"""
     try:
         body = json.loads(event.get("body", "{}"))
@@ -168,6 +173,12 @@ def handle_customer_chat(event, storage):
         if not customer_email:
             return _resp(400, {"error": "customer_email_required", "message": "Customer email is required for customer chat"})
 
+        # Initialize status tracker
+        status_tracker = StatusTracker()
+
+        # Re-initialize storage with status tracker
+        storage = DynamoDBBackend(status_tracker=status_tracker)
+
         # Build messages for Claude
         messages = conversation_history + [{"role": "user", "content": user_message}]
 
@@ -175,6 +186,9 @@ def handle_customer_chat(event, storage):
         system_prompt = f"You are a helpful AI assistant for Silvermoat Insurance customers. You help customers view their policies, track claims, and check payment history. The customer you're assisting is {customer_email}. When customers ask about their insurance information, use the available tools to search their data. Be professional, friendly, and accurate. Format data clearly. Only show information that belongs to this customer."
 
         # Invoke Bedrock with tool use
+        start_time = time.time()
+        status_tracker.add("ai_processing", "Sending message to AI model...")
+
         response = bedrock.invoke_model(
             modelId=BEDROCK_MODEL_ID,
             body=json.dumps({
@@ -188,6 +202,9 @@ def handle_customer_chat(event, storage):
         )
 
         response_body = json.loads(response["body"].read())
+
+        elapsed_ms = int((time.time() - start_time) * 1000)
+        status_tracker.add("ai_processing", f"Received AI response ({elapsed_ms}ms)", {"latency_ms": elapsed_ms})
 
         # Handle tool use loop
         while response_body.get("stop_reason") == "tool_use":
@@ -207,7 +224,7 @@ def handle_customer_chat(event, storage):
                     tool_use_id = content_block["id"]
 
                     # Execute the tool with customer email filtering
-                    result = execute_customer_tool(tool_name, tool_input, storage, customer_email)
+                    result = execute_customer_tool(tool_name, tool_input, storage, customer_email, status_tracker)
 
                     tool_results.append({
                         "type": "tool_result",
@@ -222,6 +239,9 @@ def handle_customer_chat(event, storage):
             })
 
             # Continue conversation
+            start_time = time.time()
+            status_tracker.add("ai_processing", "Processing tool results with AI...")
+
             response = bedrock.invoke_model(
                 modelId=BEDROCK_MODEL_ID,
                 body=json.dumps({
@@ -236,6 +256,9 @@ def handle_customer_chat(event, storage):
 
             response_body = json.loads(response["body"].read())
 
+            elapsed_ms = int((time.time() - start_time) * 1000)
+            status_tracker.add("ai_processing", f"Received AI response ({elapsed_ms}ms)", {"latency_ms": elapsed_ms})
+
         # Extract final response
         assistant_content = response_body["content"]
         text_content = next((block["text"] for block in assistant_content if block["type"] == "text"), "")
@@ -243,7 +266,8 @@ def handle_customer_chat(event, storage):
         return _resp(200, {
             "response": text_content,
             "usage": response_body.get("usage", {}),
-            "conversation": messages + [{"role": "assistant", "content": assistant_content}]
+            "conversation": messages + [{"role": "assistant", "content": assistant_content}],
+            "status_messages": status_tracker.get_messages()
         })
 
     except Exception as e:
