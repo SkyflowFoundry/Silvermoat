@@ -39,7 +39,7 @@ from diagrams.onprem.ci import GithubActions
 from diagrams.programming.framework import React
 
 def generate_architecture_diagram():
-    """Generate the Silvermoat AWS architecture diagram."""
+    """Generate simplified Silvermoat AWS architecture diagram."""
 
     graph_attr = {
         "fontsize": "14",
@@ -51,114 +51,42 @@ def generate_architecture_diagram():
         "Silvermoat AWS Architecture",
         filename="docs/architecture",
         show=False,
-        direction="TB",
+        direction="LR",
         graph_attr=graph_attr,
         outformat="png"
     ):
-        # DNS Layer
-        with Cluster("DNS Management"):
-            cloudflare = Cloudflare("Cloudflare DNS\nsilvermoat.net")
+        # Frontend
+        with Cluster("Frontend"):
+            cloudflare = Cloudflare("Cloudflare\nDNS")
+            cloudfront = CloudFront("CloudFront")
+            ui_bucket = S3("UI Assets")
 
-        # Frontend Layer
-        with Cluster("Frontend Distribution"):
-            cloudfront = CloudFront("CloudFront CDN")
-            acm = CertificateManager("ACM Certificate\n*.silvermoat.net")
-            ui_bucket = S3("UI Bucket\nStatic Assets")
-
-            cloudfront >> Edge(label="SSL/TLS") << acm
-            cloudfront >> Edge(label="origin") >> ui_bucket
+            cloudflare >> cloudfront >> ui_bucket
 
         # API Layer
-        with Cluster("API Layer"):
-            apigw = APIGateway("API Gateway\nREST API")
+        apigw = APIGateway("API Gateway")
 
-        # Lambda Handlers (Split by domain)
-        with Cluster("Lambda Handlers"):
-            customer_fn = Lambda("customer-handler\nCustomer & Quotes")
-            claims_fn = Lambda("claims-handler\nPolicies, Claims,\nPayments, Cases")
-            docs_fn = Lambda("documents-handler\nDocument Uploads")
-            ai_fn = Lambda("ai-handler\nChatbots (Claude)")
+        # Compute
+        with Cluster("Compute"):
+            lambda_fns = Lambda("Lambda\nHandlers\n(4 domain-based)")
 
-        # API Gateway routing
-        apigw >> Edge(label="/customer, /quote") >> customer_fn
-        apigw >> Edge(label="/policy, /claim,\n/payment, /case") >> claims_fn
-        apigw >> Edge(label="/claim/{id}/doc") >> docs_fn
-        apigw >> Edge(label="/chat,\n/customer-chat") >> ai_fn
+        # Data Layer
+        with Cluster("Data Storage"):
+            dynamodb = Dynamodb("DynamoDB\nTables\n(7 tables)")
+            docs_s3 = S3("Document\nStorage")
 
-        # Data Layer - DynamoDB Tables
-        with Cluster("Data Layer"):
-            with Cluster("Core Entities"):
-                customers_table = Dynamodb("Customers")
-                quotes_table = Dynamodb("Quotes")
-                policies_table = Dynamodb("Policies")
+        # External Services
+        with Cluster("External Services"):
+            bedrock = Bedrock("AWS Bedrock\nClaude AI")
+            sns = SNS("SNS\nNotifications")
 
-            with Cluster("Operations"):
-                claims_table = Dynamodb("Claims")
-                payments_table = Dynamodb("Payments")
-                cases_table = Dynamodb("Cases")
-
-            with Cluster("AI Context"):
-                conversations_table = Dynamodb("Conversations")
-
-        # Storage Layer
-        with Cluster("Document Storage"):
-            docs_bucket = S3("Documents Bucket\nPolicy/Claim Docs")
-
-        # Notifications & Events
-        with Cluster("Notifications & Events"):
-            sns_topic = SNS("SNS Topic\nNotifications")
-            eventbridge = Eventbridge("EventBridge\nScheduled Events")
-
-        # Security & IAM
-        with Cluster("Security & Permissions"):
-            lambda_role = IAM("Lambda Execution\nRole")
-
-        # AI Integration
-        with Cluster("AI Integration"):
-            bedrock = Bedrock("AWS Bedrock\nClaude 3.5 Sonnet")
-
-        # DNS routing to CloudFront
-        cloudflare >> Edge(label="CNAME\nDNS routing") >> cloudfront
-
-        # Frontend to API flow
-        cloudfront >> Edge(label="HTTPS\nAPI requests") >> apigw
-
-        # Customer Handler Data Access
-        customer_fn >> Edge(label="read/write", style="dashed", color="blue") >> customers_table
-        customer_fn >> Edge(label="read/write", style="dashed", color="blue") >> quotes_table
-        customer_fn >> Edge(label="publish", color="blue") >> sns_topic
-
-        # Claims Handler Data Access
-        claims_fn >> Edge(label="read-only", style="dotted", color="green") >> customers_table
-        claims_fn >> Edge(label="read/write", style="dashed", color="green") >> policies_table
-        claims_fn >> Edge(label="read/write", style="dashed", color="green") >> claims_table
-        claims_fn >> Edge(label="read/write", style="dashed", color="green") >> payments_table
-        claims_fn >> Edge(label="read/write", style="dashed", color="green") >> cases_table
-        claims_fn >> Edge(label="publish", color="green") >> sns_topic
-
-        # Documents Handler Access
-        docs_fn >> Edge(label="read-only", style="dotted", color="orange") >> claims_table
-        docs_fn >> Edge(label="upload (claims/*)", style="dashed", color="orange") >> docs_bucket
-        docs_fn >> Edge(label="publish", color="orange") >> sns_topic
-
-        # AI Handler Data Access (read-only)
-        ai_fn >> Edge(label="read-only", style="dotted", color="purple") >> customers_table
-        ai_fn >> Edge(label="read-only", style="dotted", color="purple") >> quotes_table
-        ai_fn >> Edge(label="read-only", style="dotted", color="purple") >> policies_table
-        ai_fn >> Edge(label="read-only", style="dotted", color="purple") >> claims_table
-        ai_fn >> Edge(label="read-only", style="dotted", color="purple") >> payments_table
-        ai_fn >> Edge(label="read-only", style="dotted", color="purple") >> cases_table
-        ai_fn >> Edge(label="read-only", style="dotted", color="purple") >> conversations_table
-        ai_fn >> Edge(label="InvokeModel\n(Claude 3.5)", color="purple") >> bedrock
-
-        # EventBridge triggers (kept for potential scheduled tasks)
-        eventbridge >> Edge(label="schedule") >> customer_fn
-
-        # IAM permissions
-        lambda_role >> Edge(label="grants", style="dotted", color="gray") >> customer_fn
-        lambda_role >> Edge(label="grants", style="dotted", color="gray") >> claims_fn
-        lambda_role >> Edge(label="grants", style="dotted", color="gray") >> docs_fn
-        lambda_role >> Edge(label="grants", style="dotted", color="gray") >> ai_fn
+        # Main flows
+        cloudfront >> apigw
+        apigw >> lambda_fns
+        lambda_fns >> dynamodb
+        lambda_fns >> docs_s3
+        lambda_fns >> bedrock
+        lambda_fns >> sns
 
 def generate_data_flow_diagram():
     """Generate simplified data flow diagram showing key request flows."""
@@ -293,7 +221,7 @@ def generate_user_journey_diagram():
 
 
 def generate_cicd_pipeline_diagram():
-    """Generate CI/CD pipeline diagram."""
+    """Generate simplified CI/CD pipeline diagram."""
 
     graph_attr = {
         "fontsize": "14",
@@ -305,51 +233,33 @@ def generate_cicd_pipeline_diagram():
         "Silvermoat CI/CD Pipeline",
         filename="docs/cicd-pipeline",
         show=False,
-        direction="TB",
+        direction="LR",
         graph_attr=graph_attr,
         outformat="png"
     ):
         # Source
-        with Cluster("Source"):
-            github = Github("GitHub\nRepository")
-            pr = GithubActions("Pull Request")
+        github = Github("GitHub PR")
 
-        # CI/CD
-        with Cluster("CI/CD (GitHub Actions)"):
-            with Cluster("Test Matrix"):
-                api_tests = GithubActions("API Tests\n(pytest)")
-                e2e_tests = GithubActions("E2E Tests\n(Selenium)")
+        # Pipeline stages
+        with Cluster("Test (on PR)"):
+            detect = GithubActions("Detect\nChanges")
+            deploy_infra = GithubActions("Deploy Infra")
+            deploy_ui = GithubActions("Deploy UI")
+            tests = GithubActions("Run Tests\n(Unit/API/E2E)")
+            seed = GithubActions("Seed Data")
 
-            with Cluster("Build"):
-                cdk_synth = GithubActions("CDK Synth\n(CloudFormation)")
-                validate = GithubActions("Validate\nTemplate")
-
-            with Cluster("Deploy"):
-                deploy_stack = GithubActions("Deploy Stack\n(Lambda, API, DB)")
-                deploy_ui = GithubActions("Deploy UI\n(S3, CloudFront)")
-
-            with Cluster("Post-Deploy"):
-                seed_data = GithubActions("Seed Demo\nData")
-                invalidate = GithubActions("Invalidate\nCloudFront")
-
-        # AWS Services
-        with Cluster("AWS Production"):
-            lambda_fn = Lambda("Lambda\nFunctions")
-            cloudfront = CloudFront("CloudFront\nDistribution")
+        # Deployment target
+        with Cluster("AWS Test Stack"):
+            stack = Lambda("Lambda +\nDynamoDB")
+            ui = CloudFront("S3 + UI")
 
         # Flow
-        github >> pr
-        pr >> [api_tests, e2e_tests]
-        api_tests >> cdk_synth
-        e2e_tests >> cdk_synth
-        cdk_synth >> validate
-        validate >> deploy_stack
-        deploy_stack >> deploy_ui
-        deploy_stack >> lambda_fn
-        deploy_ui >> cloudfront
-        deploy_ui >> seed_data
-        deploy_ui >> invalidate
-        invalidate >> cloudfront
+        github >> detect
+        detect >> deploy_infra >> stack
+        detect >> deploy_ui >> ui
+        deploy_infra >> deploy_ui
+        deploy_ui >> tests
+        tests >> seed
 
 
 if __name__ == "__main__":
