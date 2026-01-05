@@ -9,7 +9,6 @@ import { QuestionCircleOutlined, CloseOutlined } from '@ant-design/icons';
 import ChatMessage from './ChatMessage';
 import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
-import StatusMessage from './StatusMessage';
 import { useSendMessage } from '../../hooks/mutations/useSendMessage';
 import { useAppContext } from '../../contexts/AppContext';
 
@@ -24,7 +23,6 @@ const STARTER_PROMPTS = [
 const ChatInterface = () => {
   const [messages, setMessages] = useState([]);
   const [conversationHistory, setConversationHistory] = useState([]);
-  const [statusMessages, setStatusMessages] = useState([]);
   const messagesEndRef = useRef(null);
   const { mutate: sendMessage, isPending } = useSendMessage();
   const { isMobile, closeChatDrawer } = useAppContext();
@@ -54,14 +52,12 @@ const ChatInterface = () => {
       },
       {
         onSuccess: (data) => {
-          // Update status messages from response FIRST
-          setStatusMessages(data.status_messages || []);
-
-          // Add assistant response to UI
+          // Add assistant response with status messages to UI
           const assistantMessage = {
             role: 'assistant',
             content: data.response,
             timestamp: Date.now(),
+            statusMessages: data.status_messages || [],
           };
           setMessages((prev) => [...prev, assistantMessage]);
 
@@ -176,10 +172,10 @@ const ChatInterface = () => {
                 role={msg.role}
                 content={msg.content}
                 timestamp={msg.timestamp}
+                statusMessages={msg.statusMessages}
               />
             ))}
             {isPending && <TypingIndicator />}
-            <StatusMessage statusMessages={statusMessages} />
             <div ref={messagesEndRef} />
           </>
         )}

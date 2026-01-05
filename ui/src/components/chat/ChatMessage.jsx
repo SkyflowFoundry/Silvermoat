@@ -6,11 +6,12 @@
 import { Typography, Avatar, Grid } from 'antd';
 import { UserOutlined, RobotOutlined } from '@ant-design/icons';
 import { useAppContext } from '../../contexts/AppContext';
+import StatusMessage from './StatusMessage';
 
 const { Text, Paragraph } = Typography;
 const { useBreakpoint } = Grid;
 
-const ChatMessage = ({ role, content, timestamp }) => {
+const ChatMessage = ({ role, content, timestamp, statusMessages }) => {
   const isUser = role === 'user';
   const { isMobile } = useAppContext();
 
@@ -31,23 +32,28 @@ const ChatMessage = ({ role, content, timestamp }) => {
           flexShrink: 0,
         }}
       />
-      <div
-        style={{
-          maxWidth: isMobile ? '85%' : '70%',
-          padding: isMobile ? '10px 12px' : '12px 16px',
-          borderRadius: 8,
-          backgroundColor: isUser ? '#f0f5ff' : '#ffffff',
-          border: isUser ? 'none' : '1px solid #f0f0f0',
-          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.06)',
-        }}
-      >
-        <Paragraph style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: isMobile ? 14 : 15 }}>
-          {content}
-        </Paragraph>
-        {timestamp && (
-          <Text type="secondary" style={{ fontSize: isMobile ? 10 : 11 }}>
-            {new Date(timestamp).toLocaleTimeString()}
-          </Text>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div
+          style={{
+            maxWidth: isMobile ? '85%' : '70%',
+            padding: isMobile ? '10px 12px' : '12px 16px',
+            borderRadius: 8,
+            backgroundColor: isUser ? '#f0f5ff' : '#ffffff',
+            border: isUser ? 'none' : '1px solid #f0f0f0',
+            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.06)',
+          }}
+        >
+          <Paragraph style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: isMobile ? 14 : 15 }}>
+            {content}
+          </Paragraph>
+          {timestamp && (
+            <Text type="secondary" style={{ fontSize: isMobile ? 10 : 11 }}>
+              {new Date(timestamp).toLocaleTimeString()}
+            </Text>
+          )}
+        </div>
+        {!isUser && statusMessages && statusMessages.length > 0 && (
+          <StatusMessage statusMessages={statusMessages} />
         )}
       </div>
     </div>
