@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """
-Generate multiple documentation diagrams for Silvermoat platform using the diagrams library.
+Generate documentation diagrams for Silvermoat platform using the diagrams library.
 
 This script creates professional diagrams with official AWS icons:
-- Architecture: Infrastructure layout
-- Data Flow: Request/response flows
-- User Journey: Customer and agent workflows
+- Architecture: Infrastructure layout (top-bottom)
+- Data Flow: Request/response flows (top-bottom)
 
 Requirements:
     - pip install diagrams
@@ -17,10 +16,9 @@ Usage:
 Outputs:
     docs/architecture.png
     docs/data-flow.png
-    docs/user-journey.png
 """
 
-from diagrams import Diagram, Cluster, Edge, Node
+from diagrams import Diagram, Cluster
 from diagrams.aws.network import CloudFront, APIGateway
 from diagrams.aws.compute import Lambda
 from diagrams.aws.database import Dynamodb
@@ -29,10 +27,7 @@ from diagrams.aws.integration import SNS, Eventbridge
 from diagrams.aws.security import CertificateManager, IAM
 from diagrams.aws.ml import Bedrock
 from diagrams.saas.cdn import Cloudflare
-from diagrams.onprem.client import User, Users
-from diagrams.onprem.vcs import Github
-from diagrams.onprem.ci import GithubActions
-from diagrams.programming.framework import React
+from diagrams.onprem.client import User
 
 def generate_architecture_diagram():
     """Generate the Silvermoat AWS architecture diagram."""
@@ -141,7 +136,7 @@ def generate_data_flow_diagram():
         "Silvermoat Data Flow",
         filename="docs/data-flow",
         show=False,
-        direction="LR",
+        direction="TB",
         graph_attr=graph_attr,
         outformat="png"
     ):
@@ -198,68 +193,15 @@ def generate_data_flow_diagram():
         [customer_fn, claims_fn, docs_fn] >> sns
 
 
-def generate_user_journey_diagram():
-    """Generate user journey map for customer and agent workflows."""
-
-    graph_attr = {
-        "fontsize": "14",
-        "bgcolor": "white",
-        "pad": "1.0",
-        "ranksep": "1.5",
-        "nodesep": "1.0",
-        "splines": "ortho",
-    }
-
-    with Diagram(
-        "Silvermoat User Journeys",
-        filename="docs/user-journey",
-        show=False,
-        direction="LR",
-        graph_attr=graph_attr,
-        outformat="png"
-    ):
-        with Cluster("Customer Journey"):
-            customer = User("Customer")
-
-            with Cluster("Steps"):
-                step1 = Lambda("1. Request\nQuote")
-                step2 = Lambda("2. View\nQuote")
-                step3 = Lambda("3. Accept &\nCreate Policy")
-                step4 = Lambda("4. Make\nPayment")
-                step5 = Lambda("5. File\nClaim")
-                step6 = Lambda("6. Upload\nDocuments")
-                step7 = Lambda("7. Chat with\nAI Support")
-
-            customer >> step1 >> step2 >> step3 >> step4 >> step5 >> step6 >> step7
-
-        with Cluster("Agent Journey"):
-            agent = Users("Agent")
-
-            with Cluster("Agent Steps"):
-                agent1 = Lambda("1. View\nCustomers")
-                agent2 = Lambda("2. Review\nClaims")
-                agent3 = Lambda("3. Process\nClaim")
-                agent4 = Lambda("4. Manage\nCases")
-                agent5 = Lambda("5. Update\nStatus")
-
-            agent >> agent1 >> agent2 >> agent3 >> agent4 >> agent5
-
-
-
-
 if __name__ == "__main__":
     print("Generating Silvermoat documentation diagrams...\n")
 
-    print("1/3 Generating architecture diagram...")
+    print("1/2 Generating architecture diagram...")
     generate_architecture_diagram()
     print("    ✓ docs/architecture.png")
 
-    print("2/3 Generating data flow diagram...")
+    print("2/2 Generating data flow diagram...")
     generate_data_flow_diagram()
     print("    ✓ docs/data-flow.png")
-
-    print("3/3 Generating user journey diagram...")
-    generate_user_journey_diagram()
-    print("    ✓ docs/user-journey.png")
 
     print("\n✓ All diagrams generated successfully!")

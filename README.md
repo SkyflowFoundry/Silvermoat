@@ -229,19 +229,13 @@ python scripts/generate-architecture-diagram.py
 
 ### Additional Documentation Diagrams
 
-The platform includes comprehensive visual documentation covering data flow and user journeys:
+The platform includes comprehensive visual documentation:
 
 #### Data Flow Diagram
 
 Shows how data moves through the system for key operations including quote creation, policy management, claim filing, and AI chatbot interactions:
 
 ![Silvermoat Data Flow](docs/data-flow.png)
-
-#### User Journey Map
-
-Documents customer and agent workflows through the platform:
-
-![Silvermoat User Journeys](docs/user-journey.png)
 
 All diagrams are generated at build time and automatically deployed with the application.
 
