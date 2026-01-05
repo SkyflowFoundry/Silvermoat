@@ -72,20 +72,14 @@ def generate_architecture_diagram():
             apigw = APIGateway("API Gateway")
 
         # Lambda Handlers (Split by domain)
-        with Cluster("Lambda Handlers"):
+        with Cluster("Lambda Handlers") as lambda_cluster:
             customer_fn = Lambda("customer-handler")
             claims_fn = Lambda("claims-handler")
             docs_fn = Lambda("documents-handler")
             ai_fn = Lambda("ai-handler")
 
-        # API Gateway routing
-        apigw >> customer_fn
-        apigw >> claims_fn
-        apigw >> docs_fn
-        apigw >> ai_fn
-
         # Data Layer - DynamoDB Tables
-        with Cluster("Data Layer"):
+        with Cluster("Data Layer") as data_cluster:
             with Cluster("Core Entities"):
                 customers_table = Dynamodb("Customers")
                 quotes_table = Dynamodb("Quotes")
@@ -99,22 +93,21 @@ def generate_architecture_diagram():
             with Cluster("AI Context"):
                 conversations_table = Dynamodb("Conversations")
 
-        # Storage Layer
-        with Cluster("Document Storage"):
-            docs_bucket = S3("Documents Bucket")
+        # External Services
+        with Cluster("External Services") as external_cluster:
+            with Cluster("Document Storage"):
+                docs_bucket = S3("Documents Bucket")
 
-        # Notifications & Events
-        with Cluster("Notifications & Events"):
-            sns_topic = SNS("SNS Topic")
-            eventbridge = Eventbridge("EventBridge")
+            with Cluster("Notifications & Events"):
+                sns_topic = SNS("SNS Topic")
+                eventbridge = Eventbridge("EventBridge")
+
+            with Cluster("AI Integration"):
+                bedrock = Bedrock("Claude API")
 
         # Security & IAM
-        with Cluster("Security & Permissions"):
+        with Cluster("Security & Permissions") as security_cluster:
             lambda_role = IAM("Lambda Role")
-
-        # AI Integration
-        with Cluster("AI Integration"):
-            bedrock = Bedrock("Claude API")
 
         # DNS routing to CloudFront
         cloudflare >> cloudfront
@@ -122,42 +115,11 @@ def generate_architecture_diagram():
         # Frontend to API flow
         cloudfront >> apigw
 
-        # Customer Handler Data Access
-        customer_fn >> customers_table
-        customer_fn >> quotes_table
-        customer_fn >> sns_topic
-
-        # Claims Handler Data Access
-        claims_fn >> customers_table
-        claims_fn >> policies_table
-        claims_fn >> claims_table
-        claims_fn >> payments_table
-        claims_fn >> cases_table
-        claims_fn >> sns_topic
-
-        # Documents Handler Access
-        docs_fn >> claims_table
-        docs_fn >> docs_bucket
-        docs_fn >> sns_topic
-
-        # AI Handler Data Access (read-only)
-        ai_fn >> customers_table
-        ai_fn >> quotes_table
-        ai_fn >> policies_table
-        ai_fn >> claims_table
-        ai_fn >> payments_table
-        ai_fn >> cases_table
-        ai_fn >> conversations_table
-        ai_fn >> bedrock
-
-        # EventBridge triggers
-        eventbridge >> customer_fn
-
-        # IAM permissions
-        lambda_role >> customer_fn
-        lambda_role >> claims_fn
-        lambda_role >> docs_fn
-        lambda_role >> ai_fn
+        # Simplified connections at cluster level
+        apigw >> lambda_cluster
+        lambda_cluster >> data_cluster
+        lambda_cluster >> external_cluster
+        security_cluster >> lambda_cluster
 
 def generate_data_flow_diagram():
     """Generate detailed data flow diagram showing request flows."""
@@ -190,14 +152,14 @@ def generate_data_flow_diagram():
         api_gw = APIGateway("API Gateway")
 
         # Lambda Handlers
-        with Cluster("Lambda Handlers"):
+        with Cluster("Lambda Handlers") as lambda_cluster:
             customer_fn = Lambda("customer-handler")
             claims_fn = Lambda("claims-handler")
             docs_fn = Lambda("documents-handler")
             ai_fn = Lambda("ai-handler")
 
         # Data Layer - DynamoDB Tables
-        with Cluster("Data Layer"):
+        with Cluster("Data Layer") as data_cluster:
             with Cluster("Core Entities"):
                 customers_db = Dynamodb("Customers")
                 quotes_db = Dynamodb("Quotes")
@@ -212,46 +174,15 @@ def generate_data_flow_diagram():
                 conversations_db = Dynamodb("Conversations")
 
         # External Services
-        with Cluster("External Services"):
+        with Cluster("External Services") as external_cluster:
             docs_bucket = S3("Documents")
             bedrock = Bedrock("Claude API")
             sns = SNS("SNS")
 
-        # User to Frontend
-        customer >> react_app
-
-        # Frontend to API Gateway
-        react_app >> api_gw
-
-        # API Gateway to Lambda Handlers
-        api_gw >> customer_fn
-        api_gw >> claims_fn
-        api_gw >> docs_fn
-        api_gw >> ai_fn
-
-        # Customer Handler flows
-        customer_fn >> customers_db
-        customer_fn >> quotes_db
-        customer_fn >> sns
-
-        # Claims Handler flows
-        claims_fn >> policies_db
-        claims_fn >> claims_db
-        claims_fn >> payments_db
-        claims_fn >> cases_db
-        claims_fn >> sns
-
-        # Documents Handler flows
-        docs_fn >> docs_bucket
-        docs_fn >> sns
-
-        # AI Handler flows
-        ai_fn >> customers_db
-        ai_fn >> quotes_db
-        ai_fn >> policies_db
-        ai_fn >> claims_db
-        ai_fn >> conversations_db
-        ai_fn >> bedrock
+        # Simplified flow at cluster level
+        customer >> react_app >> api_gw >> lambda_cluster
+        lambda_cluster >> data_cluster
+        lambda_cluster >> external_cluster
 
 
 def generate_user_journey_diagram():
