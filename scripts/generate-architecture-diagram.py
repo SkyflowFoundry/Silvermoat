@@ -161,7 +161,7 @@ def generate_architecture_diagram():
         lambda_role >> Edge(label="grants", style="dotted", color="gray") >> ai_fn
 
 def generate_data_flow_diagram():
-    """Generate data flow diagram showing request/response flows."""
+    """Generate simplified data flow diagram showing key request flows."""
 
     graph_attr = {
         "fontsize": "14",
@@ -181,94 +181,71 @@ def generate_data_flow_diagram():
         customer = User("Customer")
 
         # Frontend
-        with Cluster("Frontend"):
-            react_app = React("React App\n(CloudFront)")
+        react_app = CloudFront("React UI\n(CloudFront)")
 
         # API Gateway
         api_gw = APIGateway("API Gateway")
 
-        # Lambda Handlers
-        with Cluster("Lambda Handlers"):
-            customer_handler = Lambda("customer-handler")
-            claims_handler = Lambda("claims-handler")
-            docs_handler = Lambda("documents-handler")
-            ai_handler = Lambda("ai-handler")
+        # Lambda Handler (simplified - one node)
+        lambda_fn = Lambda("Lambda\nHandlers")
 
-        # Data Stores
-        with Cluster("Data Layer"):
-            customers_db = Dynamodb("Customers")
-            quotes_db = Dynamodb("Quotes")
-            policies_db = Dynamodb("Policies")
-            claims_db = Dynamodb("Claims")
-            payments_db = Dynamodb("Payments")
-            cases_db = Dynamodb("Cases")
-            conversations_db = Dynamodb("Conversations")
+        # Data Layer (grouped)
+        dynamodb = Dynamodb("DynamoDB\nTables")
 
-        # External Services
-        with Cluster("External Services"):
-            docs_bucket = S3("Documents")
-            bedrock = Bedrock("Claude 3.5")
+        # External Services (only show key ones)
+        s3_docs = S3("Document\nStorage")
+        bedrock_ai = Bedrock("Claude AI")
 
-        # Flow 1: Quote Creation
-        customer >> Edge(label="1. Request quote", color="blue") >> react_app
-        react_app >> Edge(label="POST /quote", color="blue") >> api_gw
-        api_gw >> Edge(color="blue") >> customer_handler
-        customer_handler >> Edge(label="save", color="blue") >> quotes_db
-        quotes_db >> Edge(label="response", color="blue") >> customer_handler
-        customer_handler >> Edge(color="blue") >> api_gw
-        api_gw >> Edge(color="blue") >> react_app
-        react_app >> Edge(label="2. Show quote", color="blue") >> customer
+        # Main flow: Customer → UI → API → Lambda → DB
+        customer >> Edge(label="1. Request", color="blue") >> react_app
+        react_app >> Edge(label="2. API call", color="blue") >> api_gw
+        api_gw >> Edge(label="3. Route", color="blue") >> lambda_fn
+        lambda_fn >> Edge(label="4. Query/Write", color="blue") >> dynamodb
+        dynamodb >> Edge(label="5. Response", color="blue") >> lambda_fn
+        lambda_fn >> Edge(label="6. Return", color="blue") >> api_gw
+        api_gw >> Edge(label="7. Data", color="blue") >> react_app
+        react_app >> Edge(label="8. Display", color="blue") >> customer
 
-        # Flow 2: Policy Creation
-        customer_handler >> Edge(label="create policy", color="green", style="dashed") >> policies_db
+        # Document upload flow
+        lambda_fn >> Edge(label="Upload docs", color="orange", style="dashed") >> s3_docs
 
-        # Flow 3: Claim Filing
-        claims_handler >> Edge(label="file claim", color="orange") >> claims_db
-        docs_handler >> Edge(label="upload doc", color="orange") >> docs_bucket
-
-        # Flow 4: AI Chatbot
-        ai_handler >> Edge(label="query context", color="purple", style="dotted") >> [
-            customers_db, quotes_db, policies_db, claims_db
-        ]
-        ai_handler >> Edge(label="invoke", color="purple") >> bedrock
-        bedrock >> Edge(label="response", color="purple") >> ai_handler
-        ai_handler >> Edge(label="store", color="purple") >> conversations_db
+        # AI chatbot flow
+        lambda_fn >> Edge(label="Query AI", color="purple", style="dashed") >> bedrock_ai
+        lambda_fn >> Edge(label="Read context", color="purple", style="dotted") >> dynamodb
 
 
 def generate_erd_diagram():
-    """Generate Entity Relationship Diagram."""
+    """Generate simplified Entity Relationship Diagram."""
 
     graph_attr = {
         "fontsize": "14",
         "bgcolor": "white",
         "pad": "0.5",
-        "rankdir": "TB",
+        "rankdir": "LR",
     }
 
     with Diagram(
         "Silvermoat Entity Relationships",
         filename="docs/erd",
         show=False,
-        direction="TB",
+        direction="LR",
         graph_attr=graph_attr,
         outformat="png"
     ):
-        # Entities as DynamoDB tables
-        customer = Dynamodb("Customer\n---\nid\nname\nemail\naddress\nphone")
-        quote = Dynamodb("Quote\n---\nid\ncustomerEmail\npropertyAddress\ncoverageAmount\npropertyType")
-        policy = Dynamodb("Policy\n---\nid\nquoteId\npolicyNumber\nholderEmail\npremium\neffectiveDate")
-        claim = Dynamodb("Claim\n---\nid\npolicyId\nclaimNumber\nlossType\namount\nincidentDate")
-        payment = Dynamodb("Payment\n---\nid\npolicyId\namount\npaymentMethod")
-        case = Dynamodb("Case\n---\nid\ntitle\nrelatedEntityType\nrelatedEntityId\nassignee")
-        conversation = Dynamodb("Conversation\n---\nid\ncustomerEmail\nmessages\ntimestamp")
+        # Core entities (simplified - just entity name)
+        customer = Dynamodb("Customer")
+        quote = Dynamodb("Quote")
+        policy = Dynamodb("Policy")
+        claim = Dynamodb("Claim")
+        payment = Dynamodb("Payment")
+        case = Dynamodb("Case")
 
-        # Relationships
-        customer >> Edge(label="1:M", style="bold") >> quote
-        quote >> Edge(label="1:M", style="bold") >> policy
-        policy >> Edge(label="1:M", style="bold") >> claim
-        policy >> Edge(label="1:M", style="bold") >> payment
-        policy >> Edge(label="1:M", style="bold") >> case
-        customer >> Edge(label="1:M", style="bold") >> conversation
+        # Main relationship chain
+        customer >> Edge(label="has many") >> quote
+        quote >> Edge(label="becomes") >> policy
+        policy >> Edge(label="has") >> claim
+        policy >> Edge(label="has") >> payment
+        policy >> Edge(label="has") >> case
 
 
 def generate_user_journey_diagram():
