@@ -33,12 +33,28 @@ jobs:
   detect-changes:
     name: Detect Changed Files
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write  # Required to post comment
+      id-token: write      # Required for AWS
     outputs:
       infrastructure_changed: ${{ steps.filter.outputs.infrastructure }}
       ui_changed: ${{ steps.filter.outputs.ui }}
       tests_changed: ${{ steps.filter.outputs.tests }}
       stack_exists: ${{ steps.check-stack.outputs.stack_exists }}
     steps:
+      - name: Post workflow start comment
+        if: github.event.pull_request.number
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `🚀 **Test deployment started**\n\n[View workflow run →](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`
+            });
+
       - name: Checkout code
         uses: actions/checkout@v4
 
