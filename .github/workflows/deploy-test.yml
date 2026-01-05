@@ -229,10 +229,11 @@ jobs:
 
   deploy-ui:
     name: Deploy UI
-    needs: [deploy-stack]
+    needs: [detect-changes, deploy-stack]
     if: |
       always() &&
-      (needs.deploy-stack.result == 'success' || needs.deploy-stack.result == 'skipped')
+      (needs.deploy-stack.result == 'success' || needs.deploy-stack.result == 'skipped') &&
+      (needs.deploy-stack.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -276,76 +277,13 @@ jobs:
           echo "stack_name=${STACK_NAME}" >> $GITHUB_OUTPUT
           echo "Stack name: ${STACK_NAME}"
 
-      - name: Check if UI needs deployment
-        id: check-ui
-        run: |
-          # If stack was just deployed, always deploy UI
-          if [ "${{ needs.deploy-stack.result }}" = "success" ]; then
-            echo "Stack was just deployed, UI needs deployment"
-            echo "skip_ui=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # Stack deployment was skipped, check if UI changed
-          STACK_NAME="${{ steps.stack-name.outputs.stack_name }}"
-
-          # Get UI bucket from stack outputs
-          UI_BUCKET=$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query 'Stacks[0].Outputs[?OutputKey==`UiBucketName`].OutputValue' \
-            --output text 2>/dev/null || echo "")
-
-          if [ -z "$UI_BUCKET" ]; then
-            echo "⚠️ Could not find UI bucket, will deploy UI"
-            echo "skip_ui=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # Check if bucket has index.html
-          if aws s3 ls "s3://${UI_BUCKET}/index.html" >/dev/null 2>&1; then
-            echo "✅ UI already deployed in bucket ${UI_BUCKET}"
-
-            # Calculate hash of UI source to detect changes
-            UI_HASH=$(find ui/src ui/public ui/index.html -type f -exec md5sum {} \; 2>/dev/null | sort | md5sum | cut -d' ' -f1)
-
-            # Try to get stored hash from S3
-            STORED_HASH=$(aws s3 cp "s3://${UI_BUCKET}/.ui-hash" - 2>/dev/null || echo "")
-
-            if [ "${UI_HASH}" = "${STORED_HASH}" ]; then
-              echo "✅ UI source unchanged (hash: ${UI_HASH}), skipping rebuild"
-              echo "skip_ui=true" >> $GITHUB_OUTPUT
-            else
-              echo "UI source changed (${UI_HASH} vs ${STORED_HASH}), will deploy"
-              echo "skip_ui=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "UI not found in bucket, will deploy"
-            echo "skip_ui=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Build and deploy React UI
-        if: steps.check-ui.outputs.skip_ui != 'true'
         env:
           STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
         run: |
           echo "Building and deploying React UI..."
           chmod +x scripts/deploy-ui.sh
           ./scripts/deploy-ui.sh
-
-      - name: Summary of operations
-        if: always()
-        run: |
-          echo "=== Deployment Summary ==="
-          echo "Stack: ${{ steps.stack-name.outputs.stack_name }}"
-          echo "Stack deployment: ${{ needs.deploy-stack.result }}"
-          echo "UI deployment skipped: ${{ steps.check-ui.outputs.skip_ui }}"
-          echo ""
-          if [ "${{ needs.deploy-stack.result }}" = "skipped" ]; then
-            echo "⏭️ Infrastructure unchanged - skipped deployment"
-          fi
-          if [ "${{ steps.check-ui.outputs.skip_ui }}" = "true" ]; then
-            echo "⚡ UI unchanged - saved ~2-3 minutes!"
-          fi
 
       - name: Get stack outputs
         id: stack-outputs
