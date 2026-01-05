@@ -105,41 +105,24 @@ def generate_data_flow_diagram():
         graph_attr=graph_attr,
         outformat="png"
     ):
-        # User
+        # Components
         customer = User("Customer")
-
-        # Frontend
-        react_app = CloudFront("React UI\n(CloudFront)")
-
-        # API Gateway
+        react_app = CloudFront("React UI")
         api_gw = APIGateway("API Gateway")
+        lambda_fn = Lambda("Lambda")
 
-        # Lambda Handler (simplified - one node)
-        lambda_fn = Lambda("Lambda\nHandlers")
+        # Data stores
+        with Cluster("Data Layer"):
+            dynamodb = Dynamodb("DynamoDB")
+            s3_docs = S3("Documents")
 
-        # Data Layer (grouped)
-        dynamodb = Dynamodb("DynamoDB\nTables")
-
-        # External Services (only show key ones)
-        s3_docs = S3("Document\nStorage")
         bedrock_ai = Bedrock("Claude AI")
 
-        # Main flow: Customer → UI → API → Lambda → DB
-        customer >> Edge(label="1. Request", color="blue") >> react_app
-        react_app >> Edge(label="2. API call", color="blue") >> api_gw
-        api_gw >> Edge(label="3. Route", color="blue") >> lambda_fn
-        lambda_fn >> Edge(label="4. Query/Write", color="blue") >> dynamodb
-        dynamodb >> Edge(label="5. Response", color="blue") >> lambda_fn
-        lambda_fn >> Edge(label="6. Return", color="blue") >> api_gw
-        api_gw >> Edge(label="7. Data", color="blue") >> react_app
-        react_app >> Edge(label="8. Display", color="blue") >> customer
-
-        # Document upload flow
-        lambda_fn >> Edge(label="Upload docs", color="orange", style="dashed") >> s3_docs
-
-        # AI chatbot flow
-        lambda_fn >> Edge(label="Query AI", color="purple", style="dashed") >> bedrock_ai
-        lambda_fn >> Edge(label="Read context", color="purple", style="dotted") >> dynamodb
+        # Simple left-to-right flow
+        customer >> react_app >> api_gw >> lambda_fn
+        lambda_fn >> dynamodb
+        lambda_fn >> s3_docs
+        lambda_fn >> bedrock_ai
 
 
 def generate_erd_diagram():
