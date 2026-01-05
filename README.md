@@ -13,7 +13,6 @@ The platform showcases enterprise-grade patterns including Infrastructure as Cod
   - [AWS Services](#aws-services)
   - [CloudFormation Stack Hierarchy](#cloudformation-stack-hierarchy)
 - [Development & Deployment](#development--deployment)
-  - [CI/CD Pipeline](#cicd-pipeline)
   - [A-B Deployment Model](#a-b-deployment-model)
   - [Deployment Decision Flow](#deployment-decision-flow)
   - [Test Execution](#test-execution)
@@ -227,6 +226,18 @@ This diagram provides a visual representation of the complete infrastructure usi
 pip install -r requirements-docs.txt
 python scripts/generate-architecture-diagram.py
 ```
+
+### Additional Documentation Diagrams
+
+The platform includes comprehensive visual documentation:
+
+#### Data Flow Diagram
+
+Shows how data moves through the system for key operations including quote creation, policy management, claim filing, and AI chatbot interactions:
+
+![Silvermoat Data Flow](docs/data-flow.png)
+
+All diagrams are generated at build time and automatically deployed with the application.
 
 ### CloudFormation Stack Hierarchy
 

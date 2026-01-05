@@ -53,6 +53,8 @@ jobs:
               - 'scripts/deploy-stack.sh'
             ui:
               - 'ui/**'
+              - 'scripts/generate-architecture-diagram.py'
+              - 'scripts/deploy-ui.sh'
             tests:
               - 'tests/**'
               - '.github/workflows/deploy-test.yml'
