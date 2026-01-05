@@ -178,8 +178,8 @@ const ChatInterface = () => {
                 timestamp={msg.timestamp}
               />
             ))}
-            <StatusMessage statusMessages={statusMessages} />
             {isPending && <TypingIndicator />}
+            <StatusMessage statusMessages={statusMessages} />
             <div ref={messagesEndRef} />
           </>
         )}
