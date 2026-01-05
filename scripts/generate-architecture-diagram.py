@@ -5,7 +5,6 @@ Generate multiple documentation diagrams for Silvermoat platform using the diagr
 This script creates professional diagrams with official AWS icons:
 - Architecture: Infrastructure layout
 - Data Flow: Request/response flows
-- ERD: Entity relationship diagram
 - User Journey: Customer and agent workflows
 
 Requirements:
@@ -18,7 +17,6 @@ Usage:
 Outputs:
     docs/architecture.png
     docs/data-flow.png
-    docs/erd.png
     docs/user-journey.png
 """
 
@@ -159,7 +157,7 @@ def generate_architecture_diagram():
         lambda_role >> ai_fn
 
 def generate_data_flow_diagram():
-    """Generate simplified data flow diagram showing key request flows."""
+    """Generate detailed data flow diagram showing request flows."""
 
     graph_attr = {
         "fontsize": "14",
@@ -175,58 +173,79 @@ def generate_data_flow_diagram():
         graph_attr=graph_attr,
         outformat="png"
     ):
-        # Components
+        # User
         customer = User("Customer")
-        react_app = CloudFront("React UI")
+
+        # Frontend
+        with Cluster("Frontend"):
+            react_app = CloudFront("CloudFront")
+
+        # API
         api_gw = APIGateway("API Gateway")
-        lambda_fn = Lambda("Lambda")
 
-        # Data stores
+        # Lambda Handlers
+        with Cluster("Lambda Handlers"):
+            customer_fn = Lambda("customer-handler")
+            claims_fn = Lambda("claims-handler")
+            docs_fn = Lambda("documents-handler")
+            ai_fn = Lambda("ai-handler")
+
+        # Data Layer - DynamoDB Tables
         with Cluster("Data Layer"):
-            dynamodb = Dynamodb("DynamoDB")
-            s3_docs = S3("Documents")
+            with Cluster("Core Entities"):
+                customers_db = Dynamodb("Customers")
+                quotes_db = Dynamodb("Quotes")
+                policies_db = Dynamodb("Policies")
 
-        bedrock_ai = Bedrock("Claude AI")
+            with Cluster("Operations"):
+                claims_db = Dynamodb("Claims")
+                payments_db = Dynamodb("Payments")
+                cases_db = Dynamodb("Cases")
 
-        # Simple left-to-right flow
-        customer >> react_app >> api_gw >> lambda_fn
-        lambda_fn >> dynamodb
-        lambda_fn >> s3_docs
-        lambda_fn >> bedrock_ai
+            with Cluster("AI Context"):
+                conversations_db = Dynamodb("Conversations")
 
+        # External Services
+        with Cluster("External Services"):
+            docs_bucket = S3("Documents")
+            bedrock = Bedrock("Claude API")
+            sns = SNS("SNS")
 
-def generate_erd_diagram():
-    """Generate simplified Entity Relationship Diagram."""
+        # User to Frontend
+        customer >> react_app
 
-    graph_attr = {
-        "fontsize": "14",
-        "bgcolor": "white",
-        "pad": "0.5",
-        "rankdir": "LR",
-    }
+        # Frontend to API Gateway
+        react_app >> api_gw
 
-    with Diagram(
-        "Silvermoat Entity Relationships",
-        filename="docs/erd",
-        show=False,
-        direction="LR",
-        graph_attr=graph_attr,
-        outformat="png"
-    ):
-        # Core entities (simplified - just entity name)
-        customer = Dynamodb("Customer")
-        quote = Dynamodb("Quote")
-        policy = Dynamodb("Policy")
-        claim = Dynamodb("Claim")
-        payment = Dynamodb("Payment")
-        case = Dynamodb("Case")
+        # API Gateway to Lambda Handlers
+        api_gw >> customer_fn
+        api_gw >> claims_fn
+        api_gw >> docs_fn
+        api_gw >> ai_fn
 
-        # Main relationship chain
-        customer >> Edge(label="has many") >> quote
-        quote >> Edge(label="becomes") >> policy
-        policy >> Edge(label="has") >> claim
-        policy >> Edge(label="has") >> payment
-        policy >> Edge(label="has") >> case
+        # Customer Handler flows
+        customer_fn >> customers_db
+        customer_fn >> quotes_db
+        customer_fn >> sns
+
+        # Claims Handler flows
+        claims_fn >> policies_db
+        claims_fn >> claims_db
+        claims_fn >> payments_db
+        claims_fn >> cases_db
+        claims_fn >> sns
+
+        # Documents Handler flows
+        docs_fn >> docs_bucket
+        docs_fn >> sns
+
+        # AI Handler flows
+        ai_fn >> customers_db
+        ai_fn >> quotes_db
+        ai_fn >> policies_db
+        ai_fn >> claims_db
+        ai_fn >> conversations_db
+        ai_fn >> bedrock
 
 
 def generate_user_journey_diagram():
@@ -278,19 +297,15 @@ def generate_user_journey_diagram():
 if __name__ == "__main__":
     print("Generating Silvermoat documentation diagrams...\n")
 
-    print("1/4 Generating architecture diagram...")
+    print("1/3 Generating architecture diagram...")
     generate_architecture_diagram()
     print("    ✓ docs/architecture.png")
 
-    print("2/4 Generating data flow diagram...")
+    print("2/3 Generating data flow diagram...")
     generate_data_flow_diagram()
     print("    ✓ docs/data-flow.png")
 
-    print("3/4 Generating ERD diagram...")
-    generate_erd_diagram()
-    print("    ✓ docs/erd.png")
-
-    print("4/4 Generating user journey diagram...")
+    print("3/3 Generating user journey diagram...")
     generate_user_journey_diagram()
     print("    ✓ docs/user-journey.png")
 
