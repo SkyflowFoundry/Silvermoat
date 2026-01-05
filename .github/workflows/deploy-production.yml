@@ -118,7 +118,7 @@ jobs:
             fi
 
             # UI changes
-            if git diff --name-only HEAD^ HEAD | grep -E '^ui/'; then
+            if git diff --name-only HEAD^ HEAD | grep -E '^(ui/|scripts/generate-architecture-diagram\.py|scripts/deploy-ui\.sh)'; then
               echo "ui_changed=true" >> $GITHUB_OUTPUT
               echo "✅ UI files changed (requires rebuild)"
             else
