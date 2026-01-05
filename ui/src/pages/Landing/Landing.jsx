@@ -39,7 +39,7 @@ const Landing = () => {
       <div style={{ maxWidth: 1200, width: '100%' }}>
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
           <img
-            src="/silvermoat-logo.png"
+            src="/silvermoat-logo.svg"
             alt="Silvermoat Insurance"
             style={{
               width: 120,

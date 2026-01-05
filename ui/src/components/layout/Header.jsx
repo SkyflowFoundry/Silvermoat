@@ -109,7 +109,7 @@ const Header = () => {
           onClick={() => navigate('/')}
         >
           <img
-            src="/silvermoat-logo.png"
+            src="/silvermoat-logo.svg"
             alt="Silvermoat Insurance"
             style={{
               height: isMobile ? 28 : 36,
