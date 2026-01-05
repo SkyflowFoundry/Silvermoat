@@ -26,8 +26,70 @@ on:
         required: true
 
 jobs:
+  lambda-unit-tests:
+    name: Lambda Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: lambda-handlers
+            pattern: "test_*_handler.py"
+            python-version: '3.11'
+          - name: lambda-handlers
+            pattern: "test_*_handler.py"
+            python-version: '3.12'
+          - name: lambda-utilities
+            pattern: "test_responses.py test_validators.py test_events.py test_domain_logic.py test_storage_dynamodb.py"
+            python-version: '3.11'
+          - name: lambda-utilities
+            pattern: "test_responses.py test_validators.py test_events.py test_domain_logic.py test_storage_dynamodb.py"
+            python-version: '3.12'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install Python dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Run ${{ matrix.name }} tests (Python ${{ matrix.python-version }})
+        id: test-run
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}/lambda/layer/python:${{ github.workspace }}/lambda
+        run: |
+          set -o pipefail
+          cd lambda/tests
+          pytest -v --tb=short ${{ matrix.pattern }} 2>&1 | tee ../../${{ matrix.name }}-python${{ matrix.python-version }}-tests-output.txt
+
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-python${{ matrix.python-version }}-test-output
+          path: ${{ matrix.name }}-python${{ matrix.python-version }}-tests-output.txt
+          retention-days: 7
+
+      - name: Check test outcome
+        if: always()
+        run: |
+          if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
+            echo "${{ matrix.name }} tests failed on Python ${{ matrix.python-version }}"
+            exit 1
+          fi
+
   unit-tests:
-    name: Unit Tests
+    name: UI Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
