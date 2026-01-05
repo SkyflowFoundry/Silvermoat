@@ -43,15 +43,28 @@ def upsert_customer_for_policy(storage, body):
 
     Args:
         storage: DynamoDBBackend instance
-        body: Policy request body containing holderName and holderEmail/customer_email
+        body: Policy request body containing either:
+              - holderName and holderEmail/customer_email (flat structure)
+              - customer object (nested structure with email field)
 
     Returns:
         str: Customer ID if customer data provided, None otherwise
 
     Side effects:
-        - Modifies body dict by removing holderName, holderEmail, customer_email
+        - Modifies body dict by removing holderName, holderEmail, customer_email, or customer
         - Creates or updates customer record in DynamoDB
     """
+    # Try nested customer object first (test/API pattern)
+    customer_obj = body.get("customer")
+    if customer_obj:
+        customer_email = customer_obj.get("email")
+        if customer_email:
+            customer = storage.upsert_customer(customer_email, customer_obj)
+            # Remove customer object from body
+            body.pop("customer", None)
+            return customer["id"]
+
+    # Fall back to flat fields (legacy pattern)
     holder_name = body.get("holderName")
     holder_email = body.get("holderEmail") or body.get("customer_email")
 
