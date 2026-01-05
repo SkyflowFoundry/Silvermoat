@@ -229,19 +229,13 @@ python scripts/generate-architecture-diagram.py
 
 ### Additional Documentation Diagrams
 
-The platform includes comprehensive visual documentation covering data flow, entity relationships, user journeys, and deployment processes:
+The platform includes comprehensive visual documentation covering data flow and user journeys:
 
 #### Data Flow Diagram
 
 Shows how data moves through the system for key operations including quote creation, policy management, claim filing, and AI chatbot interactions:
 
 ![Silvermoat Data Flow](docs/data-flow.png)
-
-#### Entity Relationship Diagram
-
-Illustrates the data model with relationships and cardinality between core entities:
-
-![Silvermoat ERD](docs/erd.png)
 
 #### User Journey Map
 
