@@ -190,3 +190,29 @@ def sample_quote_data():
         "premium": 1200,
         "deductible": 500,
     }
+
+
+@pytest.fixture
+def sample_policy_data(sample_customer_data):
+    """Sample policy data for testing"""
+    return {
+        "customer": sample_customer_data,
+        "policyNumber": "POL-12345",
+        "coverageType": "AUTO",
+        "premium": 1200,
+        "deductible": 500,
+        "startDate": "2024-01-01",
+        "endDate": "2025-01-01",
+    }
+
+
+@pytest.fixture
+def sample_claim_data():
+    """Sample claim data for testing"""
+    return {
+        "policyId": "test-policy-id",
+        "claimNumber": "CLM-12345",
+        "incidentDate": "2024-06-15",
+        "description": "Vehicle accident",
+        "claimAmount": 5000,
+    }
