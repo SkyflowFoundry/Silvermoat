@@ -1,0 +1,81 @@
+name: Auto-Plan Issues
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  generate-plan:
+    # Only run if @claude is not already in issue (avoid duplication)
+    if: |
+      !contains(github.event.issue.body, '@claude') &&
+      !contains(github.event.issue.title, '@claude')
+    runs-on: ubuntu-latest
+    outputs:
+      plan: ${{ steps.generate.outputs.plan }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Generate implementation plan
+        id: generate
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: '--allowed-tools Bash(gh issue comment:*)'
+          prompt: |
+            Create an implementation plan for issue #${{ github.event.issue.number }} following CLAUDE.md format.
+
+            Issue Title: ${{ github.event.issue.title }}
+
+            Issue Body:
+            ${{ github.event.issue.body }}
+
+            Plan Requirements:
+            1. Goal (1 line)
+            2. Assumptions (if any)
+            3. Phases (numbered, with file-level changes per phase)
+            4. Unresolved Questions (with recommended answers - REQUIRED)
+
+            Format the plan in markdown with task checkboxes for phases.
+
+            IMPORTANT:
+            - Post the plan as a comment using: gh issue comment ${{ github.event.issue.number }} --body "<plan>"
+            - Do NOT execute any implementation changes
+            - ONLY create and post the plan
+
+  post-status:
+    needs: [generate-plan]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Post completion status
+        if: needs.generate-plan.result == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '✅ Auto-plan completed. See plan comment above.'
+            });
+
+      - name: Post failure status
+        if: needs.generate-plan.result == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '❌ Auto-plan failed. You can manually trigger planning by mentioning `@claude` in a comment.'
+            });
