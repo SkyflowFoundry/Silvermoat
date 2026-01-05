@@ -104,10 +104,11 @@ jobs:
         run: |
           # For merged PRs, compare merge commit with its parent
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            # Check files changed in the merge commit
-            if git diff --name-only HEAD^ HEAD | grep -E '^(cdk/|lambda/|scripts/|\.github/workflows/deploy-production\.yml|\.github/actions/)'; then
+            # Infrastructure = files that require CDK deploy (CloudFormation update)
+            # Only: CDK code, Lambda code, deploy-stack.sh script
+            if git diff --name-only HEAD^ HEAD | grep -E '^(cdk/|lambda/|scripts/deploy-stack\.sh)'; then
               echo "infrastructure_changed=true" >> $GITHUB_OUTPUT
-              echo "✅ Infrastructure files changed"
+              echo "✅ Infrastructure files changed (requires CDK deploy)"
             else
               echo "infrastructure_changed=false" >> $GITHUB_OUTPUT
               echo "ℹ️ No infrastructure changes detected"
