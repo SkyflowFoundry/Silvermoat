@@ -401,3 +401,196 @@ jobs:
         uses: ./.github/actions/clear-and-seed-data
         with:
           api-base-url: ${{ needs.deploy-ui.outputs.api_url }}
+
+  pr-summary:
+    name: Post PR Summary
+    needs: [detect-changes, deploy-stack, deploy-ui, tests, clear-and-seed-data]
+    if: always() && github.event.pull_request.number
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build PR summary comment
+        id: summary
+        run: |
+          cat > /tmp/pr-comment.md <<'EOF'
+          ## 🚀 Test Deployment Summary
+
+          **PR**: #${{ github.event.pull_request.number }}
+          **Workflow Run**: [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          ---
+
+          ### 📦 Stack Deployment
+          EOF
+
+          # Stack deployment status
+          STACK_RESULT="${{ needs.deploy-stack.result }}"
+          if [ "$STACK_RESULT" = "success" ]; then
+            echo "✅ **Deployed** - Stack deployed successfully" >> /tmp/pr-comment.md
+            echo "- Stack: \`${{ needs.deploy-stack.outputs.stack_name }}\`" >> /tmp/pr-comment.md
+          elif [ "$STACK_RESULT" = "skipped" ]; then
+            SKIP_REASON="${{ needs.deploy-stack.outputs.skip_reason }}"
+            if [ -z "$SKIP_REASON" ]; then
+              SKIP_REASON="No infrastructure changes detected"
+            fi
+            echo "⏭️ **Skipped** - ${SKIP_REASON}" >> /tmp/pr-comment.md
+          elif [ "$STACK_RESULT" = "failure" ]; then
+            echo "❌ **Failed** - Stack deployment failed" >> /tmp/pr-comment.md
+          else
+            echo "⚠️ **${STACK_RESULT}** - Unexpected status" >> /tmp/pr-comment.md
+          fi
+
+          cat >> /tmp/pr-comment.md <<'EOF'
+
+          ### 🎨 UI Deployment
+          EOF
+
+          # UI deployment status
+          UI_RESULT="${{ needs.deploy-ui.result }}"
+          if [ "$UI_RESULT" = "success" ]; then
+            echo "✅ **Deployed** - UI built and deployed successfully" >> /tmp/pr-comment.md
+            echo "- Web URL: ${{ needs.deploy-ui.outputs.web_url }}" >> /tmp/pr-comment.md
+            echo "- API URL: ${{ needs.deploy-ui.outputs.api_url }}" >> /tmp/pr-comment.md
+          elif [ "$UI_RESULT" = "skipped" ]; then
+            echo "⏭️ **Skipped** - UI deployment was skipped" >> /tmp/pr-comment.md
+          elif [ "$UI_RESULT" = "failure" ]; then
+            echo "❌ **Failed** - UI deployment failed" >> /tmp/pr-comment.md
+          else
+            echo "⚠️ **${UI_RESULT}** - Unexpected status" >> /tmp/pr-comment.md
+          fi
+
+          cat >> /tmp/pr-comment.md <<'EOF'
+
+          ### 🧪 Tests
+          EOF
+
+          # Test results
+          TESTS_RESULT="${{ needs.tests.result }}"
+          if [ "$TESTS_RESULT" = "success" ]; then
+            echo "✅ **Passed** - All tests passed" >> /tmp/pr-comment.md
+          elif [ "$TESTS_RESULT" = "failure" ]; then
+            echo "❌ **Failed** - Some tests failed (see workflow details)" >> /tmp/pr-comment.md
+          elif [ "$TESTS_RESULT" = "skipped" ]; then
+            echo "⏭️ **Skipped** - Tests were skipped" >> /tmp/pr-comment.md
+          else
+            echo "⚠️ **${TESTS_RESULT}** - Unexpected status" >> /tmp/pr-comment.md
+          fi
+
+          cat >> /tmp/pr-comment.md <<'EOF'
+
+          ### 🌱 Demo Data Seeding
+          EOF
+
+          # Data seeding status
+          SEED_RESULT="${{ needs.clear-and-seed-data.result }}"
+          if [ "$SEED_RESULT" = "success" ]; then
+            echo "✅ **Completed** - Demo data seeded successfully" >> /tmp/pr-comment.md
+          elif [ "$SEED_RESULT" = "skipped" ]; then
+            echo "⏭️ **Skipped** - Data seeding was skipped" >> /tmp/pr-comment.md
+          elif [ "$SEED_RESULT" = "failure" ]; then
+            echo "❌ **Failed** - Data seeding failed" >> /tmp/pr-comment.md
+          else
+            echo "⚠️ **${SEED_RESULT}** - Unexpected status" >> /tmp/pr-comment.md
+          fi
+
+          cat >> /tmp/pr-comment.md <<'EOF'
+
+          ---
+
+          ### ⏱️ Job Timing
+          EOF
+
+          # Get job timing from GitHub API
+          echo "Fetching job timings..." >> /tmp/pr-comment.md
+          echo "" >> /tmp/pr-comment.md
+
+          cat >> /tmp/pr-comment.md <<'EOF'
+
+          ---
+
+          <sub>🤖 Auto-generated summary from test deployment workflow</sub>
+          EOF
+
+          echo "Generated comment:"
+          cat /tmp/pr-comment.md
+
+      - name: Fetch job timing from GitHub API
+        id: timing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Fetch workflow run jobs
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+            > /tmp/jobs.json
+
+          # Extract timing for key jobs
+          echo "| Job | Duration | Status |" > /tmp/timing.md
+          echo "|-----|----------|--------|" >> /tmp/timing.md
+
+          # Parse job data (looking for specific job names)
+          for job_name in "deploy-stack" "deploy-ui" "unit-tests" "api-tests" "e2e-tests" "clear-and-seed-data"; do
+            # Get job info
+            JOB_DATA=$(jq -r --arg name "$job_name" '.jobs[] | select(.name | contains($name)) | "\(.conclusion)|\(.started_at)|\(.completed_at)"' /tmp/jobs.json | head -1)
+
+            if [ -n "$JOB_DATA" ]; then
+              CONCLUSION=$(echo "$JOB_DATA" | cut -d'|' -f1)
+              START=$(echo "$JOB_DATA" | cut -d'|' -f2)
+              END=$(echo "$JOB_DATA" | cut -d'|' -f3)
+
+              if [ "$END" != "null" ] && [ "$START" != "null" ]; then
+                # Calculate duration in seconds
+                START_SEC=$(date -u -d "$START" +%s 2>/dev/null || date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$START" +%s 2>/dev/null || echo "0")
+                END_SEC=$(date -u -d "$END" +%s 2>/dev/null || date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$END" +%s 2>/dev/null || echo "0")
+                DURATION=$((END_SEC - START_SEC))
+
+                # Format duration
+                if [ $DURATION -ge 60 ]; then
+                  MIN=$((DURATION / 60))
+                  SEC=$((DURATION % 60))
+                  DURATION_STR="${MIN}m ${SEC}s"
+                else
+                  DURATION_STR="${DURATION}s"
+                fi
+              else
+                DURATION_STR="in progress"
+              fi
+
+              # Status emoji
+              case "$CONCLUSION" in
+                success) STATUS="✅" ;;
+                failure) STATUS="❌" ;;
+                skipped) STATUS="⏭️" ;;
+                cancelled) STATUS="🚫" ;;
+                *) STATUS="⚠️" ;;
+              esac
+
+              echo "| $job_name | $DURATION_STR | $STATUS |" >> /tmp/timing.md
+            fi
+          done
+
+          echo "Timing table:"
+          cat /tmp/timing.md
+
+      - name: Insert timing into comment
+        run: |
+          # Replace placeholder with actual timing
+          sed -i '/Fetching job timings.../r /tmp/timing.md' /tmp/pr-comment.md
+          sed -i '/Fetching job timings.../d' /tmp/pr-comment.md
+
+          echo "Final comment:"
+          cat /tmp/pr-comment.md
+
+      - name: Post comment to PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/pr-comment.md
