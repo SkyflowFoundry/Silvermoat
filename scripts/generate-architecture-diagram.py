@@ -88,13 +88,22 @@ def generate_architecture_diagram():
             cases_table = Dynamodb("Cases")
             conversations_table = Dynamodb("Conversations")
 
-        # External Services
-        with Cluster("External Services"):
-            docs_bucket = S3("Documents Bucket")
-            sns_topic = SNS("SNS Topic")
+        # Storage Layer
+        with Cluster("Storage"):
+            docs_bucket = S3("Documents")
+
+        # Notifications & Events
+        with Cluster("Notifications & Events"):
+            sns_topic = SNS("SNS")
             eventbridge = Eventbridge("EventBridge")
-            bedrock = Bedrock("Claude API")
-            lambda_role = IAM("Lambda Role")
+
+        # AI Integration
+        with Cluster("AI Integration"):
+            bedrock = Bedrock("Bedrock")
+
+        # Security & Permissions
+        with Cluster("Security & Permissions"):
+            lambda_role = IAM("IAM Role")
 
         # DNS routing to CloudFront
         cloudflare >> cloudfront
