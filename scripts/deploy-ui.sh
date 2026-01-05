@@ -93,11 +93,19 @@ echo "Syncing build output to S3 bucket..."
 
 # Sync with proper cache headers
 # index.html: no-cache (always fetch fresh)
-# Static assets: long cache (immutable)
+# PNG diagrams: 1-hour cache (updates visible on reload)
+# Static assets (JS/CSS): long cache (immutable, hash-based filenames)
 $AWS_CMD s3 sync "$BUILD_DIR" "s3://$UI_BUCKET/" \
   --delete \
   --exclude "*.html" \
+  --exclude "*.png" \
   --cache-control "public, max-age=31536000, immutable"
+
+# Upload PNG diagrams with 1-hour cache (no immutable)
+$AWS_CMD s3 sync "$BUILD_DIR" "s3://$UI_BUCKET/" \
+  --exclude "*" \
+  --include "*.png" \
+  --cache-control "public, max-age=3600"
 
 # Upload index.html separately with no-cache
 $AWS_CMD s3 cp "$BUILD_DIR/index.html" "s3://$UI_BUCKET/index.html" \
