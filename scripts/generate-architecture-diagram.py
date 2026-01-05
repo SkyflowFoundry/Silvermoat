@@ -72,41 +72,28 @@ def generate_architecture_diagram():
             apigw = APIGateway("API Gateway")
 
         # Lambda Handlers (Split by domain)
-        with Cluster("Lambda Handlers") as lambda_cluster:
+        with Cluster("Lambda Handlers"):
             customer_fn = Lambda("customer-handler")
             claims_fn = Lambda("claims-handler")
             docs_fn = Lambda("documents-handler")
             ai_fn = Lambda("ai-handler")
 
         # Data Layer - DynamoDB Tables
-        with Cluster("Data Layer") as data_cluster:
-            with Cluster("Core Entities"):
-                customers_table = Dynamodb("Customers")
-                quotes_table = Dynamodb("Quotes")
-                policies_table = Dynamodb("Policies")
-
-            with Cluster("Operations"):
-                claims_table = Dynamodb("Claims")
-                payments_table = Dynamodb("Payments")
-                cases_table = Dynamodb("Cases")
-
-            with Cluster("AI Context"):
-                conversations_table = Dynamodb("Conversations")
+        with Cluster("Data Layer"):
+            customers_table = Dynamodb("Customers")
+            quotes_table = Dynamodb("Quotes")
+            policies_table = Dynamodb("Policies")
+            claims_table = Dynamodb("Claims")
+            payments_table = Dynamodb("Payments")
+            cases_table = Dynamodb("Cases")
+            conversations_table = Dynamodb("Conversations")
 
         # External Services
-        with Cluster("External Services") as external_cluster:
-            with Cluster("Document Storage"):
-                docs_bucket = S3("Documents Bucket")
-
-            with Cluster("Notifications & Events"):
-                sns_topic = SNS("SNS Topic")
-                eventbridge = Eventbridge("EventBridge")
-
-            with Cluster("AI Integration"):
-                bedrock = Bedrock("Claude API")
-
-        # Security & IAM
-        with Cluster("Security & Permissions") as security_cluster:
+        with Cluster("External Services"):
+            docs_bucket = S3("Documents Bucket")
+            sns_topic = SNS("SNS Topic")
+            eventbridge = Eventbridge("EventBridge")
+            bedrock = Bedrock("Claude API")
             lambda_role = IAM("Lambda Role")
 
         # DNS routing to CloudFront
@@ -115,11 +102,19 @@ def generate_architecture_diagram():
         # Frontend to API flow
         cloudfront >> apigw
 
-        # Simplified connections at cluster level
-        apigw >> lambda_cluster
-        lambda_cluster >> data_cluster
-        lambda_cluster >> external_cluster
-        security_cluster >> lambda_cluster
+        # Simplified connections - use lists for cleaner code
+        apigw >> [customer_fn, claims_fn, docs_fn, ai_fn]
+
+        # Lambda handlers to data (simplified - show representative connections)
+        customer_fn >> [customers_table, quotes_table]
+        claims_fn >> [policies_table, claims_table, payments_table, cases_table]
+        ai_fn >> [conversations_table, bedrock]
+        docs_fn >> docs_bucket
+
+        # External services
+        [customer_fn, claims_fn, docs_fn] >> sns_topic
+        eventbridge >> customer_fn
+        lambda_role >> [customer_fn, claims_fn, docs_fn, ai_fn]
 
 def generate_data_flow_diagram():
     """Generate detailed data flow diagram showing request flows."""
@@ -152,37 +147,40 @@ def generate_data_flow_diagram():
         api_gw = APIGateway("API Gateway")
 
         # Lambda Handlers
-        with Cluster("Lambda Handlers") as lambda_cluster:
+        with Cluster("Lambda Handlers"):
             customer_fn = Lambda("customer-handler")
             claims_fn = Lambda("claims-handler")
             docs_fn = Lambda("documents-handler")
             ai_fn = Lambda("ai-handler")
 
         # Data Layer - DynamoDB Tables
-        with Cluster("Data Layer") as data_cluster:
-            with Cluster("Core Entities"):
-                customers_db = Dynamodb("Customers")
-                quotes_db = Dynamodb("Quotes")
-                policies_db = Dynamodb("Policies")
-
-            with Cluster("Operations"):
-                claims_db = Dynamodb("Claims")
-                payments_db = Dynamodb("Payments")
-                cases_db = Dynamodb("Cases")
-
-            with Cluster("AI Context"):
-                conversations_db = Dynamodb("Conversations")
+        with Cluster("Data Layer"):
+            customers_db = Dynamodb("Customers")
+            quotes_db = Dynamodb("Quotes")
+            policies_db = Dynamodb("Policies")
+            claims_db = Dynamodb("Claims")
+            payments_db = Dynamodb("Payments")
+            cases_db = Dynamodb("Cases")
+            conversations_db = Dynamodb("Conversations")
 
         # External Services
-        with Cluster("External Services") as external_cluster:
+        with Cluster("External Services"):
             docs_bucket = S3("Documents")
             bedrock = Bedrock("Claude API")
             sns = SNS("SNS")
 
-        # Simplified flow at cluster level
-        customer >> react_app >> api_gw >> lambda_cluster
-        lambda_cluster >> data_cluster
-        lambda_cluster >> external_cluster
+        # Simplified flow - representative connections
+        customer >> react_app >> api_gw
+        api_gw >> [customer_fn, claims_fn, docs_fn, ai_fn]
+
+        # Lambda to data (show key connections)
+        customer_fn >> [customers_db, quotes_db]
+        claims_fn >> [policies_db, claims_db, payments_db, cases_db]
+        ai_fn >> [conversations_db, bedrock]
+        docs_fn >> docs_bucket
+
+        # External services
+        [customer_fn, claims_fn, docs_fn] >> sns
 
 
 def generate_user_journey_diagram():
