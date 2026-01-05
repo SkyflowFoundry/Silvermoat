@@ -66,7 +66,18 @@ jobs:
         id: test-run
         continue-on-error: true
         env:
-          PYTHONPATH: ${{ github.workspace }}/lambda/layer/python:${{ github.workspace }}/lambda
+          PYTHONPATH: ${{ github.workspace }}/lambda/layer/python:${{ github.workspace }}/lambda:${{ github.workspace }}/lambda/ai_handler:${{ github.workspace }}/lambda/customer_handler:${{ github.workspace }}/lambda/claims_handler:${{ github.workspace }}/lambda/documents_handler
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: testing
+          AWS_SECRET_ACCESS_KEY: testing
+          CUSTOMERS_TABLE: test-customers
+          QUOTES_TABLE: test-quotes
+          POLICIES_TABLE: test-policies
+          CLAIMS_TABLE: test-claims
+          PAYMENTS_TABLE: test-payments
+          CASES_TABLE: test-cases
+          DOCS_BUCKET: test-docs
+          SNS_TOPIC_ARN: ""
         run: |
           set -o pipefail
           cd lambda/tests
