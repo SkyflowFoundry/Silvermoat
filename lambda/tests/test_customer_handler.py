@@ -51,7 +51,7 @@ class TestCustomerEndpoints:
         assert "id" in body
         assert "item" in body
         assert body["item"]["status"] == "ACTIVE"
-        assert body["item"]["data"]["email"] == sample_customer_data["email"]
+        assert body["item"]["email"] == sample_customer_data["email"]
 
     def test_create_customer_upserts_by_email(
         self, api_gateway_event, lambda_context, storage_backend, sample_customer_data
@@ -85,7 +85,7 @@ class TestCustomerEndpoints:
         assert get_response["statusCode"] == 200
         body = json.loads(get_response["body"])
         assert body["id"] == customer_id
-        assert body["data"]["email"] == sample_customer_data["email"]
+        assert body["email"] == sample_customer_data["email"]
 
     def test_get_customer_not_found(self, api_gateway_event, lambda_context, dynamodb_tables):
         """GET /customer/{id} with non-existent ID should return 404"""

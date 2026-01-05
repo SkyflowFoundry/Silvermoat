@@ -77,8 +77,8 @@ class TestPolicyEndpoints:
         assert "id" in body
         assert body["item"]["status"] == "ACTIVE"
         assert body["item"]["data"]["policyNumber"] == "POL-12345"
-        # Should have customerId from upserted customer
-        assert "customerId" in body["item"]["data"]
+        # Should have customerId from upserted customer (at top level for GSI)
+        assert "customerId" in body["item"]
 
     def test_get_policy_by_id(self, api_gateway_event, lambda_context, storage_backend, sample_policy_data):
         """GET /policy/{id} should return policy by ID"""
@@ -165,8 +165,8 @@ class TestClaimEndpoints:
         assert "id" in body
         assert body["item"]["status"] == "PENDING"
         assert body["item"]["data"]["claimNumber"] == "CLM-12345"
-        # Should have customerId denormalized from policy
-        assert "customerId" in body["item"]["data"]
+        # Should have customerId denormalized from policy (at top level for GSI)
+        assert "customerId" in body["item"]
 
     def test_get_claim_by_id(
         self, api_gateway_event, lambda_context, storage_backend, sample_policy_data, sample_claim_data

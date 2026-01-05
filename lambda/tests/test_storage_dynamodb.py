@@ -106,9 +106,9 @@ class TestReadOperations:
         """Should return items sorted by createdAt descending (most recent first)"""
         import time
 
-        # Create items with slight delay
+        # Create items with longer delay to ensure different timestamps
         item1 = storage_backend.create("customer", {"name": "First"}, "ACTIVE")
-        time.sleep(0.1)
+        time.sleep(1)
         item2 = storage_backend.create("customer", {"name": "Second"}, "ACTIVE")
 
         items = storage_backend.list("customer")
