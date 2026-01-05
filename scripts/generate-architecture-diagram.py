@@ -6,6 +6,8 @@ This script creates professional diagrams with official AWS icons:
 - Architecture: Infrastructure layout (top-bottom)
 - Data Flow: Request/response flows (top-bottom)
 
+PNGs are cached for 1 hour (no immutable directive) to allow updates without hard refresh.
+
 Requirements:
     - pip install diagrams
     - brew install graphviz (macOS) or apt install graphviz (Ubuntu/Debian)
