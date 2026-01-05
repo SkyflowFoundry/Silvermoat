@@ -1,11 +1,11 @@
-import { Modal, Typography, Divider } from 'antd';
+import { Modal, Typography, Divider, List } from 'antd';
 
-const { Title, Paragraph } = Typography;
+const { Title, Paragraph, Text } = Typography;
 
 const ArchitectureViewer = ({ open, onClose }) => {
   return (
     <Modal
-      title="System Architecture & Data Flow"
+      title="About Silvermoat"
       open={open}
       onCancel={onClose}
       footer={null}
@@ -17,6 +17,110 @@ const ArchitectureViewer = ({ open, onClose }) => {
         padding: '24px',
       }}
     >
+      {/* Project Overview */}
+      <div style={{ marginBottom: 48 }}>
+        <Title level={3} style={{ marginBottom: 16 }}>
+          Project Overview
+        </Title>
+        <Paragraph style={{ fontSize: 15, color: 'rgba(0, 0, 0, 0.65)', marginBottom: 16 }}>
+          Silvermoat is a comprehensive cloud-native insurance management platform built entirely on AWS serverless
+          infrastructure. It demonstrates enterprise-grade patterns including Infrastructure as Code (IaC), continuous
+          deployment, automated testing, and AI-powered customer service.
+        </Paragraph>
+        <Paragraph style={{ fontSize: 15, color: 'rgba(0, 0, 0, 0.65)' }}>
+          The platform enables insurance providers to manage the complete policy lifecycle—from quote generation
+          through policy management, claims processing, and customer support—all through an intuitive web interface
+          powered by Claude AI for intelligent assistance.
+        </Paragraph>
+      </div>
+
+      <Divider />
+
+      {/* Key Features */}
+      <div style={{ marginBottom: 48 }}>
+        <Title level={3} style={{ marginBottom: 16 }}>
+          Key Features
+        </Title>
+        <List
+          size="small"
+          dataSource={[
+            { title: 'Quote Management', description: 'Generate and manage insurance quotes with automated pricing' },
+            { title: 'Policy Lifecycle', description: 'Complete policy creation, renewal, and management workflows' },
+            { title: 'Claims Processing', description: 'End-to-end claims filing, document upload, and status tracking' },
+            { title: 'AI-Powered Support', description: 'Claude AI chatbot for customer and agent assistance' },
+            { title: 'Document Management', description: 'Secure S3-based storage for policies and claim documents' },
+            { title: 'Multi-Role Access', description: 'Separate interfaces for customers and insurance agents' },
+            { title: 'Real-time Notifications', description: 'SNS-based alerts for policy and claim updates' },
+          ]}
+          renderItem={(item) => (
+            <List.Item>
+              <Text strong>{item.title}:</Text> {item.description}
+            </List.Item>
+          )}
+        />
+      </div>
+
+      <Divider />
+
+      {/* Technology Stack */}
+      <div style={{ marginBottom: 48 }}>
+        <Title level={3} style={{ marginBottom: 16 }}>
+          Technology Stack
+        </Title>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>Frontend</Text>
+            <Text style={{ fontSize: 14, color: 'rgba(0, 0, 0, 0.65)' }}>
+              React, Ant Design, Vite
+            </Text>
+          </div>
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>Backend</Text>
+            <Text style={{ fontSize: 14, color: 'rgba(0, 0, 0, 0.65)' }}>
+              AWS Lambda (Python), API Gateway
+            </Text>
+          </div>
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>Database</Text>
+            <Text style={{ fontSize: 14, color: 'rgba(0, 0, 0, 0.65)' }}>
+              DynamoDB (7 tables)
+            </Text>
+          </div>
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>Storage</Text>
+            <Text style={{ fontSize: 14, color: 'rgba(0, 0, 0, 0.65)' }}>
+              S3, CloudFront CDN
+            </Text>
+          </div>
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>AI/ML</Text>
+            <Text style={{ fontSize: 14, color: 'rgba(0, 0, 0, 0.65)' }}>
+              AWS Bedrock (Claude 3.5 Sonnet)
+            </Text>
+          </div>
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>Infrastructure</Text>
+            <Text style={{ fontSize: 14, color: 'rgba(0, 0, 0, 0.65)' }}>
+              AWS CDK, CloudFormation
+            </Text>
+          </div>
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>CI/CD</Text>
+            <Text style={{ fontSize: 14, color: 'rgba(0, 0, 0, 0.65)' }}>
+              GitHub Actions
+            </Text>
+          </div>
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>Security</Text>
+            <Text style={{ fontSize: 14, color: 'rgba(0, 0, 0, 0.65)' }}>
+              IAM, ACM (SSL/TLS)
+            </Text>
+          </div>
+        </div>
+      </div>
+
+      <Divider />
+
       {/* Architecture Diagram Section */}
       <div style={{ marginBottom: 48, textAlign: 'center' }}>
         <Title level={3} style={{ marginBottom: 16 }}>
