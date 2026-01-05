@@ -9,6 +9,7 @@ import { QuestionCircleOutlined, CloseOutlined } from '@ant-design/icons';
 import ChatMessage from './ChatMessage';
 import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
+import StatusMessage from './StatusMessage';
 import { useSendMessage } from '../../hooks/mutations/useSendMessage';
 import { useAppContext } from '../../contexts/AppContext';
 
@@ -23,6 +24,7 @@ const STARTER_PROMPTS = [
 const ChatInterface = () => {
   const [messages, setMessages] = useState([]);
   const [conversationHistory, setConversationHistory] = useState([]);
+  const [statusMessages, setStatusMessages] = useState([]);
   const messagesEndRef = useRef(null);
   const { mutate: sendMessage, isPending } = useSendMessage();
   const { isMobile, closeChatDrawer } = useAppContext();
@@ -62,6 +64,9 @@ const ChatInterface = () => {
 
           // Update conversation history for context
           setConversationHistory(data.conversation || []);
+
+          // Update status messages from response
+          setStatusMessages(data.status_messages || []);
         },
         onError: (error) => {
           // Show error message
@@ -173,6 +178,7 @@ const ChatInterface = () => {
                 timestamp={msg.timestamp}
               />
             ))}
+            <StatusMessage statusMessages={statusMessages} />
             {isPending && <TypingIndicator />}
             <div ref={messagesEndRef} />
           </>

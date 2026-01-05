@@ -9,6 +9,7 @@ import { QuestionCircleOutlined, CloseOutlined } from '@ant-design/icons';
 import ChatMessage from '../chat/ChatMessage';
 import MessageInput from '../chat/MessageInput';
 import TypingIndicator from '../chat/TypingIndicator';
+import StatusMessage from '../chat/StatusMessage';
 import { useCustomerSendMessage } from '../../hooks/mutations/useCustomerSendMessage';
 
 const { Title, Text } = Typography;
@@ -22,6 +23,7 @@ const CUSTOMER_STARTER_PROMPTS = [
 const CustomerChatInterface = ({ customerEmail, onClose, isMobile }) => {
   const [messages, setMessages] = useState([]);
   const [conversationHistory, setConversationHistory] = useState([]);
+  const [statusMessages, setStatusMessages] = useState([]);
   const messagesEndRef = useRef(null);
   const { mutate: sendMessage, isPending } = useCustomerSendMessage();
 
@@ -61,6 +63,9 @@ const CustomerChatInterface = ({ customerEmail, onClose, isMobile }) => {
 
           // Update conversation history for context
           setConversationHistory(data.conversation || []);
+
+          // Update status messages from response
+          setStatusMessages(data.status_messages || []);
         },
         onError: (error) => {
           // Show error message
@@ -172,6 +177,7 @@ const CustomerChatInterface = ({ customerEmail, onClose, isMobile }) => {
                 timestamp={msg.timestamp}
               />
             ))}
+            <StatusMessage statusMessages={statusMessages} />
             {isPending && <TypingIndicator />}
             <div ref={messagesEndRef} />
           </>
