@@ -7,7 +7,6 @@ This script creates professional diagrams with official AWS icons:
 - Data Flow: Request/response flows
 - ERD: Entity relationship diagram
 - User Journey: Customer and agent workflows
-- CI/CD: Deployment pipeline
 
 Requirements:
     - pip install diagrams
@@ -21,7 +20,6 @@ Outputs:
     docs/data-flow.png
     docs/erd.png
     docs/user-journey.png
-    docs/cicd-pipeline.png
 """
 
 from diagrams import Diagram, Cluster, Edge, Node
@@ -56,37 +54,27 @@ def generate_architecture_diagram():
         outformat="png"
     ):
         # Frontend
-        with Cluster("Frontend"):
-            cloudflare = Cloudflare("Cloudflare\nDNS")
-            cloudfront = CloudFront("CloudFront")
-            ui_bucket = S3("UI Assets")
+        cloudflare = Cloudflare("Cloudflare")
+        cloudfront = CloudFront("CloudFront")
+        ui = S3("UI")
 
-            cloudflare >> cloudfront >> ui_bucket
+        # API
+        api = APIGateway("API")
 
-        # API Layer
-        apigw = APIGateway("API Gateway")
+        # Backend
+        lambda_fn = Lambda("Lambda")
+        dynamodb = Dynamodb("DynamoDB")
+        docs = S3("Documents")
+        bedrock = Bedrock("Bedrock")
+        sns = SNS("SNS")
 
-        # Compute
-        with Cluster("Compute"):
-            lambda_fns = Lambda("Lambda\nHandlers\n(4 domain-based)")
-
-        # Data Layer
-        with Cluster("Data Storage"):
-            dynamodb = Dynamodb("DynamoDB\nTables\n(7 tables)")
-            docs_s3 = S3("Document\nStorage")
-
-        # External Services
-        with Cluster("External Services"):
-            bedrock = Bedrock("AWS Bedrock\nClaude AI")
-            sns = SNS("SNS\nNotifications")
-
-        # Main flows
-        cloudfront >> apigw
-        apigw >> lambda_fns
-        lambda_fns >> dynamodb
-        lambda_fns >> docs_s3
-        lambda_fns >> bedrock
-        lambda_fns >> sns
+        # Simple flow
+        cloudflare >> cloudfront >> ui
+        cloudfront >> api >> lambda_fn
+        lambda_fn >> dynamodb
+        lambda_fn >> docs
+        lambda_fn >> bedrock
+        lambda_fn >> sns
 
 def generate_data_flow_diagram():
     """Generate simplified data flow diagram showing key request flows."""
@@ -203,69 +191,25 @@ def generate_user_journey_diagram():
             agent >> agent1 >> agent2 >> agent3 >> agent4 >> agent5
 
 
-def generate_cicd_pipeline_diagram():
-    """Generate simplified CI/CD pipeline diagram."""
-
-    graph_attr = {
-        "fontsize": "14",
-        "bgcolor": "white",
-        "pad": "0.5",
-    }
-
-    with Diagram(
-        "Silvermoat CI/CD Pipeline",
-        filename="docs/cicd-pipeline",
-        show=False,
-        direction="LR",
-        graph_attr=graph_attr,
-        outformat="png"
-    ):
-        # Source
-        github = Github("GitHub PR")
-
-        # Pipeline stages
-        with Cluster("Test (on PR)"):
-            detect = GithubActions("Detect\nChanges")
-            deploy_infra = GithubActions("Deploy Infra")
-            deploy_ui = GithubActions("Deploy UI")
-            tests = GithubActions("Run Tests\n(Unit/API/E2E)")
-            seed = GithubActions("Seed Data")
-
-        # Deployment target
-        with Cluster("AWS Test Stack"):
-            stack = Lambda("Lambda +\nDynamoDB")
-            ui = CloudFront("S3 + UI")
-
-        # Flow
-        github >> detect
-        detect >> deploy_infra >> stack
-        detect >> deploy_ui >> ui
-        deploy_infra >> deploy_ui
-        deploy_ui >> tests
-        tests >> seed
 
 
 if __name__ == "__main__":
     print("Generating Silvermoat documentation diagrams...\n")
 
-    print("1/5 Generating architecture diagram...")
+    print("1/4 Generating architecture diagram...")
     generate_architecture_diagram()
     print("    ✓ docs/architecture.png")
 
-    print("2/5 Generating data flow diagram...")
+    print("2/4 Generating data flow diagram...")
     generate_data_flow_diagram()
     print("    ✓ docs/data-flow.png")
 
-    print("3/5 Generating ERD diagram...")
+    print("3/4 Generating ERD diagram...")
     generate_erd_diagram()
     print("    ✓ docs/erd.png")
 
-    print("4/5 Generating user journey diagram...")
+    print("4/4 Generating user journey diagram...")
     generate_user_journey_diagram()
     print("    ✓ docs/user-journey.png")
-
-    print("5/5 Generating CI/CD pipeline diagram...")
-    generate_cicd_pipeline_diagram()
-    print("    ✓ docs/cicd-pipeline.png")
 
     print("\n✓ All diagrams generated successfully!")
