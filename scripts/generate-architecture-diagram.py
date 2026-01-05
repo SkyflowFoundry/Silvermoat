@@ -172,10 +172,16 @@ def generate_data_flow_diagram():
             cases_db = Dynamodb("Cases")
             conversations_db = Dynamodb("Conversations")
 
-        # External Services
-        with Cluster("External Services"):
+        # Storage
+        with Cluster("Storage"):
             docs_bucket = S3("Documents")
-            bedrock = Bedrock("Claude API")
+
+        # AI Integration
+        with Cluster("AI Integration"):
+            bedrock = Bedrock("Bedrock")
+
+        # Notifications
+        with Cluster("Notifications"):
             sns = SNS("SNS")
 
         # Simplified flow - representative connections
