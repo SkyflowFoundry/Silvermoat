@@ -76,8 +76,12 @@ else
   npm install --silent
 fi
 
-echo "Copying architecture diagram to public folder..."
+echo "Copying documentation diagrams to public folder..."
 cp "$PROJECT_ROOT/docs/architecture.png" "$UI_DIR/public/architecture.png"
+cp "$PROJECT_ROOT/docs/data-flow.png" "$UI_DIR/public/data-flow.png"
+cp "$PROJECT_ROOT/docs/erd.png" "$UI_DIR/public/erd.png"
+cp "$PROJECT_ROOT/docs/user-journey.png" "$UI_DIR/public/user-journey.png"
+cp "$PROJECT_ROOT/docs/cicd-pipeline.png" "$UI_DIR/public/cicd-pipeline.png"
 
 echo "Building React app..."
 npm run build

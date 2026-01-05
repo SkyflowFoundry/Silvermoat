@@ -228,6 +228,36 @@ pip install -r requirements-docs.txt
 python scripts/generate-architecture-diagram.py
 ```
 
+### Additional Documentation Diagrams
+
+The platform includes comprehensive visual documentation covering data flow, entity relationships, user journeys, and deployment processes:
+
+#### Data Flow Diagram
+
+Shows how data moves through the system for key operations including quote creation, policy management, claim filing, and AI chatbot interactions:
+
+![Silvermoat Data Flow](docs/data-flow.png)
+
+#### Entity Relationship Diagram
+
+Illustrates the data model with relationships and cardinality between core entities:
+
+![Silvermoat ERD](docs/erd.png)
+
+#### User Journey Map
+
+Documents customer and agent workflows through the platform:
+
+![Silvermoat User Journeys](docs/user-journey.png)
+
+#### CI/CD Pipeline
+
+Visualizes the complete deployment process from pull request to production:
+
+![Silvermoat CI/CD Pipeline](docs/cicd-pipeline.png)
+
+All diagrams are generated at build time and automatically deployed with the application.
+
 ### CloudFormation Stack Hierarchy
 
 This diagram shows the nested CloudFormation stack structure that organizes infrastructure into logical components. The parent stack orchestrates five nested stacks (Data, Storage, Compute, API, and Frontend) plus custom resources for seeding and cleanup, enabling modular infrastructure management and reusable templates.
