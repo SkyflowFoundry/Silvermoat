@@ -11,47 +11,6 @@ on:
     types: [submitted]
 
 jobs:
-  # Auto-generate plans for newly opened issues
-  claude-auto-plan:
-    if: |
-      github.event_name == 'issues' &&
-      github.event.action == 'opened' &&
-      !contains(github.event.issue.body, '@claude') &&
-      !contains(github.event.issue.title, '@claude')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write  # Required to post plan comment
-      id-token: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Generate Implementation Plan
-        id: claude
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: |
-            Create an implementation plan for issue #${{ github.event.issue.number }} following CLAUDE.md format:
-
-            Issue Title: ${{ github.event.issue.title }}
-            Issue Body:
-            ${{ github.event.issue.body }}
-
-            Plan Requirements:
-            1. Goal (1 line)
-            2. Assumptions (if any)
-            3. Phases (numbered, with file-level changes per phase)
-            4. Unresolved Questions (with recommended answers - REQUIRED)
-
-            Post the plan as an issue comment using task checkboxes for phases.
-
-            IMPORTANT: Do NOT execute any changes - only create and post the plan.
-
-  # Manual Claude invocation via @claude mentions
   claude:
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
@@ -88,4 +47,3 @@ jobs:
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
           # claude_args: '--allowed-tools Bash(gh pr:*)'
-
