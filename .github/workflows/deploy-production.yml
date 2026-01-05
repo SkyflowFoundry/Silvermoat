@@ -21,6 +21,7 @@ permissions:
 
 jobs:
   cleanup-test:
+    name: Cleanup Test Stack
     if: |
       (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number != '' && github.event.inputs.skip_cleanup != 'true')
@@ -84,12 +85,14 @@ jobs:
           fi
 
   detect-changes:
+    name: Detect Changed Files
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     outputs:
       infrastructure_changed: ${{ steps.check.outputs.infrastructure_changed }}
+      ui_changed: ${{ steps.check.outputs.ui_changed }}
       stack_exists: ${{ steps.check-stack.outputs.stack_exists }}
 
     steps:
@@ -99,7 +102,7 @@ jobs:
           ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
           fetch-depth: 2
 
-      - name: Detect infrastructure changes
+      - name: Detect infrastructure and UI changes
         id: check
         run: |
           # For merged PRs, compare merge commit with its parent
@@ -113,10 +116,20 @@ jobs:
               echo "infrastructure_changed=false" >> $GITHUB_OUTPUT
               echo "ℹ️ No infrastructure changes detected"
             fi
+
+            # UI changes
+            if git diff --name-only HEAD^ HEAD | grep -E '^ui/'; then
+              echo "ui_changed=true" >> $GITHUB_OUTPUT
+              echo "✅ UI files changed (requires rebuild)"
+            else
+              echo "ui_changed=false" >> $GITHUB_OUTPUT
+              echo "ℹ️ No UI changes detected"
+            fi
           else
-            # Manual dispatch - deploy infrastructure
+            # Manual dispatch - deploy everything
             echo "infrastructure_changed=true" >> $GITHUB_OUTPUT
-            echo "Manual dispatch - will deploy infrastructure"
+            echo "ui_changed=true" >> $GITHUB_OUTPUT
+            echo "Manual dispatch - will deploy infrastructure and UI"
           fi
 
       - name: Configure AWS credentials
@@ -137,6 +150,7 @@ jobs:
           fi
 
   deploy-stack:
+    name: Deploy Infra
     needs: [detect-changes]
     if: |
       always() &&
@@ -185,6 +199,7 @@ jobs:
           ./scripts/deploy-stack.sh
 
   configure-dns:
+    name: Configure DNS
     needs: [deploy-stack]
     if: always() && needs.deploy-stack.result == 'success'
     runs-on: ubuntu-latest
@@ -222,11 +237,13 @@ jobs:
           ./scripts/update-cloudflare-dns.sh
 
   deploy-ui:
-    needs: [deploy-stack, configure-dns]
+    name: Deploy UI
+    needs: [detect-changes, deploy-stack, configure-dns]
     if: |
       always() &&
       (needs.deploy-stack.result == 'success' || needs.deploy-stack.result == 'skipped') &&
-      (needs.configure-dns.result == 'success' || needs.configure-dns.result == 'skipped')
+      (needs.configure-dns.result == 'success' || needs.configure-dns.result == 'skipped') &&
+      (needs.deploy-stack.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -235,7 +252,7 @@ jobs:
       web_url: ${{ steps.stack-outputs.outputs.web_url }}
       cloudfront_url: ${{ steps.stack-outputs.outputs.cloudfront_url }}
       cloudfront_id: ${{ steps.cloudfront.outputs.distribution_id }}
-      ui_deployed: ${{ steps.check-ui.outputs.skip_ui != 'true' }}
+      ui_deployed: 'true'
 
     steps:
       - name: Checkout code
@@ -278,14 +295,7 @@ jobs:
             echo "No CloudFront distribution found"
           fi
 
-      - name: Check if UI needs deployment
-        id: check-ui
-        uses: ./.github/actions/check-ui-deployment
-        with:
-          stack-name: silvermoat
-
       - name: Build and deploy React UI
-        if: steps.check-ui.outputs.skip_ui != 'true'
         env:
           STACK_NAME: silvermoat
         run: |
@@ -295,7 +305,7 @@ jobs:
 
       - name: Start CloudFront cache invalidation
         id: invalidation
-        if: steps.cloudfront.outputs.distribution_id != '' && steps.check-ui.outputs.skip_ui != 'true'
+        if: steps.cloudfront.outputs.distribution_id != ''
         run: |
           echo "Starting CloudFront cache invalidation..."
           INVALIDATION_ID=$(aws cloudfront create-invalidation \
@@ -358,6 +368,7 @@ jobs:
 
   # Phase 1: Comprehensive Test Suite (Matrix Strategy)
   tests:
+    name: Run Tests
     needs: [deploy-ui]
     if: always() && needs.deploy-ui.result == 'success'
     uses: ./.github/workflows/test-suite.yml
@@ -370,6 +381,7 @@ jobs:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   clear-and-seed-data:
+    name: Seed Demo Data
     needs: [deploy-ui, tests]
     if: always() && needs.deploy-ui.result == 'success' && needs.tests.result == 'success'
     runs-on: ubuntu-latest
@@ -386,6 +398,7 @@ jobs:
 
   # Phase 4: Verify Deployment with Enhanced Reporting
   verify-deployment:
+    name: Verify Deployment
     needs: [deploy-ui, tests]
     if: always()
     runs-on: ubuntu-latest

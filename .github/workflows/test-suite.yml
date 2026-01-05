@@ -27,6 +27,7 @@ on:
 
 jobs:
   unit-tests:
+    name: Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -89,6 +90,7 @@ jobs:
           fi
 
   api-tests:
+    name: API Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -185,6 +187,7 @@ jobs:
           fi
 
   e2e-tests:
+    name: E2E Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
