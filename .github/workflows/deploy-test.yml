@@ -368,7 +368,28 @@ jobs:
           **PR**: #${{ github.event.pull_request.number }}
           **Workflow Run**: [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
+          EOF
+
+          # Add prominent Web URL box if deployment succeeded
+          UI_RESULT="${{ needs.deploy-ui.result }}"
+          SEED_RESULT="${{ needs.clear-and-seed-data.result }}"
+          if [ "$UI_RESULT" = "success" ] && [ "$SEED_RESULT" = "success" ]; then
+            cat >> /tmp/pr-comment.md <<EOF
           ---
+
+          ### 🌐 **Test Environment Ready**
+
+          **Web URL:** ${{ needs.deploy-ui.outputs.web_url }}
+
+          **API URL:** ${{ needs.deploy-ui.outputs.api_url }}
+
+          Demo data has been seeded. You can now test your changes!
+
+          ---
+          EOF
+          fi
+
+          cat >> /tmp/pr-comment.md <<'EOF'
 
           ### 📦 Infrastructure Deployment
           EOF
