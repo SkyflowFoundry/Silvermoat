@@ -297,7 +297,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        test: [smoke-deploy, smoke-land, forms, customer, navigation]
+        test: [smoke-deploy, smoke-land, forms-1, forms-2, customer, navigation]
 
     steps:
       - name: Checkout code
@@ -317,9 +317,14 @@ jobs:
               echo "args=-m smoke" >> $GITHUB_OUTPUT
               echo "needs-chrome=true" >> $GITHUB_OUTPUT
               ;;
-            forms)
+            forms-1)
               echo "dir=e2e" >> $GITHUB_OUTPUT
-              echo "args=-m forms" >> $GITHUB_OUTPUT
+              echo "args=tests/test_form_sample_data.py -m forms" >> $GITHUB_OUTPUT
+              echo "needs-chrome=true" >> $GITHUB_OUTPUT
+              ;;
+            forms-2)
+              echo "dir=e2e" >> $GITHUB_OUTPUT
+              echo "args=tests/test_form_submissions.py -m forms" >> $GITHUB_OUTPUT
               echo "needs-chrome=true" >> $GITHUB_OUTPUT
               ;;
             customer)
