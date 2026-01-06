@@ -287,3 +287,128 @@ def handle_chat(event, storage=None):
     except Exception as e:
         print(f"Chat error: {str(e)}")
         return _resp(500, {"error": "chat_error", "message": str(e)})
+
+
+def handle_chat_streaming(body, storage, response_stream):
+    """Handle streaming chat request via Function URL"""
+    from shared.streaming import write_status_chunk, write_response_chunk, write_error_chunk
+
+    try:
+        user_message = body.get("message", "")
+        conversation_history = body.get("history", [])
+
+        if not user_message:
+            write_error_chunk(response_stream, "message_required", "Message is required")
+            return
+
+        # Initialize status tracker with streaming callback
+        status_tracker = StatusTracker()
+
+        # Set callback to stream status messages in real-time
+        def status_callback(operation, message, metadata):
+            write_status_chunk(response_stream, operation, message, metadata)
+
+        status_tracker.set_callback(status_callback)
+
+        # Re-initialize storage with status tracker
+        storage = DynamoDBBackend(status_tracker=status_tracker)
+
+        # Build messages for Claude
+        messages = conversation_history + [{"role": "user", "content": user_message}]
+
+        # System prompt for insurance assistant
+        system_prompt = "You are a helpful AI assistant for Silvermoat Insurance employees. You help employees search customer data, fill forms, and generate reports. When users ask about customers, policies, or claims, use the available tools to search the database. Be professional, concise, and accurate. Format data clearly for insurance context. When helping with forms, provide structured data that can pre-fill form fields."
+
+        # Invoke Bedrock with tool use
+        start_time = time.time()
+        status_tracker.add("ai_processing", "Sending message to AI model...")
+
+        response = bedrock.invoke_model(
+            modelId=BEDROCK_MODEL_ID,
+            body=json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 4096,
+                "system": system_prompt,
+                "messages": messages,
+                "tools": TOOLS,
+                "temperature": 0.7
+            })
+        )
+
+        response_body = json.loads(response["body"].read())
+
+        elapsed_ms = int((time.time() - start_time) * 1000)
+        status_tracker.add("ai_processing", f"Received AI response ({elapsed_ms}ms)", {"latency_ms": elapsed_ms})
+
+        # Handle tool use loop
+        while response_body.get("stop_reason") == "tool_use":
+            # Extract tool calls
+            assistant_message = {
+                "role": "assistant",
+                "content": response_body["content"]
+            }
+            messages.append(assistant_message)
+
+            # Execute tools and collect results
+            tool_results = []
+            for content_block in response_body["content"]:
+                if content_block.get("type") == "tool_use":
+                    tool_name = content_block["name"]
+                    tool_input = content_block["input"]
+                    tool_use_id = content_block["id"]
+
+                    status_tracker.add("tool_execution", f"Executing tool: {tool_name}")
+
+                    try:
+                        result = execute_tool(tool_name, tool_input, storage)
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": tool_use_id,
+                            "content": json.dumps(result, default=decimal_default)
+                        })
+                    except Exception as e:
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": tool_use_id,
+                            "content": json.dumps({"error": str(e)}),
+                            "is_error": True
+                        })
+
+            # Send tool results back to Claude
+            messages.append({"role": "user", "content": tool_results})
+
+            start_time = time.time()
+            status_tracker.add("ai_processing", "Processing tool results with AI...")
+
+            response = bedrock.invoke_model(
+                modelId=BEDROCK_MODEL_ID,
+                body=json.dumps({
+                    "anthropic_version": "bedrock-2023-05-31",
+                    "max_tokens": 4096,
+                    "system": system_prompt,
+                    "messages": messages,
+                    "tools": TOOLS,
+                    "temperature": 0.7
+                })
+            )
+
+            response_body = json.loads(response["body"].read())
+
+            elapsed_ms = int((time.time() - start_time) * 1000)
+            status_tracker.add("ai_processing", f"Received AI response ({elapsed_ms}ms)", {"latency_ms": elapsed_ms})
+
+        # Extract final response
+        assistant_content = response_body["content"]
+        text_content = next((block["text"] for block in assistant_content if block["type"] == "text"), "")
+
+        # Write final response chunk
+        write_response_chunk(
+            response_stream,
+            text_content,
+            messages + [{"role": "assistant", "content": assistant_content}],
+            response_body.get("usage", {})
+        )
+
+    except Exception as e:
+        print(f"Chat streaming error: {str(e)}")
+        write_error_chunk(response_stream, "chat_error", str(e))

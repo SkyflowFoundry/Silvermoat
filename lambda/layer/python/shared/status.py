@@ -9,6 +9,16 @@ class StatusTracker:
 
     def __init__(self):
         self.messages: List[Dict[str, Any]] = []
+        self._callback = None  # Optional streaming callback
+
+    def set_callback(self, callback):
+        """
+        Set callback for real-time status streaming.
+
+        Args:
+            callback: Function to call with (operation, message, metadata) when status added
+        """
+        self._callback = callback
 
     def add(self, operation: str, message: str, metadata: Optional[Dict[str, Any]] = None):
         """Add a status message"""
@@ -20,6 +30,14 @@ class StatusTracker:
         if metadata:
             status_msg["metadata"] = metadata
         self.messages.append(status_msg)
+
+        # Call streaming callback if set
+        if self._callback:
+            try:
+                self._callback(operation, message, metadata)
+            except Exception as e:
+                # Don't let callback errors break status tracking
+                print(f"Warning: Status callback failed: {e}")
 
     @contextmanager
     def track_operation(self, operation: str, start_message: str, metadata: Optional[Dict[str, Any]] = None):

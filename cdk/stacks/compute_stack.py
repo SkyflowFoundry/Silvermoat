@@ -183,6 +183,18 @@ class ComputeStack(Construct):
             )
         )
 
+        # Add Function URL with streaming support for AI handler
+        self.ai_function_url = self.ai_function.add_function_url(
+            auth_type=lambda_.FunctionUrlAuthType.NONE,
+            invoke_mode=lambda_.InvokeMode.RESPONSE_STREAM,
+            cors=lambda_.FunctionUrlCorsOptions(
+                allowed_origins=["*"],  # Will be restricted in production
+                allowed_methods=[lambda_.HttpMethod.POST, lambda_.HttpMethod.OPTIONS],
+                allowed_headers=["Content-Type", "Accept"],
+                max_age=Duration.seconds(300),
+            ),
+        )
+
         # Keep mvp_function reference for backwards compatibility during transition
         # This can be removed once all references are updated
         self.mvp_function = self.customer_function
