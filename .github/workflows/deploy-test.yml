@@ -8,8 +8,7 @@ on:
       - 'lambda/**'
       - 'ui-insurance/**'
       - 'ui-retail/**'
-      - 'ui-shared/**'
-      - 'tests/**'
+      - 'tests/e2e/**'
       - 'scripts/**'
       - '.github/workflows/**'
   workflow_dispatch:
@@ -68,11 +67,10 @@ jobs:
             ui:
               - 'ui-insurance/**'
               - 'ui-retail/**'
-              - 'ui-shared/**'
               - 'scripts/generate-architecture-diagram.py'
               - 'scripts/deploy-ui.sh'
             tests:
-              - 'tests/**'
+              - 'tests/e2e/**'
               - '.github/workflows/**'
 
       - name: Determine base stack name
@@ -194,54 +192,38 @@ jobs:
           echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
 
   insurance-tests:
-    name: Insurance Tests
+    name: Insurance E2E Tests
     needs: [deploy-insurance-infra, deploy-insurance-ui]
     if: always() && needs.deploy-insurance-ui.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        test-type: ['ui', 'api']
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # UI tests
-      - name: Setup environment for UI tests
-        if: matrix.test-type == 'ui'
+      - name: Setup environment for E2E tests
         uses: ./.github/actions/setup-env
 
-      - name: Install UI dependencies
-        if: matrix.test-type == 'ui'
-        working-directory: ui-insurance
-        run: npm ci
-
-      - name: Run UI unit tests
-        if: matrix.test-type == 'ui'
-        working-directory: ui-insurance
-        run: npm test
-
-      # API tests
-      - name: Set up Python for API tests
-        if: matrix.test-type == 'api'
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: requirements-test.txt
-
-      - name: Install Python dependencies for API tests
-        if: matrix.test-type == 'api'
+      - name: Install Python dependencies for E2E tests
         run: pip install -r requirements-test.txt
 
-      - name: Run insurance API tests
-        if: matrix.test-type == 'api'
+      - name: Configure AWS credentials for E2E tests
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Install Chrome and ChromeDriver
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Run insurance E2E tests
         env:
-          API_BASE_URL: ${{ needs.deploy-insurance-ui.outputs.api_url }}
+          INSURANCE_URL: ${{ needs.deploy-insurance-ui.outputs.web_url }}
+          INSURANCE_API_URL: ${{ needs.deploy-insurance-ui.outputs.api_url }}
+          HEADLESS: 'true'
         run: |
-          cd tests/api
-          pytest -v --tb=short -m "not retail"
+          cd tests/e2e
+          pytest -v --tb=short -m "insurance"
 
   seed-insurance-data:
     name: Seed Insurance Data
@@ -368,20 +350,15 @@ jobs:
           echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
 
   retail-tests:
-    name: Retail Tests
+    name: Retail E2E Tests
     needs: [deploy-retail-infra, deploy-retail-ui]
     if: always() && needs.deploy-retail-ui.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        test-type: ['e2e']
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # E2E tests
       - name: Setup environment for E2E tests
         uses: ./.github/actions/setup-env
 
@@ -399,8 +376,9 @@ jobs:
 
       - name: Run retail E2E tests
         env:
-          WEB_BASE_URL: ${{ needs.deploy-retail-ui.outputs.web_url }}
-          API_BASE_URL: ${{ needs.deploy-retail-ui.outputs.api_url }}
+          RETAIL_URL: ${{ needs.deploy-retail-ui.outputs.web_url }}
+          RETAIL_API_URL: ${{ needs.deploy-retail-ui.outputs.api_url }}
+          HEADLESS: 'true'
         run: |
           cd tests/e2e
           pytest -v --tb=short -m "retail"

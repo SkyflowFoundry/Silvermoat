@@ -1,23 +1,17 @@
-# Test Dependencies for Silvermoat Testing
+# E2E Test Dependencies for Silvermoat
 
 # Core testing
 pytest==8.3.4
 pytest-xdist==3.6.1  # Parallel test execution
-pytest-mock==3.14.0  # Mock/patch fixtures
-pytest-cov==6.0.0  # Coverage reporting
-
-# API testing
-requests==2.32.3
-faker==40.1.0  # Generate realistic test data
-
-# Lambda unit testing
-moto==5.0.24  # Mock AWS services (DynamoDB, S3, SNS)
 
 # E2E browser testing
 selenium==4.27.1
 webdriver-manager==4.0.2
 
-# AWS integration (for CloudFormation stack outputs and Lambda mocking)
+# HTTP requests for API interaction in E2E tests
+requests==2.32.3
+
+# AWS integration (for CloudFormation stack outputs)
 boto3==1.35.90
 
 # Test reporting
