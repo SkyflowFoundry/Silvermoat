@@ -20,6 +20,15 @@ ui*/public/architecture.png
 .venv-*/
 venv/
 
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+.pytest_cache/
+*.egg-info/
+*.egg
+
 # IDE
 .vscode/
 .idea/
