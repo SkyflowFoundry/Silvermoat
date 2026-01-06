@@ -345,14 +345,10 @@ jobs:
           echo "Production Deployment Summary"
           echo "==================================="
           echo "Stack: silvermoat"
-          echo "UI deployment skipped: ${{ steps.check-ui.outputs.skip_ui }}"
           echo "API: ${{ steps.stack-outputs.outputs.api_url }}"
           echo "CloudFront: ${{ steps.stack-outputs.outputs.cloudfront_url }}"
           echo "Custom Domain: ${{ steps.stack-outputs.outputs.web_url }}"
           echo "==================================="
-          if [ "${{ steps.check-ui.outputs.skip_ui }}" = "true" ]; then
-            echo "⚡ UI unchanged - saved ~2-3 minutes!"
-          fi
 
   # Phase 1: Comprehensive Test Suite (Matrix Strategy)
   tests:
