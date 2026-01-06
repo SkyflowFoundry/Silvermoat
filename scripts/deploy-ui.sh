@@ -154,20 +154,28 @@ deploy_vertical_ui() {
 }
 
 # Generate architecture diagram (shared across verticals)
-echo "Generating architecture diagram..."
-pip install -q -r "$PROJECT_ROOT/requirements-docs.txt"
-cd "$PROJECT_ROOT"
-python3 "$PROJECT_ROOT/scripts/generate-architecture-diagram.py"
-echo ""
+# Only if Graphviz is installed (optional, non-blocking)
+if command -v dot >/dev/null 2>&1; then
+  echo "Generating architecture diagram..."
+  pip install -q -r "$PROJECT_ROOT/requirements-docs.txt" || echo "Warning: Failed to install diagram dependencies"
+  cd "$PROJECT_ROOT"
+  python3 "$PROJECT_ROOT/scripts/generate-architecture-diagram.py" || echo "Warning: Failed to generate diagram"
+  echo ""
+else
+  echo "Skipping architecture diagram generation (Graphviz not installed)"
+  echo ""
+fi
 
 # Deploy Insurance UI
 if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "insurance" ]; then
   deploy_vertical_ui "Insurance" "$PROJECT_ROOT/ui-insurance" "$INSURANCE_BUCKET" "$INSURANCE_API_URL"
 
-  # Copy architecture diagram to insurance UI bucket
-  echo "Copying architecture diagram to insurance UI..."
-  $AWS_CMD s3 cp "$PROJECT_ROOT/docs/architecture.png" "s3://$INSURANCE_BUCKET/architecture.png"
-  echo ""
+  # Copy architecture diagram to insurance UI bucket (if it exists)
+  if [ -f "$PROJECT_ROOT/docs/architecture.png" ]; then
+    echo "Copying architecture diagram to insurance UI..."
+    $AWS_CMD s3 cp "$PROJECT_ROOT/docs/architecture.png" "s3://$INSURANCE_BUCKET/architecture.png"
+    echo ""
+  fi
 fi
 
 # Deploy Retail UI
