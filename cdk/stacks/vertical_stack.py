@@ -5,6 +5,7 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_s3 as s3,
     aws_sns as sns,
+    aws_iam as iam,
     Duration,
     RemovalPolicy,
 )
@@ -192,11 +193,11 @@ class VerticalStack(Construct):
 
         # Grant Bedrock access for chatbot
         self.function.add_to_role_policy(
-            statement={
-                "Effect": "Allow",
-                "Action": ["bedrock:InvokeModel"],
-                "Resource": "arn:aws:bedrock:*:*:foundation-model/*",
-            }
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=["bedrock:InvokeModel"],
+                resources=["arn:aws:bedrock:*:*:foundation-model/*"]
+            )
         )
 
     def _create_api_gateway(self, api_deployment_token: str):
