@@ -9,7 +9,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Load AWS CLI check utility
 source "$SCRIPT_DIR/lib/check-aws.sh"
 
-STACK_NAME="${STACK_NAME:-silvermoat}"
+BASE_STACK_NAME="${STACK_NAME:-silvermoat}"
+VERTICAL="${VERTICAL:-all}"  # Can be: all, insurance, retail
 
 # Check AWS CLI and credentials
 check_aws_configured
@@ -24,46 +25,60 @@ echo "========================================="
 echo "Multi-Vertical UI Deployment"
 echo "========================================="
 echo ""
-echo "Stack: $STACK_NAME"
+echo "Base Stack: $BASE_STACK_NAME"
+echo "Deploying: $VERTICAL"
 echo ""
 
-# Get all stack outputs
-echo "Fetching stack outputs..."
-OUTPUTS=$($AWS_CMD cloudformation describe-stacks \
-  --stack-name "$STACK_NAME" \
-  --query "Stacks[0].Outputs" \
-  --output json 2>/dev/null)
+# Function to get stack outputs
+get_stack_outputs() {
+  local stack_name=$1
+  $AWS_CMD cloudformation describe-stacks \
+    --stack-name "$stack_name" \
+    --query "Stacks[0].Outputs" \
+    --output json 2>/dev/null || echo "null"
+}
 
-if [ -z "$OUTPUTS" ] || [ "$OUTPUTS" == "null" ]; then
-  echo "Error: Could not get outputs from CDK stack '$STACK_NAME'"
-  echo "Make sure the CDK stack is deployed."
-  exit 1
+# Get Insurance outputs
+INSURANCE_BUCKET=""
+INSURANCE_API_URL=""
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "insurance" ]; then
+  echo "Fetching insurance stack outputs..."
+  INSURANCE_OUTPUTS=$(get_stack_outputs "${BASE_STACK_NAME}-insurance")
+
+  if [ "$INSURANCE_OUTPUTS" = "null" ] || [ -z "$INSURANCE_OUTPUTS" ]; then
+    echo "Error: Could not get outputs from ${BASE_STACK_NAME}-insurance"
+    echo "Make sure the insurance stack is deployed."
+    exit 1
+  fi
+
+  INSURANCE_BUCKET=$(echo "$INSURANCE_OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceUiBucketName") | .OutputValue')
+  INSURANCE_API_URL=$(echo "$INSURANCE_OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceApiUrl") | .OutputValue')
+
+  echo "Insurance UI Bucket: $INSURANCE_BUCKET"
+  echo "Insurance API URL: $INSURANCE_API_URL"
+  echo ""
 fi
 
-# Extract insurance vertical outputs
-INSURANCE_BUCKET=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceUiBucketName") | .OutputValue')
-INSURANCE_API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceApiUrl") | .OutputValue')
+# Get Retail outputs
+RETAIL_BUCKET=""
+RETAIL_API_URL=""
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "retail" ]; then
+  echo "Fetching retail stack outputs..."
+  RETAIL_OUTPUTS=$(get_stack_outputs "${BASE_STACK_NAME}-retail")
 
-# Extract retail vertical outputs
-RETAIL_BUCKET=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailUiBucketName") | .OutputValue')
-RETAIL_API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailApiUrl") | .OutputValue')
+  if [ "$RETAIL_OUTPUTS" = "null" ] || [ -z "$RETAIL_OUTPUTS" ]; then
+    echo "Error: Could not get outputs from ${BASE_STACK_NAME}-retail"
+    echo "Make sure the retail stack is deployed."
+    exit 1
+  fi
 
-# Validate outputs
-if [ -z "$INSURANCE_BUCKET" ] || [ "$INSURANCE_BUCKET" == "null" ]; then
-  echo "Error: Could not get InsuranceUiBucketName from stack"
-  exit 1
+  RETAIL_BUCKET=$(echo "$RETAIL_OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailUiBucketName") | .OutputValue')
+  RETAIL_API_URL=$(echo "$RETAIL_OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailApiUrl") | .OutputValue')
+
+  echo "Retail UI Bucket: $RETAIL_BUCKET"
+  echo "Retail API URL: $RETAIL_API_URL"
+  echo ""
 fi
-
-if [ -z "$RETAIL_BUCKET" ] || [ "$RETAIL_BUCKET" == "null" ]; then
-  echo "Error: Could not get RetailUiBucketName from stack"
-  exit 1
-fi
-
-echo "Insurance UI Bucket: $INSURANCE_BUCKET"
-echo "Insurance API URL: $INSURANCE_API_URL"
-echo "Retail UI Bucket: $RETAIL_BUCKET"
-echo "Retail API URL: $RETAIL_API_URL"
-echo ""
 
 # Function to deploy a vertical UI
 deploy_vertical_ui() {
@@ -126,20 +141,29 @@ python3 "$PROJECT_ROOT/scripts/generate-architecture-diagram.py"
 echo ""
 
 # Deploy Insurance UI
-deploy_vertical_ui "Insurance" "$PROJECT_ROOT/ui-insurance" "$INSURANCE_BUCKET" "$INSURANCE_API_URL"
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "insurance" ]; then
+  deploy_vertical_ui "Insurance" "$PROJECT_ROOT/ui-insurance" "$INSURANCE_BUCKET" "$INSURANCE_API_URL"
 
-# Copy architecture diagram to insurance UI bucket
-echo "Copying architecture diagram to insurance UI..."
-$AWS_CMD s3 cp "$PROJECT_ROOT/docs/architecture.png" "s3://$INSURANCE_BUCKET/architecture.png"
-echo ""
+  # Copy architecture diagram to insurance UI bucket
+  echo "Copying architecture diagram to insurance UI..."
+  $AWS_CMD s3 cp "$PROJECT_ROOT/docs/architecture.png" "s3://$INSURANCE_BUCKET/architecture.png"
+  echo ""
+fi
 
 # Deploy Retail UI
-deploy_vertical_ui "Retail" "$PROJECT_ROOT/ui-retail" "$RETAIL_BUCKET" "$RETAIL_API_URL"
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "retail" ]; then
+  deploy_vertical_ui "Retail" "$PROJECT_ROOT/ui-retail" "$RETAIL_BUCKET" "$RETAIL_API_URL"
+  echo ""
+fi
 
 echo "========================================="
-echo "✅ All UIs deployed successfully"
+echo "✅ UI Deployment Complete"
 echo "========================================="
 echo ""
-echo "Insurance UI: http://$INSURANCE_BUCKET.s3-website-us-east-1.amazonaws.com"
-echo "Retail UI: http://$RETAIL_BUCKET.s3-website-us-east-1.amazonaws.com"
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "insurance" ]; then
+  echo "Insurance UI: http://$INSURANCE_BUCKET.s3-website-us-east-1.amazonaws.com"
+fi
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "retail" ]; then
+  echo "Retail UI: http://$RETAIL_BUCKET.s3-website-us-east-1.amazonaws.com"
+fi
 echo ""
