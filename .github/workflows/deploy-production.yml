@@ -47,12 +47,7 @@ jobs:
       - name: Determine stack name
         id: stack-name
         run: |
-          if [ -n "${{ github.event.pull_request.number }}" ]; then
-            PR_NUM="${{ github.event.pull_request.number }}"
-          else
-            PR_NUM="${{ github.event.inputs.pr_number }}"
-          fi
-          STACK_NAME="silvermoat-test-pr-${PR_NUM}"
+          STACK_NAME=$(./scripts/ci/get-stack-name.sh "${{ github.event.pull_request.number || github.event.inputs.pr_number }}" "")
           echo "stack_name=${STACK_NAME}" >> $GITHUB_OUTPUT
           echo "Cleaning up stack: ${STACK_NAME}"
 
@@ -140,14 +135,7 @@ jobs:
 
       - name: Check if CDK stack exists
         id: check-stack
-        run: |
-          if aws cloudformation describe-stacks --stack-name silvermoat >/dev/null 2>&1; then
-            echo "stack_exists=true" >> $GITHUB_OUTPUT
-            echo "✅ CDK stack 'silvermoat' exists"
-          else
-            echo "stack_exists=false" >> $GITHUB_OUTPUT
-            echo "ℹ️ CDK stack 'silvermoat' does not exist"
-          fi
+        run: ./scripts/ci/check-stack-status.sh silvermoat
 
   deploy-stack:
     name: Deploy Infra
@@ -357,14 +345,10 @@ jobs:
           echo "Production Deployment Summary"
           echo "==================================="
           echo "Stack: silvermoat"
-          echo "UI deployment skipped: ${{ steps.check-ui.outputs.skip_ui }}"
           echo "API: ${{ steps.stack-outputs.outputs.api_url }}"
           echo "CloudFront: ${{ steps.stack-outputs.outputs.cloudfront_url }}"
           echo "Custom Domain: ${{ steps.stack-outputs.outputs.web_url }}"
           echo "==================================="
-          if [ "${{ steps.check-ui.outputs.skip_ui }}" = "true" ]; then
-            echo "⚡ UI unchanged - saved ~2-3 minutes!"
-          fi
 
   # Phase 1: Comprehensive Test Suite (Matrix Strategy)
   tests:
