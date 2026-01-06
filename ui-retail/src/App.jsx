@@ -6,6 +6,7 @@ import { Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ConfigProvider, Spin, Result, Button } from 'antd';
+import Dashboard from './pages/Dashboard';
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -54,7 +55,10 @@ const RetailHome = () => (
       title="Silvermoat Retail"
       subTitle="Retail vertical UI coming soon. This is a placeholder for the retail platform."
       extra={[
-        <Button key="insurance" href="https://insurance.silvermoat.net" type="primary">
+        <Button key="dashboard" href="/dashboard" type="primary">
+          Go to Dashboard
+        </Button>,
+        <Button key="insurance" href="https://insurance.silvermoat.net">
           Go to Insurance
         </Button>,
       ]}
@@ -69,6 +73,8 @@ function App() {
         <ConfigProvider theme={retailTheme}>
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
+              <Route path="/" element={<RetailHome />} />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="*" element={<RetailHome />} />
             </Routes>
           </Suspense>
