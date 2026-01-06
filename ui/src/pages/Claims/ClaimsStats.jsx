@@ -55,7 +55,7 @@ const ClaimsStats = () => {
                 <span style={{ color: '#d9d9d9' }}>●</span> {pendingClaims} Pending
               </Text>
               <Text style={{ fontSize: 12 }}>
-                <span style={{ color: '#1890ff' }}>●</span> {reviewClaims} Review
+                <span style={{ color: '#0052A3' }}>●</span> {reviewClaims} Review
               </Text>
             </Space>
           </Card>
@@ -97,8 +97,8 @@ const ClaimsStats = () => {
             <Statistic
               title={<Text strong>Total Estimated</Text>}
               value={formatCurrencyFromCents(totalEstimated)}
-              prefix={<DollarOutlined style={{ color: '#1890ff' }} />}
-              valueStyle={{ color: '#1890ff', fontSize: 20 }}
+              prefix={<DollarOutlined style={{ color: '#0052A3' }} />}
+              valueStyle={{ color: '#0052A3', fontSize: 20 }}
             />
             <Text type="secondary" style={{ fontSize: 12 }}>
               Avg: {formatCurrencyFromCents(avgClaimAmount)}

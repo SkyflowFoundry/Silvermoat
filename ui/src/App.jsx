@@ -12,7 +12,6 @@ import AppLayout from './components/layout/AppLayout';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import theme from './config/theme';
 import routes from './config/routes';
-import './App.css';
 
 // Create React Query client
 const queryClient = new QueryClient({

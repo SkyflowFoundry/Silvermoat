@@ -98,15 +98,15 @@ const CasesStats = () => {
             <Statistic
               title={<Text strong>Total Cases</Text>}
               value={totalCases}
-              prefix={<FolderOpenOutlined style={{ color: '#1890ff' }} />}
-              valueStyle={{ color: '#1890ff' }}
+              prefix={<FolderOpenOutlined style={{ color: '#0052A3' }} />}
+              valueStyle={{ color: '#0052A3' }}
             />
             <Space split="|" size="small" style={{ marginTop: 8 }}>
               <Text style={{ fontSize: 12 }}>
                 <span style={{ color: '#faad14' }}>●</span> {openCases} Open
               </Text>
               <Text style={{ fontSize: 12 }}>
-                <span style={{ color: '#1890ff' }}>●</span> {inProgressCases} In Progress
+                <span style={{ color: '#0052A3' }}>●</span> {inProgressCases} In Progress
               </Text>
             </Space>
           </Card>
@@ -215,8 +215,8 @@ const CasesStats = () => {
               <Statistic
                 title={<Text strong>Busiest Department</Text>}
                 value={topDepartment[0].replace(/_/g, ' ')}
-                prefix={<TeamOutlined style={{ color: '#1890ff' }} />}
-                valueStyle={{ fontSize: 16, color: '#1890ff' }}
+                prefix={<TeamOutlined style={{ color: '#0052A3' }} />}
+                valueStyle={{ fontSize: 16, color: '#0052A3' }}
               />
               <Text type="secondary" style={{ fontSize: 12 }}>
                 {topDepartment[1]} cases ({totalCases > 0 ? ((topDepartment[1] / totalCases) * 100).toFixed(1) : 0}%)

@@ -67,8 +67,8 @@ const PaymentsStats = () => {
             <Statistic
               title={<Text strong>Total Payments</Text>}
               value={totalPayments}
-              prefix={<DollarOutlined style={{ color: '#1890ff' }} />}
-              valueStyle={{ color: '#1890ff' }}
+              prefix={<DollarOutlined style={{ color: '#0052A3' }} />}
+              valueStyle={{ color: '#0052A3' }}
             />
             <Space split="|" size="small" style={{ marginTop: 8 }}>
               <Text style={{ fontSize: 12 }}>

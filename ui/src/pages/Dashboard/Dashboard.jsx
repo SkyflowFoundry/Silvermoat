@@ -169,7 +169,7 @@ const Dashboard = () => {
             type="dashed"
             icon={<ThunderboltOutlined />}
             onClick={() => setSeedModalVisible(true)}
-            style={{ borderColor: '#722ed1', color: '#722ed1' }}
+            style={{ borderColor: '#14B8A6', color: '#14B8A6' }}
           >
             Seed Demo Data
           </Button>

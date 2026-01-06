@@ -18,6 +18,7 @@ import {
   InfoCircleOutlined
 } from '@ant-design/icons';
 import ArchitectureViewer from '../../components/common/ArchitectureViewer';
+import { gradients } from '../../config/theme';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -32,7 +33,7 @@ const Landing = () => {
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: gradients.heroBackground,
         padding: '20px',
       }}
     >
@@ -95,7 +96,7 @@ const Landing = () => {
             >
               <div style={{ flex: 1 }}>
                 <div style={{
-                  background: 'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)',
+                  background: gradients.primaryButton,
                   borderRadius: '50%',
                   width: 80,
                   height: 80,
@@ -120,7 +121,7 @@ const Landing = () => {
 
                 <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    <FileProtectOutlined style={{ fontSize: 20, color: '#1890ff', marginTop: 2 }} />
+                    <FileProtectOutlined style={{ fontSize: 20, color: '#0052A3', marginTop: 2 }} />
                     <div>
                       <Text strong style={{ display: 'block', fontSize: 15 }}>Policy Management</Text>
                       <Text type="secondary" style={{ fontSize: 14 }}>View coverage details and documentation</Text>
@@ -128,7 +129,7 @@ const Landing = () => {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    <CheckCircleOutlined style={{ fontSize: 20, color: '#1890ff', marginTop: 2 }} />
+                    <CheckCircleOutlined style={{ fontSize: 20, color: '#0052A3', marginTop: 2 }} />
                     <div>
                       <Text strong style={{ display: 'block', fontSize: 15 }}>Claims Submission</Text>
                       <Text type="secondary" style={{ fontSize: 14 }}>File and track claims with ease</Text>
@@ -136,7 +137,7 @@ const Landing = () => {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    <ClockCircleOutlined style={{ fontSize: 20, color: '#1890ff', marginTop: 2 }} />
+                    <ClockCircleOutlined style={{ fontSize: 20, color: '#0052A3', marginTop: 2 }} />
                     <div>
                       <Text strong style={{ display: 'block', fontSize: 15 }}>24/7 Access</Text>
                       <Text type="secondary" style={{ fontSize: 14 }}>Manage your account anytime, anywhere</Text>
@@ -186,7 +187,7 @@ const Landing = () => {
             >
               <div style={{ flex: 1 }}>
                 <div style={{
-                  background: 'linear-gradient(135deg, #722ed1 0%, #531dab 100%)',
+                  background: gradients.secondaryButton,
                   borderRadius: '50%',
                   width: 80,
                   height: 80,
@@ -211,7 +212,7 @@ const Landing = () => {
 
                 <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    <BarChartOutlined style={{ fontSize: 20, color: '#722ed1', marginTop: 2 }} />
+                    <BarChartOutlined style={{ fontSize: 20, color: '#14B8A6', marginTop: 2 }} />
                     <div>
                       <Text strong style={{ display: 'block', fontSize: 15 }}>Analytics Dashboard</Text>
                       <Text type="secondary" style={{ fontSize: 14 }}>Real-time metrics and reporting</Text>
@@ -219,7 +220,7 @@ const Landing = () => {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    <TeamOutlined style={{ fontSize: 20, color: '#722ed1', marginTop: 2 }} />
+                    <TeamOutlined style={{ fontSize: 20, color: '#14B8A6', marginTop: 2 }} />
                     <div>
                       <Text strong style={{ display: 'block', fontSize: 15 }}>Case Management</Text>
                       <Text type="secondary" style={{ fontSize: 14 }}>Handle quotes, policies, and claims</Text>
@@ -227,7 +228,7 @@ const Landing = () => {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    <SafetyCertificateOutlined style={{ fontSize: 20, color: '#722ed1', marginTop: 2 }} />
+                    <SafetyCertificateOutlined style={{ fontSize: 20, color: '#14B8A6', marginTop: 2 }} />
                     <div>
                       <Text strong style={{ display: 'block', fontSize: 15 }}>Enterprise Security</Text>
                       <Text type="secondary" style={{ fontSize: 14 }}>Role-based access and audit trails</Text>
@@ -246,7 +247,7 @@ const Landing = () => {
                   height: 48,
                   fontSize: 16,
                   fontWeight: 600,
-                  background: 'linear-gradient(135deg, #722ed1 0%, #531dab 100%)',
+                  background: gradients.secondaryButton,
                   border: 'none',
                   boxShadow: '0 4px 12px rgba(114, 46, 209, 0.3)',
                 }}
@@ -268,7 +269,7 @@ const Landing = () => {
           width: 44,
           height: 44,
           borderRadius: '50%',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          background: gradients.heroBackground,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

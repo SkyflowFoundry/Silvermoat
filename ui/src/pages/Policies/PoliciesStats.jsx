@@ -79,8 +79,8 @@ const PoliciesStats = () => {
             <Statistic
               title={<Text strong>Active</Text>}
               value={activePolicies}
-              prefix={<SafetyCertificateOutlined style={{ color: '#1890ff' }} />}
-              valueStyle={{ color: '#1890ff' }}
+              prefix={<SafetyCertificateOutlined style={{ color: '#0052A3' }} />}
+              valueStyle={{ color: '#0052A3' }}
             />
             <Text type="secondary" style={{ fontSize: 12 }}>
               {totalPolicies > 0 ? ((activePolicies / totalPolicies) * 100).toFixed(1) : 0}% active rate

@@ -100,11 +100,11 @@ const DashboardStats = () => {
         <Col xs={24} sm={12} lg={8} xl={8}>
           <Card
             bordered={false}
-            style={{ background: '#f0f5ff', borderLeft: '4px solid #1890ff' }}
+            style={{ background: '#f0f5ff', borderLeft: '4px solid #0052A3' }}
           >
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
               <Space>
-                <FileTextOutlined style={{ fontSize: 24, color: '#1890ff' }} />
+                <FileTextOutlined style={{ fontSize: 24, color: '#0052A3' }} />
                 <Text strong style={{ fontSize: 16 }}>
                   Quotes
                 </Text>
@@ -178,7 +178,7 @@ const DashboardStats = () => {
                   <span style={{ color: '#d9d9d9' }}>●</span> {stats.claims.pending} Pending
                 </Text>
                 <Text style={{ fontSize: 12 }}>
-                  <span style={{ color: '#1890ff' }}>●</span> {stats.claims.review} Review
+                  <span style={{ color: '#0052A3' }}>●</span> {stats.claims.review} Review
                 </Text>
                 <Text style={{ fontSize: 12 }}>
                   <span style={{ color: '#52c41a' }}>●</span> {stats.claims.approved} Approved
@@ -241,7 +241,7 @@ const DashboardStats = () => {
               />
               <Space split="|" size="small">
                 <Text style={{ fontSize: 12 }}>
-                  <span style={{ color: '#1890ff' }}>●</span> {stats.cases.open} Open
+                  <span style={{ color: '#0052A3' }}>●</span> {stats.cases.open} Open
                 </Text>
                 <Text style={{ fontSize: 12 }}>
                   <span style={{ color: '#faad14' }}>●</span> {stats.cases.inProgress} In Progress
@@ -258,11 +258,11 @@ const DashboardStats = () => {
         <Col xs={24} sm={12} lg={8} xl={8}>
           <Card
             bordered={false}
-            style={{ background: '#e6f7ff', borderLeft: '4px solid #0050b3' }}
+            style={{ background: '#e6f7ff', borderLeft: '4px solid #003D7A' }}
           >
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
               <Space>
-                <DollarOutlined style={{ fontSize: 24, color: '#0050b3' }} />
+                <DollarOutlined style={{ fontSize: 24, color: '#003D7A' }} />
                 <Text strong style={{ fontSize: 16 }}>
                   Premium Revenue
                 </Text>

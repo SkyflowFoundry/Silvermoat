@@ -198,7 +198,7 @@ const DashboardCharts = () => {
                 type="monotone"
                 dataKey="value"
                 name="Revenue"
-                stroke="#1890ff"
+                stroke="#0052A3"
                 strokeWidth={2}
                 dot={{ r: 4 }}
               />

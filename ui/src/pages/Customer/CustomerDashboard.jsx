@@ -285,7 +285,7 @@ const CustomerDashboard = () => {
         </Row>
         {customer && (
           <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <UserOutlined style={{ fontSize: 16, color: '#1890ff' }} />
+            <UserOutlined style={{ fontSize: 16, color: '#0052A3' }} />
             <Text strong>Viewing as:</Text>
             <Select
               value={customer.email}
@@ -309,7 +309,7 @@ const CustomerDashboard = () => {
         <Col xs={24} sm={8}>
           <Card>
             <Space direction="vertical" size="small">
-              <SafetyOutlined style={{ fontSize: 24, color: '#1890ff' }} />
+              <SafetyOutlined style={{ fontSize: 24, color: '#0052A3' }} />
               <Text type="secondary">Active Policies</Text>
               <Title level={2} style={{ margin: 0 }}>
                 {policies.filter(p => p.status === 'ACTIVE').length}

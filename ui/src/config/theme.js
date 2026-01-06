@@ -6,11 +6,16 @@
 export const theme = {
   token: {
     // Primary Colors (Trust & Stability)
-    colorPrimary: '#003d82',       // Primary blue
+    colorPrimary: '#0052A3',       // Primary blue (modernized)
     colorSuccess: '#52c41a',       // Success green (approved)
     colorWarning: '#faad14',       // Warning orange (pending)
     colorError: '#ff4d4f',         // Error red (denied)
-    colorInfo: '#0066cc',          // Info blue (lighter primary)
+    colorInfo: '#0066CC',          // Info blue (lighter primary)
+
+    // Secondary/Accent Colors (Teal)
+    colorSecondary: '#14B8A6',     // Teal accent
+    colorSecondaryHover: '#2DD4BF', // Teal hover
+    colorSecondaryActive: '#0F9B8E', // Teal active
 
     // Typography
     fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
@@ -20,6 +25,10 @@ export const theme = {
     fontSizeHeading3: 20,
     fontSizeHeading4: 16,
     fontSizeHeading5: 14,
+    fontWeightStrong: 600,
+    fontWeightMedium: 500,
+    fontWeightNormal: 400,
+    fontWeightLight: 400,
 
     // Layout & Spacing
     borderRadius: 4,
@@ -38,15 +47,15 @@ export const theme = {
     colorTextDisabled: '#bfbfbf',
 
     // Link Colors
-    colorLink: '#003d82',
-    colorLinkHover: '#0066cc',
-    colorLinkActive: '#002855',
+    colorLink: '#0052A3',
+    colorLinkHover: '#0066CC',
+    colorLinkActive: '#003D7A',
   },
 
   components: {
     // Layout
     Layout: {
-      headerBg: '#002855',           // Dark blue header
+      headerBg: '#003D7A',           // Dark blue header (modernized)
       headerHeight: 64,
       headerPadding: '0 24px',
       headerColor: '#ffffff',
@@ -61,9 +70,9 @@ export const theme = {
       itemBg: '#ffffff',
       itemColor: '#1a1a1a',
       itemHoverBg: '#f0f7ff',
-      itemHoverColor: '#003d82',
+      itemHoverColor: '#0052A3',
       itemSelectedBg: '#e6f4ff',
-      itemSelectedColor: '#003d82',
+      itemSelectedColor: '#0052A3',
       itemActiveBg: '#e6f4ff',
       iconSize: 18,
       iconMarginInlineEnd: 12,
@@ -97,9 +106,9 @@ export const theme = {
       paddingBlock: 8,
       paddingInline: 12,
       borderRadius: 4,
-      activeBorderColor: '#003d82',
-      hoverBorderColor: '#0066cc',
-      activeShadow: '0 0 0 2px rgba(0, 61, 130, 0.1)',
+      activeBorderColor: '#0052A3',
+      hoverBorderColor: '#0066CC',
+      activeShadow: '0 0 0 2px rgba(0, 82, 163, 0.1)',
     },
 
     // Button
@@ -118,7 +127,7 @@ export const theme = {
     Card: {
       borderRadiusLG: 8,
       paddingLG: 24,
-      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+      boxShadow: '0 2px 4px rgba(0,0,0,0.06)',  // elevation.level2
       headerBg: '#fafafa',
       headerFontSize: 16,
       headerHeight: 56,
@@ -131,7 +140,7 @@ export const theme = {
       itemColor: '#595959',
       lastItemColor: '#1a1a1a',
       linkColor: '#595959',
-      linkHoverColor: '#003d82',
+      linkHoverColor: '#0052A3',
       separatorColor: '#8c8c8c',
       separatorMargin: 8,
     },
@@ -176,6 +185,33 @@ export const theme = {
       contentColor: '#1a1a1a',
     },
   },
+};
+
+/**
+ * Elevation System (8 levels)
+ * Standardized box shadows for consistent depth and hierarchy
+ */
+export const elevation = {
+  level0: 'none',
+  level1: '0 1px 2px rgba(0,0,0,0.05)',
+  level2: '0 2px 4px rgba(0,0,0,0.06)',
+  level3: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)',
+  level4: '0 6px 12px rgba(0,0,0,0.08)',
+  level5: '0 10px 20px rgba(0,0,0,0.1)',
+  level6: '0 15px 30px rgba(0,0,0,0.12)',
+  level7: '0 20px 40px rgba(0,0,0,0.15)',
+};
+
+/**
+ * Gradient System
+ * Modern gradient patterns for headers, buttons, cards, and backgrounds
+ */
+export const gradients = {
+  header: 'linear-gradient(135deg, #003D7A 0%, #0052A3 100%)',
+  primaryButton: 'linear-gradient(135deg, #0052A3 0%, #0066CC 100%)',
+  secondaryButton: 'linear-gradient(135deg, #14B8A6 0%, #2DD4BF 100%)',
+  cardAccent: 'linear-gradient(135deg, rgba(20,184,166,0.02) 0%, rgba(0,82,163,0.02) 100%)',
+  heroBackground: 'linear-gradient(135deg, #0052A3 0%, #14B8A6 100%)',
 };
 
 export default theme;

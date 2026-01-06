@@ -6,6 +6,7 @@
 import { Typography, Avatar, Grid } from 'antd';
 import { UserOutlined, RobotOutlined } from '@ant-design/icons';
 import { useAppContext } from '../../contexts/AppContext';
+import { elevation } from '../../config/theme';
 
 const { Text, Paragraph } = Typography;
 const { useBreakpoint } = Grid;
@@ -27,7 +28,7 @@ const ChatMessage = ({ role, content, timestamp }) => {
         icon={isUser ? <UserOutlined /> : <RobotOutlined />}
         size={isMobile ? 'default' : 'large'}
         style={{
-          backgroundColor: isUser ? '#003d82' : '#52c41a',
+          backgroundColor: isUser ? '#0052A3' : '#52c41a',
           flexShrink: 0,
         }}
       />
@@ -38,7 +39,7 @@ const ChatMessage = ({ role, content, timestamp }) => {
           borderRadius: 8,
           backgroundColor: isUser ? '#f0f5ff' : '#ffffff',
           border: isUser ? 'none' : '1px solid #f0f0f0',
-          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.06)',
+          boxShadow: elevation.level2,
         }}
       >
         <Paragraph style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: isMobile ? 14 : 15 }}>

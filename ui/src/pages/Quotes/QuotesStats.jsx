@@ -55,8 +55,8 @@ const QuotesStats = () => {
             <Statistic
               title={<Text strong>Total Quotes</Text>}
               value={totalQuotes}
-              prefix={<FileTextOutlined style={{ color: '#1890ff' }} />}
-              valueStyle={{ color: '#1890ff' }}
+              prefix={<FileTextOutlined style={{ color: '#0052A3' }} />}
+              valueStyle={{ color: '#0052A3' }}
             />
             <Space split="|" size="small" style={{ marginTop: 8 }}>
               <Text style={{ fontSize: 12 }}>
@@ -120,8 +120,8 @@ const QuotesStats = () => {
             <Statistic
               title={<Text strong>Total Quote Value</Text>}
               value={formatCurrencyFromCents(totalQuoteValue)}
-              prefix={<DollarOutlined style={{ color: '#1890ff' }} />}
-              valueStyle={{ color: '#1890ff', fontSize: 20 }}
+              prefix={<DollarOutlined style={{ color: '#0052A3' }} />}
+              valueStyle={{ color: '#0052A3', fontSize: 20 }}
             />
             <Text type="secondary" style={{ fontSize: 12 }}>
               Potential revenue

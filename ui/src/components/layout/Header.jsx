@@ -15,6 +15,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppContext } from '../../contexts/AppContext';
+import { gradients, elevation } from '../../config/theme';
 
 const { Header: AntHeader } = Layout;
 const { Text } = Typography;
@@ -83,11 +84,11 @@ const Header = () => {
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: isMobile ? '0 12px' : '0 24px',
-        background: '#002855',
+        background: gradients.header,
         position: 'sticky',
         top: 0,
         zIndex: 1000,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+        boxShadow: elevation.level3,
       }}
     >
       <Space align="center" size={isMobile ? 'small' : 'large'}>
