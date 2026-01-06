@@ -146,6 +146,15 @@ class SilvermoatStack(Stack):
             export_name=f"{self.stack_name}-MvpServiceFunctionName",
         )
 
+        # AI Function URL for streaming chat
+        CfnOutput(
+            self,
+            "AiApiUrl",
+            value=compute.ai_function_url.url,
+            export_name=f"{self.stack_name}-AiApiUrl",
+            description="Lambda Function URL for streaming AI chat endpoints",
+        )
+
         # Frontend Stack outputs (conditional)
         if frontend.certificate:
             CfnOutput(

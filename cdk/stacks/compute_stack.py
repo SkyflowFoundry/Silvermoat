@@ -189,7 +189,7 @@ class ComputeStack(Construct):
             invoke_mode=lambda_.InvokeMode.RESPONSE_STREAM,
             cors=lambda_.FunctionUrlCorsOptions(
                 allowed_origins=["*"],  # Will be restricted in production
-                allowed_methods=[lambda_.HttpMethod.POST, lambda_.HttpMethod.OPTIONS],
+                allowed_methods=[lambda_.HttpMethod.POST],
                 allowed_headers=["Content-Type", "Accept"],
                 max_age=Duration.seconds(300),
             ),

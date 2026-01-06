@@ -58,6 +58,17 @@ if [ -n "$API_BASE" ]; then
   export VITE_API_BASE_URL="$API_BASE"
 fi
 
+# Get AI API URL (Lambda Function URL for streaming chat)
+AI_API_URL=$($AWS_CMD cloudformation describe-stacks \
+  --stack-name "$STACK_NAME" \
+  --query "Stacks[0].Outputs[?OutputKey=='AiApiUrl'].OutputValue" \
+  --output text 2>/dev/null || echo "")
+
+if [ -n "$AI_API_URL" ]; then
+  echo "AI API URL: $AI_API_URL"
+  export VITE_AI_API_BASE_URL="$AI_API_URL"
+fi
+
 # Generate architecture diagram before building UI
 echo "Generating architecture diagram..."
 pip install -q -r "$PROJECT_ROOT/requirements-docs.txt"

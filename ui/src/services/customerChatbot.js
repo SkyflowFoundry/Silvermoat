@@ -33,7 +33,13 @@ export const streamCustomerChatMessage = async (
   const apiBase = getAiApiBaseUrl();
   const url = `${apiBase}/customer-chat`;
 
+  console.log('[STREAM_START] Customer chatbot stream starting:', url);
+
   try {
+    // Create AbortController for 30-second timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -44,10 +50,14 @@ export const streamCustomerChatMessage = async (
         history: conversationHistory,
         customerEmail,
       }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('[STREAM_ERROR] Request failed:', response.status, errorText);
       const error = new ApiError(
         `Customer chat request failed: ${response.statusText}`,
         response.status,
@@ -61,11 +71,15 @@ export const streamCustomerChatMessage = async (
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let chunkCount = 0;
 
     while (true) {
       const { done, value } = await reader.read();
 
-      if (done) break;
+      if (done) {
+        console.log(`[STREAM_END] Customer chatbot stream complete - ${chunkCount} chunks processed`);
+        break;
+      }
 
       // Append to buffer and process complete lines
       buffer += decoder.decode(value, { stream: true });
@@ -80,17 +94,21 @@ export const streamCustomerChatMessage = async (
 
         try {
           const chunk = JSON.parse(line);
+          chunkCount++;
 
           switch (chunk.type) {
             case 'status':
+              console.log('[STREAM_STATUS]', chunk.data.operation, '-', chunk.data.message);
               if (onStatus) onStatus(chunk.data);
               break;
 
             case 'response':
+              console.log('[STREAM_RESPONSE] Final response received');
               if (onResponse) onResponse(chunk.data);
               break;
 
             case 'error':
+              console.error('[STREAM_ERROR]', chunk.data.error, '-', chunk.data.message);
               if (onError) {
                 onError(
                   new ApiError(
@@ -103,10 +121,10 @@ export const streamCustomerChatMessage = async (
               break;
 
             default:
-              console.warn('Unknown chunk type:', chunk.type);
+              console.warn('[STREAM_WARN] Unknown chunk type:', chunk.type);
           }
         } catch (parseError) {
-          console.error('Failed to parse NDJSON chunk:', line, parseError);
+          console.error('[STREAM_ERROR] Failed to parse NDJSON chunk:', line, parseError);
           // Continue processing other chunks
         }
       }
@@ -117,14 +135,22 @@ export const streamCustomerChatMessage = async (
       try {
         const chunk = JSON.parse(buffer);
         if (chunk.type === 'response' && onResponse) {
+          console.log('[STREAM_RESPONSE] Final response from buffer');
           onResponse(chunk.data);
         }
       } catch (parseError) {
-        console.error('Failed to parse final chunk:', buffer, parseError);
+        console.error('[STREAM_ERROR] Failed to parse final chunk:', buffer, parseError);
       }
     }
   } catch (error) {
-    console.error('Streaming customer chat error:', error);
-    if (onError) onError(error);
+    if (error.name === 'AbortError') {
+      console.error('[STREAM_ERROR] Request timeout after 30 seconds');
+      if (onError) {
+        onError(new ApiError('Request timeout - please try again', 408, 'timeout'));
+      }
+    } else {
+      console.error('[STREAM_ERROR] Streaming customer chat error:', error);
+      if (onError) onError(error);
+    }
   }
 };
