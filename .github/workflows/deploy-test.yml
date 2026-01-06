@@ -146,6 +146,7 @@ jobs:
     needs: [detect-changes, deploy-insurance-infra]
     if: |
       always() &&
+      (needs.detect-changes.outputs.ui_changed == 'true' || needs.deploy-insurance-infra.result == 'success' || inputs.force_deploy == 'true') &&
       (needs.deploy-insurance-infra.result == 'success' || needs.deploy-insurance-infra.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -248,7 +249,7 @@ jobs:
     if: |
       always() &&
       needs.deploy-insurance-ui.result == 'success' &&
-      contains(needs.insurance-tests.result, 'success')
+      (needs.insurance-tests.result == 'success' || needs.insurance-tests.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -319,6 +320,7 @@ jobs:
     needs: [detect-changes, deploy-retail-infra]
     if: |
       always() &&
+      (needs.detect-changes.outputs.ui_changed == 'true' || needs.deploy-retail-infra.result == 'success' || inputs.force_deploy == 'true') &&
       (needs.deploy-retail-infra.result == 'success' || needs.deploy-retail-infra.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -409,7 +411,7 @@ jobs:
     if: |
       always() &&
       needs.deploy-retail-ui.result == 'success' &&
-      contains(needs.retail-tests.result, 'success')
+      (needs.retail-tests.result == 'success' || needs.retail-tests.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

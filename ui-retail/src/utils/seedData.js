@@ -121,14 +121,14 @@ export const seedRetailData = async (onProgress, count = 50) => {
       for (let j = 0; j < numItems; j++) {
         const product = randomItem(results.products);
         const quantity = randomNumber(1, 3);
-        const itemTotal = product.item.data.price * quantity;
+        const itemTotal = product?.item?.data?.price * quantity || 0;
         totalAmount += itemTotal;
 
         orderItems.push({
-          productId: product.item.id,
-          productName: product.item.data.name,
+          productId: product?.item?.id,
+          productName: product?.item?.data?.name,
           quantity,
-          price: product.item.data.price,
+          price: product?.item?.data?.price,
           total: itemTotal,
         });
       }
@@ -155,12 +155,12 @@ export const seedRetailData = async (onProgress, count = 50) => {
     onProgress?.('Creating inventory records...', step, totalSteps);
     for (let i = 0; i < Math.min(count, results.products.length); i++) {
       const product = results.products[i];
-      const quantity = product.item.data.stockQuantity || randomNumber(0, 500);
+      const quantity = product?.item?.data?.stockQuantity || randomNumber(0, 500);
 
       const inventoryData = {
-        productId: product.item.id,
-        productName: product.item.data.name,
-        sku: product.item.data.sku,
+        productId: product?.item?.id,
+        productName: product?.item?.data?.name,
+        sku: product?.item?.data?.sku,
         location: randomItem(WAREHOUSES),
         quantity,
         reorderPoint: randomNumber(10, 50),
@@ -179,12 +179,12 @@ export const seedRetailData = async (onProgress, count = 50) => {
       const order = results.orders[i];
 
       const paymentData = {
-        orderId: order.item.id,
-        orderNumber: order.item.data.orderNumber,
-        amount: order.item.data.totalAmount,
+        orderId: order?.item?.id,
+        orderNumber: order?.item?.data?.orderNumber,
+        amount: order?.item?.data?.totalAmount,
         paymentMethod: randomItem(PAYMENT_METHODS),
         transactionId: `TXN-${randomNumber(1000000, 9999999)}`,
-        paymentDate: order.item.data.orderDate,
+        paymentDate: order?.item?.data?.orderDate,
       };
 
       const payment = await createPayment(paymentData);

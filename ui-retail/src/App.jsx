@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ConfigProvider, Spin, Result, Button } from 'antd';
 import Dashboard from './pages/Dashboard';
+import { retailTheme } from './config/theme';
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -18,19 +19,6 @@ const queryClient = new QueryClient({
     },
   },
 });
-
-// Retail theme (purple/magenta color scheme)
-const retailTheme = {
-  token: {
-    colorPrimary: '#722ed1',
-    colorSuccess: '#52c41a',
-    colorWarning: '#faad14',
-    colorError: '#f5222d',
-    colorInfo: '#1890ff',
-    fontSize: 14,
-    borderRadius: 6,
-  },
-};
 
 // Loading fallback
 const LoadingFallback = () => (
@@ -57,9 +45,6 @@ const RetailHome = () => (
       extra={[
         <Button key="dashboard" href="/dashboard" type="primary">
           Go to Dashboard
-        </Button>,
-        <Button key="insurance" href="https://insurance.silvermoat.net">
-          Go to Insurance
         </Button>,
       ]}
     />
