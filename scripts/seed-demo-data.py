@@ -8,9 +8,17 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from faker import Faker
 
 API_BASE_URL = os.environ.get('API_BASE_URL', '').rstrip('/')
+VERTICAL = os.environ.get('VERTICAL', 'insurance')
+
 if not API_BASE_URL:
     print("Error: API_BASE_URL environment variable not set", file=sys.stderr)
     sys.exit(1)
+
+# Retail vertical uses UI-based seeding (JavaScript in ui-retail/src/utils/seedData.js)
+if VERTICAL == 'retail':
+    print(f"✓ Retail seeding skipped - use Dashboard UI for retail demo data")
+    print(f"  (UI-based seeding provides retail-specific entities: products, orders, inventory)")
+    sys.exit(0)
 
 fake = Faker()
 

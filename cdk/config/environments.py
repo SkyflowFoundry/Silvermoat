@@ -11,7 +11,7 @@ def get_config(stack_name: str, stage_name: str) -> SilvermoatConfig:
             stage_name="prod",
             api_deployment_token="v1",
             ui_seeding_mode="external",
-            domain_name="silvermoat.net",
+            domain_name="*.silvermoat.net",  # Wildcard for multi-vertical subdomains
             create_cloudfront=True,
         )
 

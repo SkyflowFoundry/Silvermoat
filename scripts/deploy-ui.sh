@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build and deploy React UI to S3 bucket
+# Build and deploy multi-vertical React UIs to S3 buckets
 
 set -e
 
@@ -9,9 +9,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Load AWS CLI check utility
 source "$SCRIPT_DIR/lib/check-aws.sh"
 
-STACK_NAME="${STACK_NAME:-silvermoat}"
-UI_DIR="$PROJECT_ROOT/ui"
-BUILD_DIR="$UI_DIR/dist"
+BASE_STACK_NAME="${STACK_NAME:-silvermoat}"
+VERTICAL="${VERTICAL:-all}"  # Can be: all, insurance, retail
 
 # Check AWS CLI and credentials
 check_aws_configured
@@ -22,107 +21,149 @@ if [ -n "${AWS_PROFILE:-}" ]; then
   AWS_CMD="aws --profile $AWS_PROFILE"
 fi
 
-echo "Building React UI..."
+echo "========================================="
+echo "Multi-Vertical UI Deployment"
+echo "========================================="
+echo ""
+echo "Base Stack: $BASE_STACK_NAME"
+echo "Deploying: $VERTICAL"
 echo ""
 
-# Check if UI directory exists
-if [ ! -d "$UI_DIR" ]; then
-  echo "Error: UI directory not found: $UI_DIR"
-  exit 1
+# Function to get stack outputs
+get_stack_outputs() {
+  local stack_name=$1
+  $AWS_CMD cloudformation describe-stacks \
+    --stack-name "$stack_name" \
+    --query "Stacks[0].Outputs" \
+    --output json 2>/dev/null || echo "null"
+}
+
+# Get Insurance outputs
+INSURANCE_BUCKET=""
+INSURANCE_API_URL=""
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "insurance" ]; then
+  echo "Fetching insurance stack outputs..."
+  INSURANCE_OUTPUTS=$(get_stack_outputs "${BASE_STACK_NAME}-insurance")
+
+  if [ "$INSURANCE_OUTPUTS" = "null" ] || [ -z "$INSURANCE_OUTPUTS" ]; then
+    echo "Error: Could not get outputs from ${BASE_STACK_NAME}-insurance"
+    echo "Make sure the insurance stack is deployed."
+    exit 1
+  fi
+
+  INSURANCE_BUCKET=$(echo "$INSURANCE_OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceUiBucketName") | .OutputValue')
+  INSURANCE_API_URL=$(echo "$INSURANCE_OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceApiUrl") | .OutputValue')
+
+  echo "Insurance UI Bucket: $INSURANCE_BUCKET"
+  echo "Insurance API URL: $INSURANCE_API_URL"
+  echo ""
 fi
 
-# Get UI bucket name from CDK stack outputs
-echo "Getting UI bucket name from CDK stack outputs..."
-UI_BUCKET=$($AWS_CMD cloudformation describe-stacks \
-  --stack-name "$STACK_NAME" \
-  --query "Stacks[0].Outputs[?OutputKey=='UiBucketName'].OutputValue" \
-  --output text 2>/dev/null || echo "")
+# Get Retail outputs
+RETAIL_BUCKET=""
+RETAIL_API_URL=""
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "retail" ]; then
+  echo "Fetching retail stack outputs..."
+  RETAIL_OUTPUTS=$(get_stack_outputs "${BASE_STACK_NAME}-retail")
 
-if [ -z "$UI_BUCKET" ]; then
-  echo "Error: Could not get UiBucketName from CDK stack '$STACK_NAME'"
-  echo "Make sure the CDK stack is deployed and has the UiBucketName output."
-  exit 1
+  if [ "$RETAIL_OUTPUTS" = "null" ] || [ -z "$RETAIL_OUTPUTS" ]; then
+    echo "Error: Could not get outputs from ${BASE_STACK_NAME}-retail"
+    echo "Make sure the retail stack is deployed."
+    exit 1
+  fi
+
+  RETAIL_BUCKET=$(echo "$RETAIL_OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailUiBucketName") | .OutputValue')
+  RETAIL_API_URL=$(echo "$RETAIL_OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailApiUrl") | .OutputValue')
+
+  echo "Retail UI Bucket: $RETAIL_BUCKET"
+  echo "Retail API URL: $RETAIL_API_URL"
+  echo ""
 fi
 
-echo "UI Bucket: $UI_BUCKET"
-echo ""
+# Function to deploy a vertical UI
+deploy_vertical_ui() {
+  local VERTICAL=$1
+  local UI_DIR=$2
+  local BUCKET=$3
+  local API_URL=$4
 
-# Get API base URL for build-time injection
-API_BASE=$($AWS_CMD cloudformation describe-stacks \
-  --stack-name "$STACK_NAME" \
-  --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" \
-  --output text 2>/dev/null || echo "")
+  echo "========================================="
+  echo "Deploying $VERTICAL Vertical UI"
+  echo "========================================="
+  echo ""
 
-if [ -n "$API_BASE" ]; then
-  echo "API Base URL: $API_BASE"
-  export VITE_API_BASE_URL="$API_BASE"
-fi
+  if [ ! -d "$UI_DIR" ]; then
+    echo "Error: UI directory not found: $UI_DIR"
+    exit 1
+  fi
 
-# Generate architecture diagram before building UI
+  cd "$UI_DIR"
+
+  # Install dependencies
+  echo "Installing dependencies..."
+  if [ -f "package-lock.json" ]; then
+    npm ci --silent
+  else
+    echo "No package-lock.json found, running npm install..."
+    npm install --silent
+  fi
+
+  # Build with API URL
+  echo "Building React app..."
+  export VITE_API_BASE_URL="$API_URL"
+  npm run build
+
+  BUILD_DIR="$UI_DIR/dist"
+  if [ ! -d "$BUILD_DIR" ]; then
+    echo "Error: Build directory not found: $BUILD_DIR"
+    exit 1
+  fi
+
+  # Deploy to S3
+  echo "Deploying to S3 bucket: $BUCKET"
+  $AWS_CMD s3 sync "$BUILD_DIR" "s3://$BUCKET" --delete
+
+  # Set proper content types for index.html
+  $AWS_CMD s3 cp "s3://$BUCKET/index.html" "s3://$BUCKET/index.html" \
+    --metadata-directive REPLACE \
+    --content-type "text/html" \
+    --cache-control "no-cache"
+
+  echo "✅ $VERTICAL UI deployed successfully"
+  echo ""
+}
+
+# Generate architecture diagram (shared across verticals)
 echo "Generating architecture diagram..."
 pip install -q -r "$PROJECT_ROOT/requirements-docs.txt"
 cd "$PROJECT_ROOT"
 python3 "$PROJECT_ROOT/scripts/generate-architecture-diagram.py"
+echo ""
 
-# Build React app
-cd "$UI_DIR"
-echo "Installing dependencies (if needed)..."
+# Deploy Insurance UI
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "insurance" ]; then
+  deploy_vertical_ui "Insurance" "$PROJECT_ROOT/ui-insurance" "$INSURANCE_BUCKET" "$INSURANCE_API_URL"
 
-# Use npm ci if package-lock.json exists, otherwise use npm install
-if [ -f "package-lock.json" ]; then
-  npm ci --silent
-else
-  echo "No package-lock.json found, running npm install..."
-  npm install --silent
+  # Copy architecture diagram to insurance UI bucket
+  echo "Copying architecture diagram to insurance UI..."
+  $AWS_CMD s3 cp "$PROJECT_ROOT/docs/architecture.png" "s3://$INSURANCE_BUCKET/architecture.png"
+  echo ""
 fi
 
-echo "Copying documentation diagrams to public folder..."
-cp "$PROJECT_ROOT/docs/architecture.png" "$UI_DIR/public/architecture.png"
-cp "$PROJECT_ROOT/docs/data-flow.png" "$UI_DIR/public/data-flow.png"
-
-echo "Building React app..."
-npm run build
-
-if [ ! -d "$BUILD_DIR" ]; then
-  echo "Error: Build output directory not found: $BUILD_DIR"
-  exit 1
+# Deploy Retail UI
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "retail" ]; then
+  deploy_vertical_ui "Retail" "$PROJECT_ROOT/ui-retail" "$RETAIL_BUCKET" "$RETAIL_API_URL"
+  echo ""
 fi
 
+echo "========================================="
+echo "✅ UI Deployment Complete"
+echo "========================================="
 echo ""
-echo "Syncing build output to S3 bucket..."
-
-# Sync with proper cache headers
-# index.html: no-cache (always fetch fresh)
-# PNG diagrams: 1-hour cache (updates visible on reload)
-# Static assets (JS/CSS): long cache (immutable, hash-based filenames)
-$AWS_CMD s3 sync "$BUILD_DIR" "s3://$UI_BUCKET/" \
-  --delete \
-  --exclude "*.html" \
-  --exclude "*.png" \
-  --cache-control "public, max-age=31536000, immutable"
-
-# Upload PNG diagrams with 1-hour cache (no immutable)
-$AWS_CMD s3 sync "$BUILD_DIR" "s3://$UI_BUCKET/" \
-  --exclude "*" \
-  --include "*.png" \
-  --cache-control "public, max-age=3600"
-
-# Upload index.html separately with no-cache
-$AWS_CMD s3 cp "$BUILD_DIR/index.html" "s3://$UI_BUCKET/index.html" \
-  --cache-control "no-cache"
-
-echo ""
-echo "UI deployment complete!"
-echo ""
-echo "Website URL:"
-WEB_URL=$($AWS_CMD cloudformation describe-stacks \
-  --stack-name "$STACK_NAME" \
-  --query "Stacks[0].Outputs[?OutputKey=='WebUrl'].OutputValue" \
-  --output text 2>/dev/null || echo "")
-
-if [ -n "$WEB_URL" ]; then
-  echo "  $WEB_URL"
-else
-  echo "  (Get from: ./scripts/get-outputs.sh)"
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "insurance" ]; then
+  echo "Insurance UI: http://$INSURANCE_BUCKET.s3-website-us-east-1.amazonaws.com"
 fi
-
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "retail" ]; then
+  echo "Retail UI: http://$RETAIL_BUCKET.s3-website-us-east-1.amazonaws.com"
+fi
+echo ""

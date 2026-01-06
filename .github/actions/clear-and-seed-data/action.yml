@@ -5,6 +5,10 @@ inputs:
   api-base-url:
     description: 'API base URL to clear and seed data'
     required: true
+  vertical:
+    description: 'Vertical name (insurance or retail)'
+    required: false
+    default: 'insurance'
 
 runs:
   using: 'composite'
@@ -18,14 +22,16 @@ runs:
       shell: bash
       run: pip install faker==40.1.0 requests
 
-    - name: Clear existing demo data
+    - name: Clear existing demo data (${{ inputs.vertical }})
       shell: bash
       run: python scripts/clear-demo-data.py
       env:
         API_BASE_URL: ${{ inputs.api-base-url }}
+        VERTICAL: ${{ inputs.vertical }}
 
-    - name: Seed fresh demo data
+    - name: Seed fresh demo data (${{ inputs.vertical }})
       shell: bash
       run: python scripts/seed-demo-data.py
       env:
         API_BASE_URL: ${{ inputs.api-base-url }}
+        VERTICAL: ${{ inputs.vertical }}

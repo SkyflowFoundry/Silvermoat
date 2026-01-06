@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Generate documentation diagrams for Silvermoat platform using the diagrams library.
+Generate documentation diagrams for Silvermoat multi-vertical platform using the diagrams library.
 
-This script creates professional diagrams with official AWS icons:
-- Architecture: Infrastructure layout (top-bottom)
-- Data Flow: Request/response flows (top-bottom)
+This script creates professional diagrams with official AWS icons showing the multi-vertical architecture:
+- Architecture: Infrastructure layout with separate Insurance and Retail verticals (top-bottom)
+- Data Flow: Request/response flows showing vertical isolation (top-bottom)
 
 PNGs are cached for 1 hour (no immutable directive) to allow updates without hard refresh.
 
@@ -20,7 +20,7 @@ Outputs:
     docs/data-flow.png
 """
 
-from diagrams import Diagram, Cluster
+from diagrams import Diagram, Cluster, Edge
 from diagrams.aws.network import CloudFront, APIGateway
 from diagrams.aws.compute import Lambda
 from diagrams.aws.database import Dynamodb
@@ -32,7 +32,7 @@ from diagrams.saas.cdn import Cloudflare
 from diagrams.onprem.client import User
 
 def generate_architecture_diagram():
-    """Generate the Silvermoat AWS architecture diagram."""
+    """Generate the Silvermoat multi-vertical AWS architecture diagram."""
 
     graph_attr = {
         "fontsize": "14",
@@ -44,7 +44,7 @@ def generate_architecture_diagram():
     }
 
     with Diagram(
-        "Silvermoat AWS Architecture",
+        "Silvermoat Multi-Vertical AWS Architecture",
         filename="docs/architecture",
         show=False,
         direction="TB",
@@ -53,77 +53,99 @@ def generate_architecture_diagram():
     ):
         # DNS Layer
         with Cluster("DNS Management"):
-            cloudflare = Cloudflare("Cloudflare")
+            cloudflare = Cloudflare("Cloudflare\n*.silvermoat.net")
 
-        # Frontend Layer
-        with Cluster("Frontend Distribution"):
-            cloudfront = CloudFront("CloudFront")
-            acm = CertificateManager("ACM Certificate")
-            ui_bucket = S3("UI Bucket")
+        # Insurance Vertical
+        with Cluster("Insurance Vertical"):
+            with Cluster("Frontend Distribution"):
+                ins_cloudfront = CloudFront("CloudFront\ninsurance.silvermoat.net")
+                ins_acm = CertificateManager("ACM Cert")
+                ins_ui_bucket = S3("UI Bucket")
 
-            cloudfront >> acm
-            cloudfront >> ui_bucket
+                ins_cloudfront >> ins_acm
+                ins_cloudfront >> ins_ui_bucket
 
-        # API Layer
-        with Cluster("API Layer"):
-            apigw = APIGateway("API Gateway")
+            with Cluster("API Layer"):
+                ins_apigw = APIGateway("API Gateway")
 
-        # Lambda Handlers (Split by domain)
-        with Cluster("Lambda Handlers"):
-            customer_fn = Lambda("customer-handler")
-            claims_fn = Lambda("claims-handler")
-            docs_fn = Lambda("documents-handler")
-            ai_fn = Lambda("ai-handler")
+            with Cluster("Lambda Handlers"):
+                ins_customer_fn = Lambda("customer-handler")
+                ins_claims_fn = Lambda("claims-handler")
+                ins_docs_fn = Lambda("documents-handler")
+                ins_ai_fn = Lambda("ai-handler")
 
-        # Data Layer - DynamoDB Tables
-        with Cluster("Data Layer"):
-            customers_table = Dynamodb("Customers")
-            quotes_table = Dynamodb("Quotes")
-            policies_table = Dynamodb("Policies")
-            claims_table = Dynamodb("Claims")
-            payments_table = Dynamodb("Payments")
-            cases_table = Dynamodb("Cases")
-            conversations_table = Dynamodb("Conversations")
+            with Cluster("Data Layer"):
+                ins_customers_table = Dynamodb("Customers")
+                ins_quotes_table = Dynamodb("Quotes")
+                ins_policies_table = Dynamodb("Policies")
+                ins_claims_table = Dynamodb("Claims")
+                ins_payments_table = Dynamodb("Payments")
+                ins_cases_table = Dynamodb("Cases")
+                ins_conversations_table = Dynamodb("Conversations")
 
-        # Storage Layer
-        with Cluster("Storage"):
-            docs_bucket = S3("Documents")
+            with Cluster("Storage"):
+                ins_docs_bucket = S3("Documents")
 
-        # Notifications & Events
-        with Cluster("Notifications & Events"):
-            sns_topic = SNS("SNS")
-            eventbridge = Eventbridge("EventBridge")
+            # Insurance connections
+            cloudflare >> ins_cloudfront
+            ins_cloudfront >> ins_apigw
+            ins_apigw >> [ins_customer_fn, ins_claims_fn, ins_docs_fn, ins_ai_fn]
+            ins_customer_fn >> [ins_customers_table, ins_quotes_table]
+            ins_claims_fn >> [ins_policies_table, ins_claims_table, ins_payments_table, ins_cases_table]
+            ins_ai_fn >> ins_conversations_table
+            ins_docs_fn >> ins_docs_bucket
 
-        # AI Integration
-        with Cluster("AI Integration"):
-            bedrock = Bedrock("Bedrock")
+        # Retail Vertical
+        with Cluster("Retail Vertical"):
+            with Cluster("Frontend Distribution"):
+                ret_cloudfront = CloudFront("CloudFront\nretail.silvermoat.net")
+                ret_acm = CertificateManager("ACM Cert")
+                ret_ui_bucket = S3("UI Bucket")
 
-        # Security & Permissions
-        with Cluster("Security & Permissions"):
-            lambda_role = IAM("IAM Role")
+                ret_cloudfront >> ret_acm
+                ret_cloudfront >> ret_ui_bucket
 
-        # DNS routing to CloudFront
-        cloudflare >> cloudfront
+            with Cluster("API Layer"):
+                ret_apigw = APIGateway("API Gateway")
 
-        # Frontend to API flow
-        cloudfront >> apigw
+            with Cluster("Lambda Handlers"):
+                ret_products_fn = Lambda("products-handler")
+                ret_orders_fn = Lambda("orders-handler")
+                ret_inventory_fn = Lambda("inventory-handler")
+                ret_ai_fn = Lambda("ai-handler")
 
-        # Simplified connections - use lists for cleaner code
-        apigw >> [customer_fn, claims_fn, docs_fn, ai_fn]
+            with Cluster("Data Layer"):
+                ret_customers_table = Dynamodb("Customers")
+                ret_products_table = Dynamodb("Products")
+                ret_orders_table = Dynamodb("Orders")
+                ret_inventory_table = Dynamodb("Inventory")
+                ret_payments_table = Dynamodb("Payments")
+                ret_cases_table = Dynamodb("Cases")
+                ret_conversations_table = Dynamodb("Conversations")
 
-        # Lambda handlers to data (simplified - show representative connections)
-        customer_fn >> [customers_table, quotes_table]
-        claims_fn >> [policies_table, claims_table, payments_table, cases_table]
-        ai_fn >> [conversations_table, bedrock]
-        docs_fn >> docs_bucket
+            with Cluster("Storage"):
+                ret_docs_bucket = S3("Documents")
 
-        # External services
-        [customer_fn, claims_fn, docs_fn] >> sns_topic
-        eventbridge >> customer_fn
-        lambda_role >> [customer_fn, claims_fn, docs_fn, ai_fn]
+            # Retail connections
+            cloudflare >> ret_cloudfront
+            ret_cloudfront >> ret_apigw
+            ret_apigw >> [ret_products_fn, ret_orders_fn, ret_inventory_fn, ret_ai_fn]
+            ret_products_fn >> ret_products_table
+            ret_orders_fn >> [ret_orders_table, ret_payments_table]
+            ret_inventory_fn >> ret_inventory_table
+            ret_ai_fn >> ret_conversations_table
+            [ret_products_fn, ret_orders_fn, ret_inventory_fn] >> ret_cases_table
+
+        # Shared Services
+        with Cluster("Shared AI Service"):
+            bedrock = Bedrock("Bedrock\n(Shared)")
+
+        # AI handlers to Bedrock
+        ins_ai_fn >> bedrock
+        ret_ai_fn >> bedrock
 
 def generate_data_flow_diagram():
-    """Generate detailed data flow diagram showing request flows."""
+    """Generate detailed data flow diagram showing request flows with vertical isolation."""
 
     graph_attr = {
         "fontsize": "14",
@@ -135,68 +157,75 @@ def generate_data_flow_diagram():
     }
 
     with Diagram(
-        "Silvermoat Data Flow",
+        "Silvermoat Multi-Vertical Data Flow",
         filename="docs/data-flow",
         show=False,
         direction="TB",
         graph_attr=graph_attr,
         outformat="png"
     ):
-        # User
-        customer = User("Customer")
+        # Users
+        ins_user = User("Insurance\nCustomer")
+        ret_user = User("Retail\nCustomer")
 
-        # Frontend
-        with Cluster("Frontend"):
-            react_app = CloudFront("CloudFront")
+        # Insurance Vertical Flow
+        with Cluster("Insurance Vertical"):
+            ins_cf = CloudFront("CloudFront")
+            ins_api = APIGateway("API Gateway")
 
-        # API
-        api_gw = APIGateway("API Gateway")
+            with Cluster("Lambda Handlers"):
+                ins_customer_fn = Lambda("customer-handler")
+                ins_claims_fn = Lambda("claims-handler")
+                ins_ai_fn = Lambda("ai-handler")
 
-        # Lambda Handlers
-        with Cluster("Lambda Handlers"):
-            customer_fn = Lambda("customer-handler")
-            claims_fn = Lambda("claims-handler")
-            docs_fn = Lambda("documents-handler")
-            ai_fn = Lambda("ai-handler")
+            with Cluster("Data Layer"):
+                ins_customers_db = Dynamodb("Customers")
+                ins_quotes_db = Dynamodb("Quotes")
+                ins_policies_db = Dynamodb("Policies")
+                ins_claims_db = Dynamodb("Claims")
+                ins_conversations_db = Dynamodb("Conversations")
 
-        # Data Layer - DynamoDB Tables
-        with Cluster("Data Layer"):
-            customers_db = Dynamodb("Customers")
-            quotes_db = Dynamodb("Quotes")
-            policies_db = Dynamodb("Policies")
-            claims_db = Dynamodb("Claims")
-            payments_db = Dynamodb("Payments")
-            cases_db = Dynamodb("Cases")
-            conversations_db = Dynamodb("Conversations")
+            # Insurance flow
+            ins_user >> ins_cf >> ins_api
+            ins_api >> [ins_customer_fn, ins_claims_fn, ins_ai_fn]
+            ins_customer_fn >> [ins_customers_db, ins_quotes_db]
+            ins_claims_fn >> [ins_policies_db, ins_claims_db]
+            ins_ai_fn >> ins_conversations_db
 
-        # Storage
-        with Cluster("Storage"):
-            docs_bucket = S3("Documents")
+        # Retail Vertical Flow
+        with Cluster("Retail Vertical"):
+            ret_cf = CloudFront("CloudFront")
+            ret_api = APIGateway("API Gateway")
 
-        # AI Integration
-        with Cluster("AI Integration"):
-            bedrock = Bedrock("Bedrock")
+            with Cluster("Lambda Handlers"):
+                ret_products_fn = Lambda("products-handler")
+                ret_orders_fn = Lambda("orders-handler")
+                ret_ai_fn = Lambda("ai-handler")
 
-        # Notifications
-        with Cluster("Notifications"):
-            sns = SNS("SNS")
+            with Cluster("Data Layer"):
+                ret_products_db = Dynamodb("Products")
+                ret_orders_db = Dynamodb("Orders")
+                ret_inventory_db = Dynamodb("Inventory")
+                ret_conversations_db = Dynamodb("Conversations")
 
-        # Simplified flow - representative connections
-        customer >> react_app >> api_gw
-        api_gw >> [customer_fn, claims_fn, docs_fn, ai_fn]
+            # Retail flow
+            ret_user >> ret_cf >> ret_api
+            ret_api >> [ret_products_fn, ret_orders_fn, ret_ai_fn]
+            ret_products_fn >> ret_products_db
+            ret_orders_fn >> [ret_orders_db, ret_inventory_db]
+            ret_ai_fn >> ret_conversations_db
 
-        # Lambda to data (show key connections)
-        customer_fn >> [customers_db, quotes_db]
-        claims_fn >> [policies_db, claims_db, payments_db, cases_db]
-        ai_fn >> [conversations_db, bedrock]
-        docs_fn >> docs_bucket
+        # Shared AI Service
+        with Cluster("Shared AI Service"):
+            bedrock = Bedrock("Bedrock\n(Shared)")
 
-        # External services
-        [customer_fn, claims_fn, docs_fn] >> sns
+        # AI handlers to Bedrock
+        ins_ai_fn >> bedrock
+        ret_ai_fn >> bedrock
 
 
 if __name__ == "__main__":
-    print("Generating Silvermoat documentation diagrams...\n")
+    print("Generating Silvermoat multi-vertical documentation diagrams...\n")
 
     print("1/2 Generating architecture diagram...")
     generate_architecture_diagram()
@@ -207,3 +236,7 @@ if __name__ == "__main__":
     print("    ✓ docs/data-flow.png")
 
     print("\n✓ All diagrams generated successfully!")
+    print("   Showing multi-vertical architecture with:")
+    print("   - Insurance vertical (insurance.silvermoat.net)")
+    print("   - Retail vertical (retail.silvermoat.net)")
+    print("   - Shared Bedrock AI service")

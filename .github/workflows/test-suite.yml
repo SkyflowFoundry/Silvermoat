@@ -1,18 +1,22 @@
-name: Tests
+name: E2E Test Suite
 
 on:
   workflow_call:
     inputs:
-      stack_name:
-        description: 'Stack name for test environment'
+      insurance_api_url:
+        description: 'Insurance vertical API URL'
         required: true
         type: string
-      api_url:
-        description: 'API base URL'
+      insurance_web_url:
+        description: 'Insurance vertical web URL'
         required: true
         type: string
-      web_url:
-        description: 'Web application URL'
+      retail_api_url:
+        description: 'Retail vertical API URL'
+        required: true
+        type: string
+      retail_web_url:
+        description: 'Retail vertical web URL'
         required: true
         type: string
       environment:
@@ -26,318 +30,14 @@ on:
         required: true
 
 jobs:
-  lambda-unit-tests:
-    name: Lambda Unit
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    strategy:
-      fail-fast: false
-      matrix:
-        test: [handlers-3.11, handlers-3.12, utilities-3.11, utilities-3.12]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set test config
-        id: config
-        run: |
-          case "${{ matrix.test }}" in
-            handlers-3.11)
-              echo "pattern=test_*_handler.py" >> $GITHUB_OUTPUT
-              echo "python-version=3.11" >> $GITHUB_OUTPUT
-              echo "name=handlers" >> $GITHUB_OUTPUT
-              ;;
-            handlers-3.12)
-              echo "pattern=test_*_handler.py" >> $GITHUB_OUTPUT
-              echo "python-version=3.12" >> $GITHUB_OUTPUT
-              echo "name=handlers" >> $GITHUB_OUTPUT
-              ;;
-            utilities-3.11)
-              echo "pattern=test_responses.py test_validators.py test_events.py test_domain_logic.py test_storage_dynamodb.py" >> $GITHUB_OUTPUT
-              echo "python-version=3.11" >> $GITHUB_OUTPUT
-              echo "name=utilities" >> $GITHUB_OUTPUT
-              ;;
-            utilities-3.12)
-              echo "pattern=test_responses.py test_validators.py test_events.py test_domain_logic.py test_storage_dynamodb.py" >> $GITHUB_OUTPUT
-              echo "python-version=3.12" >> $GITHUB_OUTPUT
-              echo "name=utilities" >> $GITHUB_OUTPUT
-              ;;
-          esac
-
-      - name: Set up Python ${{ steps.config.outputs.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ steps.config.outputs.python-version }}
-          cache: 'pip'
-          cache-dependency-path: requirements-test.txt
-
-      - name: Install Python dependencies
-        run: pip install -r requirements-test.txt
-
-      - name: Run ${{ steps.config.outputs.name }} tests (Python ${{ steps.config.outputs.python-version }})
-        id: test-run
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}/lambda/layer/python:${{ github.workspace }}/lambda:${{ github.workspace }}/lambda/ai_handler:${{ github.workspace }}/lambda/customer_handler:${{ github.workspace }}/lambda/claims_handler:${{ github.workspace }}/lambda/documents_handler
-          AWS_DEFAULT_REGION: us-east-1
-          AWS_ACCESS_KEY_ID: testing
-          AWS_SECRET_ACCESS_KEY: testing
-          CUSTOMERS_TABLE: test-customers
-          QUOTES_TABLE: test-quotes
-          POLICIES_TABLE: test-policies
-          CLAIMS_TABLE: test-claims
-          PAYMENTS_TABLE: test-payments
-          CASES_TABLE: test-cases
-          DOCS_BUCKET: test-docs
-          SNS_TOPIC_ARN: ""
-        run: |
-          set -o pipefail
-          cd lambda/tests
-          pytest -v --tb=short ${{ steps.config.outputs.pattern }} 2>&1 | tee ../../${{ steps.config.outputs.name }}-python${{ steps.config.outputs.python-version }}-tests-output.txt
-
-      - name: Upload test output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ steps.config.outputs.name }}-python${{ steps.config.outputs.python-version }}-test-output
-          path: ${{ steps.config.outputs.name }}-python${{ steps.config.outputs.python-version }}-tests-output.txt
-          retention-days: 7
-
-      - name: Check test outcome
-        if: always()
-        run: |
-          if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
-            echo "${{ steps.config.outputs.name }} tests failed on Python ${{ steps.config.outputs.python-version }}"
-            exit 1
-          fi
-
-  unit-tests:
-    name: UI Unit
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    strategy:
-      fail-fast: false
-      matrix:
-        test: [utils, components, hooks, contexts]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set test config
-        id: config
-        run: |
-          case "${{ matrix.test }}" in
-            utils)
-              echo "pattern=src/utils/**/*.test.{js,jsx,ts,tsx}" >> $GITHUB_OUTPUT
-              ;;
-            components)
-              echo "pattern=src/components/**/*.test.{js,jsx,ts,tsx}" >> $GITHUB_OUTPUT
-              ;;
-            hooks)
-              echo "pattern=src/hooks/**/*.test.{js,jsx,ts,tsx}" >> $GITHUB_OUTPUT
-              ;;
-            contexts)
-              echo "pattern=src/contexts/**/*.test.{js,jsx,ts,tsx}" >> $GITHUB_OUTPUT
-              ;;
-          esac
-
-      - name: Setup environment
-        uses: ./.github/actions/setup-env
-
-      - name: Install UI dependencies
-        run: |
-          cd ui
-          npm ci --silent
-
-      - name: Run ${{ matrix.test }} tests
-        id: test-run
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          cd ui
-          # Run tests matching the pattern, exit 0 if no tests found
-          npm test -- --run "${{ steps.config.outputs.pattern }}" 2>&1 | tee ../${{ matrix.test }}-tests-output.txt || {
-            if grep -q "No test files found" ../${{ matrix.test }}-tests-output.txt; then
-              echo "No tests found for ${{ steps.config.outputs.pattern }}, skipping..."
-              echo "SKIPPED=true" >> $GITHUB_OUTPUT
-              exit 0
-            else
-              exit 1
-            fi
-          }
-
-      - name: Upload test output
-        if: always() && steps.test-run.outputs.SKIPPED != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.test }}-test-output
-          path: ${{ matrix.test }}-tests-output.txt
-          retention-days: 7
-
-      - name: Check test outcome
-        if: always() && steps.test-run.outputs.SKIPPED != 'true'
-        run: |
-          if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
-            echo "${{ matrix.test }} tests failed"
-            exit 1
-          fi
-
-  api-tests:
-    name: API
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    strategy:
-      fail-fast: false
-      matrix:
-        test: [smoke, cases, security, chatbot, cust-chat, customers, payments, policies, quotes, claims, root]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set test config
-        id: config
-        run: |
-          case "${{ matrix.test }}" in
-            smoke)
-              echo "file=" >> $GITHUB_OUTPUT
-              ;;
-            cases)
-              echo "file=test_cases.py" >> $GITHUB_OUTPUT
-              ;;
-            security)
-              echo "file=test_security.py" >> $GITHUB_OUTPUT
-              ;;
-            chatbot)
-              echo "file=test_chatbot.py" >> $GITHUB_OUTPUT
-              ;;
-            cust-chat)
-              echo "file=test_customer_chatbot.py" >> $GITHUB_OUTPUT
-              ;;
-            customers)
-              echo "file=test_customers.py" >> $GITHUB_OUTPUT
-              ;;
-            payments)
-              echo "file=test_payments.py" >> $GITHUB_OUTPUT
-              ;;
-            policies)
-              echo "file=test_policies.py" >> $GITHUB_OUTPUT
-              ;;
-            quotes)
-              echo "file=test_quotes.py" >> $GITHUB_OUTPUT
-              ;;
-            claims)
-              echo "file=test_claims.py" >> $GITHUB_OUTPUT
-              ;;
-            root)
-              echo "file=test_root.py" >> $GITHUB_OUTPUT
-              ;;
-          esac
-
-      - name: Setup environment
-        uses: ./.github/actions/setup-env
-
-      - name: Install Python dependencies
-        run: pip install -r requirements-test.txt
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Run ${{ matrix.test }} tests
-        id: test-run
-        continue-on-error: true
-        env:
-          STACK_NAME: ${{ inputs.stack_name }}
-          SILVERMOAT_API_URL: ${{ inputs.api_url }}
-          SILVERMOAT_URL: ${{ inputs.web_url }}
-        run: |
-          set -o pipefail
-          echo "Running ${{ matrix.test }} tests against ${{ inputs.environment }}..."
-          cd tests/api
-          pytest -v --tb=short ${{ steps.config.outputs.file }} 2>&1 | tee ../../${{ matrix.test }}-tests-output.txt
-
-      - name: Upload test output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.test }}-test-output
-          path: ${{ matrix.test }}-tests-output.txt
-          retention-days: 7
-
-      - name: Upload test artifacts (screenshots, page source, logs)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.test }}-test-artifacts
-          path: tests/api/test-artifacts/
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Check test outcome
-        if: always()
-        run: |
-          if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
-            echo "${{ matrix.test }} tests failed"
-            exit 1
-          fi
-
-  e2e-tests:
-    name: E2E
+  insurance-e2e-tests:
+    name: Insurance E2E
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
-    strategy:
-      fail-fast: false
-      matrix:
-        test: [smoke-deploy, smoke-land, forms-1, forms-2, customer, navigation]
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set test config
-        id: config
-        run: |
-          case "${{ matrix.test }}" in
-            smoke-deploy)
-              echo "dir=smoke" >> $GITHUB_OUTPUT
-              echo "args=" >> $GITHUB_OUTPUT
-              echo "needs-chrome=false" >> $GITHUB_OUTPUT
-              ;;
-            smoke-land)
-              echo "dir=e2e" >> $GITHUB_OUTPUT
-              echo "args=-m smoke" >> $GITHUB_OUTPUT
-              echo "needs-chrome=true" >> $GITHUB_OUTPUT
-              ;;
-            forms-1)
-              echo "dir=e2e" >> $GITHUB_OUTPUT
-              echo "args=tests/test_form_sample_data.py -m forms" >> $GITHUB_OUTPUT
-              echo "needs-chrome=true" >> $GITHUB_OUTPUT
-              ;;
-            forms-2)
-              echo "dir=e2e" >> $GITHUB_OUTPUT
-              echo "args=tests/test_form_submissions.py -m forms" >> $GITHUB_OUTPUT
-              echo "needs-chrome=true" >> $GITHUB_OUTPUT
-              ;;
-            customer)
-              echo "dir=e2e" >> $GITHUB_OUTPUT
-              echo "args=-m customer" >> $GITHUB_OUTPUT
-              echo "needs-chrome=true" >> $GITHUB_OUTPUT
-              ;;
-            navigation)
-              echo "dir=e2e" >> $GITHUB_OUTPUT
-              echo "args=tests/test_landing_page.py -m 'e2e and not smoke'" >> $GITHUB_OUTPUT
-              echo "needs-chrome=true" >> $GITHUB_OUTPUT
-              ;;
-          esac
 
       - name: Setup environment
         uses: ./.github/actions/setup-env
@@ -352,49 +52,35 @@ jobs:
           aws-region: us-east-1
 
       - name: Install Chrome and ChromeDriver
-        if: steps.config.outputs.needs-chrome == 'true'
         uses: browser-actions/setup-chrome@v1
-        with:
-          chrome-version: stable
-          install-chromedriver: true
 
-      - name: Cache ChromeDriver
-        if: steps.config.outputs.needs-chrome == 'true'
-        uses: actions/cache@v4
-        with:
-          path: /usr/local/bin/chromedriver
-          key: ${{ runner.os }}-chromedriver-${{ hashFiles('**/requirements-test.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-chromedriver-
-
-      - name: Run ${{ matrix.test }} tests
+      - name: Run insurance E2E tests
         id: test-run
         continue-on-error: true
         env:
-          STACK_NAME: ${{ inputs.stack_name }}
-          SILVERMOAT_API_URL: ${{ inputs.api_url }}
-          SILVERMOAT_URL: ${{ inputs.web_url }}
-          HEADLESS: '1'
+          INSURANCE_API_URL: ${{ inputs.insurance_api_url }}
+          INSURANCE_URL: ${{ inputs.insurance_web_url }}
+          HEADLESS: 'true'
         run: |
           set -o pipefail
-          echo "Running ${{ matrix.test }} tests against ${{ inputs.environment }}..."
-          cd tests/${{ steps.config.outputs.dir }}
-          pytest -v --tb=short ${{ steps.config.outputs.args }} 2>&1 | tee ../../${{ matrix.test }}-tests-output.txt
+          echo "Running insurance E2E tests against ${{ inputs.environment }}..."
+          cd tests/e2e
+          pytest -v --tb=short -m "insurance" 2>&1 | tee ../../insurance-e2e-tests-output.txt
 
       - name: Upload test output
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.test }}-test-output
-          path: ${{ matrix.test }}-tests-output.txt
+          name: insurance-e2e-test-output
+          path: insurance-e2e-tests-output.txt
           retention-days: 7
 
       - name: Upload test artifacts (screenshots, page source, logs)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.test }}-test-artifacts
-          path: tests/${{ steps.config.outputs.dir }}/test-artifacts/
+          name: insurance-e2e-test-artifacts
+          path: tests/e2e/test-artifacts/
           retention-days: 7
           if-no-files-found: ignore
 
@@ -402,6 +88,68 @@ jobs:
         if: always()
         run: |
           if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
-            echo "${{ matrix.test }} tests failed"
+            echo "Insurance E2E tests failed"
+            exit 1
+          fi
+
+  retail-e2e-tests:
+    name: Retail E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install Python dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Install Chrome and ChromeDriver
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Run retail E2E tests
+        id: test-run
+        continue-on-error: true
+        env:
+          RETAIL_API_URL: ${{ inputs.retail_api_url }}
+          RETAIL_URL: ${{ inputs.retail_web_url }}
+          HEADLESS: 'true'
+        run: |
+          set -o pipefail
+          echo "Running retail E2E tests against ${{ inputs.environment }}..."
+          cd tests/e2e
+          pytest -v --tb=short -m "retail" 2>&1 | tee ../../retail-e2e-tests-output.txt
+
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: retail-e2e-test-output
+          path: retail-e2e-tests-output.txt
+          retention-days: 7
+
+      - name: Upload test artifacts (screenshots, page source, logs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: retail-e2e-test-artifacts
+          path: tests/e2e/test-artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Check test outcome
+        if: always()
+        run: |
+          if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
+            echo "Retail E2E tests failed"
             exit 1
           fi
