@@ -407,12 +407,62 @@ jobs:
   # Landing Page Pipeline
   # ========================================
 
-  deploy-landing-ui:
-    name: Deploy Landing UI
+  deploy-landing-infra:
+    name: Deploy Landing Infra
     needs: [detect-changes]
     if: |
+      needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+      inputs.force_deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      stack_name: ${{ steps.deploy.outputs.stack_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-deps
+        with:
+          install-ui: 'false'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Setup AWS CDK
+        uses: ./.github/actions/setup-aws-cdk
+
+      - name: Bootstrap CDK
+        uses: ./.github/actions/bootstrap-cdk
+
+      - name: Deploy landing stack
+        id: deploy
+        env:
+          STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
+          VERTICAL: landing
+        run: |
+          echo "Deploying landing stack: ${STACK_NAME}-landing"
+          chmod +x scripts/deploy-stack.sh
+          ./scripts/deploy-stack.sh
+          echo "stack_name=${STACK_NAME}-landing" >> $GITHUB_OUTPUT
+
+  deploy-landing-ui:
+    name: Deploy Landing UI
+    needs: [detect-changes, deploy-landing-infra]
+    if: |
       always() &&
-      (needs.detect-changes.outputs.ui_changed == 'true' || inputs.force_deploy == 'true')
+      (needs.detect-changes.outputs.ui_changed == 'true' || needs.deploy-landing-infra.result == 'success' || inputs.force_deploy == 'true') &&
+      (needs.deploy-landing-infra.result == 'success' || needs.deploy-landing-infra.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -447,7 +497,7 @@ jobs:
 
   landing-tests:
     name: Landing E2E Tests
-    needs: [detect-changes, deploy-landing-ui]
+    needs: [deploy-landing-infra, deploy-landing-ui]
     if: always() && needs.deploy-landing-ui.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -517,6 +567,7 @@ jobs:
       deploy-retail-ui,
       retail-tests,
       seed-retail-data,
+      deploy-landing-infra,
       deploy-landing-ui,
       landing-tests
     ]
@@ -548,16 +599,18 @@ jobs:
           |----------|---------------|-----|-------|--------------|
           | 🏥 **Insurance** | ${{ needs.deploy-insurance-infra.result == 'success' && '✅' || needs.deploy-insurance-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-insurance-ui.result == 'success' && '✅' || needs.deploy-insurance-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.insurance-tests.result == 'success' && '✅' || needs.insurance-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-insurance-data.result == 'success' && '✅' || needs.seed-insurance-data.result == 'skipped' && '⏭️' || '❌' }} |
           | 🛒 **Retail** | ${{ needs.deploy-retail-infra.result == 'success' && '✅' || needs.deploy-retail-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-retail-ui.result == 'success' && '✅' || needs.deploy-retail-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.retail-tests.result == 'success' && '✅' || needs.retail-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-retail-data.result == 'success' && '✅' || needs.seed-retail-data.result == 'skipped' && '⏭️' || '❌' }} |
+          | 🏠 **Landing** | ${{ needs.deploy-landing-infra.result == 'success' && '✅' || needs.deploy-landing-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-landing-ui.result == 'success' && '✅' || needs.deploy-landing-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.landing-tests.result == 'success' && '✅' || needs.landing-tests.result == 'skipped' && '⏭️' || '❌' }} | N/A |
 
           EOF
 
           # Add environment URLs if successful
           INSURANCE_UI_SUCCESS="${{ needs.deploy-insurance-ui.result == 'success' }}"
           RETAIL_UI_SUCCESS="${{ needs.deploy-retail-ui.result == 'success' }}"
+          LANDING_UI_SUCCESS="${{ needs.deploy-landing-ui.result == 'success' }}"
           INSURANCE_SEED_SUCCESS="${{ needs.seed-insurance-data.result == 'success' }}"
           RETAIL_SEED_SUCCESS="${{ needs.seed-retail-data.result == 'success' }}"
 
-          if [ "$INSURANCE_UI_SUCCESS" = "true" ] || [ "$RETAIL_UI_SUCCESS" = "true" ]; then
+          if [ "$INSURANCE_UI_SUCCESS" = "true" ] || [ "$RETAIL_UI_SUCCESS" = "true" ] || [ "$LANDING_UI_SUCCESS" = "true" ]; then
             cat >> /tmp/pr-comment.md <<EOF
           ---
 
@@ -594,6 +647,14 @@ jobs:
 
           EOF
             fi
+
+            if [ "$LANDING_UI_SUCCESS" = "true" ]; then
+              cat >> /tmp/pr-comment.md <<EOF
+          #### 🏠 Landing Page ✅ Ready
+          **Web URL:** ${{ needs.deploy-landing-ui.outputs.web_url }}
+
+          EOF
+            fi
           fi
 
           # Add failure notice if any failures
@@ -602,7 +663,10 @@ jobs:
              [ "${{ needs.insurance-tests.result }}" = "failure" ] || \
              [ "${{ needs.deploy-retail-infra.result }}" = "failure" ] || \
              [ "${{ needs.deploy-retail-ui.result }}" = "failure" ] || \
-             [ "${{ needs.retail-tests.result }}" = "failure" ]; then
+             [ "${{ needs.retail-tests.result }}" = "failure" ] || \
+             [ "${{ needs.deploy-landing-infra.result }}" = "failure" ] || \
+             [ "${{ needs.deploy-landing-ui.result }}" = "failure" ] || \
+             [ "${{ needs.landing-tests.result }}" = "failure" ]; then
             cat >> /tmp/pr-comment.md <<EOF
           ---
 
