@@ -1,15 +1,15 @@
 # Dependencies
 node_modules/
-ui/node_modules/
+ui*/node_modules/
 
 # Build outputs
-ui/dist/
-ui/build/
+ui*/dist/
+ui*/build/
 *.log
 
 # Generated during build
 docs/architecture.png
-ui/public/architecture.png
+ui*/public/architecture.png
 
 # Environment variables
 .env
