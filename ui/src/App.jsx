@@ -1,6 +1,6 @@
 /**
  * Root Application Component
- * Sets up all providers and routing for the Silvermoat Insurance application
+ * Sets up all providers and routing for the Silvermoat multi-vertical application
  */
 
 import { Suspense } from 'react';
@@ -12,7 +12,12 @@ import AppLayout from './components/layout/AppLayout';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import theme from './config/theme';
 import routes from './config/routes';
+import { detectVertical } from './utils/verticalDetector';
 import './App.css';
+
+// Detect vertical at app initialization
+const VERTICAL = detectVertical();
+console.log(`[Vertical] Detected vertical: ${VERTICAL}`);
 
 // Create React Query client
 const queryClient = new QueryClient({

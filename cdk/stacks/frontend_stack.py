@@ -29,11 +29,15 @@ class FrontendStack(Construct):
             return
 
         # ACM Certificate (only if domain_name provided)
+        # Support wildcard for multi-vertical subdomains
         if domain_name:
+            # If domain starts with wildcard, use as-is; otherwise use exact domain
+            cert_domain = domain_name if domain_name.startswith("*") else domain_name
+
             self.certificate = acm.Certificate(
                 self,
                 "UiCertificate",
-                domain_name=domain_name,
+                domain_name=cert_domain,
                 validation=acm.CertificateValidation.from_dns(),
             )
 
@@ -76,7 +80,19 @@ class FrontendStack(Construct):
         # Add certificate and domain if provided
         if self.certificate and domain_name:
             distribution_props["certificate"] = self.certificate
-            distribution_props["domain_names"] = [domain_name]
+
+            # If wildcard cert, add specific subdomains as alternate domains
+            if domain_name.startswith("*"):
+                # Extract base domain (e.g., "silvermoat.net" from "*.silvermoat.net")
+                base_domain = domain_name.lstrip("*").lstrip(".")
+                distribution_props["domain_names"] = [
+                    f"insurance.{base_domain}",
+                    f"retail.{base_domain}",
+                    base_domain,  # Also support apex domain
+                ]
+            else:
+                distribution_props["domain_names"] = [domain_name]
+
             distribution_props["minimum_protocol_version"] = cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021
 
         self.distribution = cloudfront.Distribution(
