@@ -201,33 +201,33 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['lambda-3.11', 'lambda-3.12', 'ui', 'api', 'e2e-smoke-land', 'e2e-smoke-deploy', 'e2e-navigation', 'e2e-forms-1', 'e2e-forms-2', 'e2e-customer']
+        test-type: ['lambda', 'ui', 'api', 'e2e']
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Setup for Lambda tests
+      # Lambda tests
       - name: Set up Python for lambda tests
-        if: startsWith(matrix.test-type, 'lambda-')
+        if: matrix.test-type == 'lambda'
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.test-type == 'lambda-3.11' && '3.11' || '3.12' }}
+          python-version: '3.11'
           cache: 'pip'
           cache-dependency-path: requirements-test.txt
 
       - name: Install Python dependencies for lambda tests
-        if: startsWith(matrix.test-type, 'lambda-')
+        if: matrix.test-type == 'lambda'
         run: pip install -r requirements-test.txt
 
-      - name: Run insurance lambda tests
-        if: startsWith(matrix.test-type, 'lambda-')
+      - name: Run lambda tests
+        if: matrix.test-type == 'lambda'
         env:
-          PYTHONPATH: ${{ github.workspace }}/lambda/layer/python:${{ github.workspace }}/lambda:${{ github.workspace }}/lambda/insurance
+          PYTHONPATH: ${{ github.workspace }}/lambda/layer/python:${{ github.workspace }}/lambda
         run: |
-          cd lambda/insurance
+          cd lambda/tests
           pytest -v --tb=short
 
-      # Setup for UI tests
+      # UI tests
       - name: Setup environment for UI tests
         if: matrix.test-type == 'ui'
         uses: ./.github/actions/setup-env
@@ -242,7 +242,7 @@ jobs:
         working-directory: ui-insurance
         run: npm test
 
-      # Setup for API tests
+      # API tests
       - name: Set up Python for API tests
         if: matrix.test-type == 'api'
         uses: actions/setup-python@v5
@@ -263,35 +263,34 @@ jobs:
           cd tests/api
           pytest -v --tb=short -m "not retail"
 
-      # Setup for E2E tests
+      # E2E tests
       - name: Setup environment for E2E tests
-        if: startsWith(matrix.test-type, 'e2e-')
+        if: matrix.test-type == 'e2e'
         uses: ./.github/actions/setup-env
 
       - name: Install Python dependencies for E2E tests
-        if: startsWith(matrix.test-type, 'e2e-')
+        if: matrix.test-type == 'e2e'
         run: pip install -r requirements-test.txt
 
       - name: Configure AWS credentials for E2E tests
-        if: startsWith(matrix.test-type, 'e2e-')
+        if: matrix.test-type == 'e2e'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
       - name: Install Chrome and ChromeDriver
-        if: startsWith(matrix.test-type, 'e2e-')
+        if: matrix.test-type == 'e2e'
         uses: browser-actions/setup-chrome@v1
 
       - name: Run insurance E2E tests
-        if: startsWith(matrix.test-type, 'e2e-')
+        if: matrix.test-type == 'e2e'
         env:
           WEB_BASE_URL: ${{ needs.deploy-insurance-ui.outputs.web_url }}
           API_BASE_URL: ${{ needs.deploy-insurance-ui.outputs.api_url }}
         run: |
           cd tests/e2e
-          TEST_MARKER=$(echo "${{ matrix.test-type }}" | sed 's/e2e-//')
-          pytest -v --tb=short -m "$TEST_MARKER"
+          pytest -v --tb=short -m "e2e and not retail"
 
   seed-insurance-data:
     name: Seed Insurance Data
@@ -425,33 +424,33 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['lambda-3.11', 'lambda-3.12', 'ui', 'api', 'e2e-smoke-land', 'e2e-smoke-deploy', 'e2e-navigation', 'e2e-forms-1', 'e2e-forms-2', 'e2e-customer']
+        test-type: ['lambda', 'ui', 'api', 'e2e']
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Setup for Lambda tests
+      # Lambda tests
       - name: Set up Python for lambda tests
-        if: startsWith(matrix.test-type, 'lambda-')
+        if: matrix.test-type == 'lambda'
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.test-type == 'lambda-3.11' && '3.11' || '3.12' }}
+          python-version: '3.11'
           cache: 'pip'
           cache-dependency-path: requirements-test.txt
 
       - name: Install Python dependencies for lambda tests
-        if: startsWith(matrix.test-type, 'lambda-')
+        if: matrix.test-type == 'lambda'
         run: pip install -r requirements-test.txt
 
-      - name: Run retail lambda tests
-        if: startsWith(matrix.test-type, 'lambda-')
+      - name: Run lambda tests
+        if: matrix.test-type == 'lambda'
         env:
-          PYTHONPATH: ${{ github.workspace }}/lambda/layer/python:${{ github.workspace }}/lambda:${{ github.workspace }}/lambda/retail
+          PYTHONPATH: ${{ github.workspace }}/lambda/layer/python:${{ github.workspace }}/lambda
         run: |
-          cd lambda/retail
+          cd lambda/tests
           pytest -v --tb=short
 
-      # Setup for UI tests
+      # UI tests
       - name: Setup environment for UI tests
         if: matrix.test-type == 'ui'
         uses: ./.github/actions/setup-env
@@ -466,7 +465,7 @@ jobs:
         working-directory: ui-retail
         run: npm test
 
-      # Setup for API tests
+      # API tests
       - name: Set up Python for API tests
         if: matrix.test-type == 'api'
         uses: actions/setup-python@v5
@@ -487,35 +486,34 @@ jobs:
           cd tests/api
           pytest -v --tb=short -m "retail"
 
-      # Setup for E2E tests
+      # E2E tests
       - name: Setup environment for E2E tests
-        if: startsWith(matrix.test-type, 'e2e-')
+        if: matrix.test-type == 'e2e'
         uses: ./.github/actions/setup-env
 
       - name: Install Python dependencies for E2E tests
-        if: startsWith(matrix.test-type, 'e2e-')
+        if: matrix.test-type == 'e2e'
         run: pip install -r requirements-test.txt
 
       - name: Configure AWS credentials for E2E tests
-        if: startsWith(matrix.test-type, 'e2e-')
+        if: matrix.test-type == 'e2e'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
       - name: Install Chrome and ChromeDriver
-        if: startsWith(matrix.test-type, 'e2e-')
+        if: matrix.test-type == 'e2e'
         uses: browser-actions/setup-chrome@v1
 
       - name: Run retail E2E tests
-        if: startsWith(matrix.test-type, 'e2e-')
+        if: matrix.test-type == 'e2e'
         env:
           WEB_BASE_URL: ${{ needs.deploy-retail-ui.outputs.web_url }}
           API_BASE_URL: ${{ needs.deploy-retail-ui.outputs.api_url }}
         run: |
           cd tests/e2e
-          TEST_MARKER=$(echo "${{ matrix.test-type }}" | sed 's/e2e-//')
-          pytest -v --tb=short -m "$TEST_MARKER"
+          pytest -v --tb=short -m "retail"
 
   seed-retail-data:
     name: Seed Retail Data
