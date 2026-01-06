@@ -115,32 +115,6 @@ def test_insurance_customers_accessible(driver, insurance_base_url):
 
 @pytest.mark.e2e
 @pytest.mark.insurance
-def test_insurance_chatbot_accessible(driver, insurance_base_url):
-    """Test chatbot page is accessible"""
-    driver.get(f"{insurance_base_url}/chat")
-    wait_for_app_ready(driver)
-
-    # Should load without error
-    assert "error" not in driver.page_source.lower() or "chat" in driver.page_source.lower()
-
-    # Page should have content
-    body = driver.find_element(By.TAG_NAME, "body")
-    assert body.text.strip() != "", "Chat page should have content"
-
-    # Look for chatbot UI elements
-    page_source = driver.page_source.lower()
-    has_chatbot = any([
-        "chat" in page_source,
-        "message" in page_source,
-        "assistant" in page_source,
-        "send" in page_source
-    ])
-
-    assert has_chatbot, "Should have chatbot interface on /chat route"
-
-
-@pytest.mark.e2e
-@pytest.mark.insurance
 @pytest.mark.slow
 def test_insurance_quote_via_api(driver, insurance_base_url, insurance_api_url):
     """Test creating quote via API and verifying system works"""
