@@ -186,7 +186,7 @@ export const claimFormConfig = {
     {
       name: 'incidentDate',
       label: 'Incident Date',
-      component: <DatePicker size="large" style={{ width: '100%' }} />,
+      component: <DatePicker id="incidentDate" size="large" style={{ width: '100%' }} format="MM/DD/YYYY" />,
       rules: [{ required: true, message: 'Please select the incident date' }],
       transform: (value) => value?.format('YYYY-MM-DD'),
     },
@@ -195,6 +195,7 @@ export const claimFormConfig = {
       label: 'Claim Amount',
       component: (
         <InputNumber
+          id="amount"
           prefix={<DollarOutlined />}
           placeholder="5000.00"
           size="large"
