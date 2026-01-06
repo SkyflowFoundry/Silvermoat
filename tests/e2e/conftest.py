@@ -21,14 +21,15 @@ from webdriver_manager.chrome import ChromeDriverManager
 def base_url():
     """
     Get application base URL from environment or CloudFormation stack.
+    Defaults to insurance vertical for backwards compatibility.
 
     Priority:
-    1. SILVERMOAT_URL environment variable
+    1. SILVERMOAT_URL or INSURANCE_URL environment variable
     2. CloudFormation stack outputs (via STACK_NAME)
     3. Default localhost
     """
     # Check environment variable first
-    app_url = os.environ.get('SILVERMOAT_URL')
+    app_url = os.environ.get('SILVERMOAT_URL') or os.environ.get('INSURANCE_URL')
     if app_url:
         return app_url.rstrip('/')
 
@@ -40,11 +41,17 @@ def base_url():
             cfn = boto3.client('cloudformation')
             response = cfn.describe_stacks(StackName=stack_name)
             outputs = {o['OutputKey']: o['OutputValue'] for o in response['Stacks'][0].get('Outputs', [])}
-            # Try WebUrl first, then CloudFrontUrl
+            # Try insurance-specific URL first, then generic
+            if 'InsuranceUiBucketWebsiteURL' in outputs:
+                return outputs['InsuranceUiBucketWebsiteURL'].rstrip('/')
             if 'WebUrl' in outputs:
                 return outputs['WebUrl'].rstrip('/')
             if 'CloudFrontUrl' in outputs:
-                return outputs['CloudFrontUrl'].rstrip('/')
+                url = outputs['CloudFrontUrl'].rstrip('/')
+                # For CloudFront with wildcard domain, append insurance subdomain
+                if 'InsuranceDomainUrl' in outputs:
+                    return outputs['InsuranceDomainUrl'].rstrip('/')
+                return url
         except Exception as e:
             print(f"Warning: Could not fetch stack outputs: {e}")
 
@@ -53,10 +60,64 @@ def base_url():
 
 
 @pytest.fixture(scope="session")
-def api_base_url():
-    """Get API base URL for E2E tests"""
+def insurance_base_url():
+    """Get insurance vertical base URL"""
     # Check environment variable first
-    api_url = os.environ.get('SILVERMOAT_API_URL')
+    app_url = os.environ.get('INSURANCE_URL')
+    if app_url:
+        return app_url.rstrip('/')
+
+    # Try to fetch from CloudFormation stack
+    stack_name = os.environ.get('STACK_NAME', os.environ.get('TEST_STACK_NAME'))
+    if stack_name:
+        try:
+            import boto3
+            cfn = boto3.client('cloudformation')
+            response = cfn.describe_stacks(StackName=stack_name)
+            outputs = {o['OutputKey']: o['OutputValue'] for o in response['Stacks'][0].get('Outputs', [])}
+            if 'InsuranceDomainUrl' in outputs:
+                return outputs['InsuranceDomainUrl'].rstrip('/')
+            if 'InsuranceUiBucketWebsiteURL' in outputs:
+                return outputs['InsuranceUiBucketWebsiteURL'].rstrip('/')
+        except Exception as e:
+            print(f"Warning: Could not fetch stack outputs: {e}")
+
+    # Fallback to base_url
+    return os.environ.get('BASE_URL', 'http://localhost:5173').rstrip('/')
+
+
+@pytest.fixture(scope="session")
+def retail_base_url():
+    """Get retail vertical base URL"""
+    # Check environment variable first
+    app_url = os.environ.get('RETAIL_URL')
+    if app_url:
+        return app_url.rstrip('/')
+
+    # Try to fetch from CloudFormation stack
+    stack_name = os.environ.get('STACK_NAME', os.environ.get('TEST_STACK_NAME'))
+    if stack_name:
+        try:
+            import boto3
+            cfn = boto3.client('cloudformation')
+            response = cfn.describe_stacks(StackName=stack_name)
+            outputs = {o['OutputKey']: o['OutputValue'] for o in response['Stacks'][0].get('Outputs', [])}
+            if 'RetailDomainUrl' in outputs:
+                return outputs['RetailDomainUrl'].rstrip('/')
+            if 'RetailUiBucketWebsiteURL' in outputs:
+                return outputs['RetailUiBucketWebsiteURL'].rstrip('/')
+        except Exception as e:
+            print(f"Warning: Could not fetch stack outputs: {e}")
+
+    # No fallback - skip retail tests if not configured
+    pytest.skip("RETAIL_URL not configured")
+
+
+@pytest.fixture(scope="session")
+def api_base_url():
+    """Get API base URL for E2E tests (defaults to insurance vertical)"""
+    # Check environment variable first
+    api_url = os.environ.get('SILVERMOAT_API_URL') or os.environ.get('INSURANCE_API_URL')
     if api_url:
         return api_url.rstrip('/')
 
@@ -68,12 +129,65 @@ def api_base_url():
             cfn = boto3.client('cloudformation')
             response = cfn.describe_stacks(StackName=stack_name)
             outputs = {o['OutputKey']: o['OutputValue'] for o in response['Stacks'][0].get('Outputs', [])}
+            # Try insurance-specific API first, then generic
+            if 'InsuranceApiUrl' in outputs:
+                return outputs['InsuranceApiUrl'].rstrip('/')
             if 'ApiBaseUrl' in outputs:
                 return outputs['ApiBaseUrl'].rstrip('/')
         except Exception as e:
             print(f"Warning: Could not fetch API URL: {e}")
 
     return os.environ.get('API_BASE_URL', 'http://localhost:3000').rstrip('/')
+
+
+@pytest.fixture(scope="session")
+def insurance_api_url():
+    """Get insurance vertical API URL"""
+    # Check environment variable first
+    api_url = os.environ.get('INSURANCE_API_URL')
+    if api_url:
+        return api_url.rstrip('/')
+
+    # Try to fetch from CloudFormation stack
+    stack_name = os.environ.get('STACK_NAME', os.environ.get('TEST_STACK_NAME'))
+    if stack_name:
+        try:
+            import boto3
+            cfn = boto3.client('cloudformation')
+            response = cfn.describe_stacks(StackName=stack_name)
+            outputs = {o['OutputKey']: o['OutputValue'] for o in response['Stacks'][0].get('Outputs', [])}
+            if 'InsuranceApiUrl' in outputs:
+                return outputs['InsuranceApiUrl'].rstrip('/')
+        except Exception as e:
+            print(f"Warning: Could not fetch API URL: {e}")
+
+    # Fallback to api_base_url
+    return os.environ.get('API_BASE_URL', 'http://localhost:3000').rstrip('/')
+
+
+@pytest.fixture(scope="session")
+def retail_api_url():
+    """Get retail vertical API URL"""
+    # Check environment variable first
+    api_url = os.environ.get('RETAIL_API_URL')
+    if api_url:
+        return api_url.rstrip('/')
+
+    # Try to fetch from CloudFormation stack
+    stack_name = os.environ.get('STACK_NAME', os.environ.get('TEST_STACK_NAME'))
+    if stack_name:
+        try:
+            import boto3
+            cfn = boto3.client('cloudformation')
+            response = cfn.describe_stacks(StackName=stack_name)
+            outputs = {o['OutputKey']: o['OutputValue'] for o in response['Stacks'][0].get('Outputs', [])}
+            if 'RetailApiUrl' in outputs:
+                return outputs['RetailApiUrl'].rstrip('/')
+        except Exception as e:
+            print(f"Warning: Could not fetch API URL: {e}")
+
+    # No fallback - skip retail tests if not configured
+    pytest.skip("RETAIL_API_URL not configured")
 
 
 @pytest.fixture
