@@ -41,7 +41,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        vertical: [insurance, retail]
+        vertical: [insurance, retail, landing]
       fail-fast: false
 
     steps:

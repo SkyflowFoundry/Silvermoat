@@ -10,7 +10,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/check-aws.sh"
 
 BASE_STACK_NAME="${STACK_NAME:-silvermoat}"
-VERTICAL="${VERTICAL:-all}"  # Can be: all, insurance, retail
+VERTICAL="${VERTICAL:-all}"  # Can be: all, insurance, retail, landing
 
 # Check AWS CLI and credentials
 check_aws_configured
@@ -80,6 +80,24 @@ if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "retail" ]; then
   echo ""
 fi
 
+# Get Landing outputs
+LANDING_BUCKET=""
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "landing" ]; then
+  echo "Fetching landing stack outputs..."
+  LANDING_OUTPUTS=$(get_stack_outputs "${BASE_STACK_NAME}-landing")
+
+  if [ "$LANDING_OUTPUTS" = "null" ] || [ -z "$LANDING_OUTPUTS" ]; then
+    echo "Error: Could not get outputs from ${BASE_STACK_NAME}-landing"
+    echo "Make sure the landing stack is deployed."
+    exit 1
+  fi
+
+  LANDING_BUCKET=$(echo "$LANDING_OUTPUTS" | jq -r '.[] | select(.OutputKey=="LandingUiBucketName") | .OutputValue')
+
+  echo "Landing UI Bucket: $LANDING_BUCKET"
+  echo ""
+fi
+
 # Function to deploy a vertical UI
 deploy_vertical_ui() {
   local VERTICAL=$1
@@ -108,9 +126,11 @@ deploy_vertical_ui() {
     npm install --silent
   fi
 
-  # Build with API URL
+  # Build with API URL (if provided)
   echo "Building React app..."
-  export VITE_API_BASE_URL="$API_URL"
+  if [ -n "$API_URL" ]; then
+    export VITE_API_BASE_URL="$API_URL"
+  fi
   npm run build
 
   BUILD_DIR="$UI_DIR/dist"
@@ -134,25 +154,39 @@ deploy_vertical_ui() {
 }
 
 # Generate architecture diagram (shared across verticals)
-echo "Generating architecture diagram..."
-pip install -q -r "$PROJECT_ROOT/requirements-docs.txt"
-cd "$PROJECT_ROOT"
-python3 "$PROJECT_ROOT/scripts/generate-architecture-diagram.py"
-echo ""
+# Only if Graphviz is installed (optional, non-blocking)
+if command -v dot >/dev/null 2>&1; then
+  echo "Generating architecture diagram..."
+  pip install -q -r "$PROJECT_ROOT/requirements-docs.txt" || echo "Warning: Failed to install diagram dependencies"
+  cd "$PROJECT_ROOT"
+  python3 "$PROJECT_ROOT/scripts/generate-architecture-diagram.py" || echo "Warning: Failed to generate diagram"
+  echo ""
+else
+  echo "Skipping architecture diagram generation (Graphviz not installed)"
+  echo ""
+fi
 
 # Deploy Insurance UI
 if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "insurance" ]; then
   deploy_vertical_ui "Insurance" "$PROJECT_ROOT/ui-insurance" "$INSURANCE_BUCKET" "$INSURANCE_API_URL"
 
-  # Copy architecture diagram to insurance UI bucket
-  echo "Copying architecture diagram to insurance UI..."
-  $AWS_CMD s3 cp "$PROJECT_ROOT/docs/architecture.png" "s3://$INSURANCE_BUCKET/architecture.png"
-  echo ""
+  # Copy architecture diagram to insurance UI bucket (if it exists)
+  if [ -f "$PROJECT_ROOT/docs/architecture.png" ]; then
+    echo "Copying architecture diagram to insurance UI..."
+    $AWS_CMD s3 cp "$PROJECT_ROOT/docs/architecture.png" "s3://$INSURANCE_BUCKET/architecture.png"
+    echo ""
+  fi
 fi
 
 # Deploy Retail UI
 if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "retail" ]; then
   deploy_vertical_ui "Retail" "$PROJECT_ROOT/ui-retail" "$RETAIL_BUCKET" "$RETAIL_API_URL"
+  echo ""
+fi
+
+# Deploy Landing UI
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "landing" ]; then
+  deploy_vertical_ui "Landing" "$PROJECT_ROOT/ui-landing" "$LANDING_BUCKET" ""
   echo ""
 fi
 
@@ -165,5 +199,8 @@ if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "insurance" ]; then
 fi
 if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "retail" ]; then
   echo "Retail UI: http://$RETAIL_BUCKET.s3-website-us-east-1.amazonaws.com"
+fi
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "landing" ]; then
+  echo "Landing UI: http://$LANDING_BUCKET.s3-website-us-east-1.amazonaws.com"
 fi
 echo ""

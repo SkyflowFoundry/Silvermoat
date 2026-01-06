@@ -19,6 +19,10 @@ on:
         description: 'Retail vertical web URL'
         required: true
         type: string
+      landing_web_url:
+        description: 'Landing page web URL'
+        required: false
+        type: string
       environment:
         description: 'Environment name (test/production)'
         required: false
@@ -151,5 +155,60 @@ jobs:
         run: |
           if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
             echo "Retail E2E tests failed"
+            exit 1
+          fi
+
+  landing-e2e-tests:
+    name: Landing E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: inputs.landing_web_url != ''
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install Python dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Install Chrome and ChromeDriver
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Run landing E2E tests
+        id: test-run
+        continue-on-error: true
+        env:
+          LANDING_URL: ${{ inputs.landing_web_url }}
+          HEADLESS: 'true'
+        run: |
+          set -o pipefail
+          echo "Running landing E2E tests..."
+          cd tests/e2e
+          pytest -v --tb=short -m "landing" 2>&1 | tee ../../landing-e2e-tests-output.txt
+
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: landing-e2e-test-output
+          path: landing-e2e-tests-output.txt
+          retention-days: 7
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: landing-e2e-test-artifacts
+          path: tests/e2e/test-artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Check test outcome
+        if: always()
+        run: |
+          if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
+            echo "Landing E2E tests failed"
             exit 1
           fi

@@ -65,6 +65,9 @@ if [[ "$STACK_NAME" == *-insurance ]]; then
 elif [[ "$STACK_NAME" == *-retail ]]; then
     VERTICAL="retail"
     CREATE_WILDCARD="${CREATE_WILDCARD:-false}"  # Default: no wildcard for retail
+elif [[ "$STACK_NAME" == *-landing ]]; then
+    VERTICAL="landing"
+    CREATE_WILDCARD="${CREATE_WILDCARD:-false}"  # Default: no wildcard for landing
 else
     # Legacy single-stack behavior
     VERTICAL=""
@@ -72,7 +75,11 @@ else
 fi
 
 # Determine subdomain
-if [[ -n "$VERTICAL" ]]; then
+if [[ "$VERTICAL" == "landing" ]]; then
+    # Landing uses apex domain
+    SUBDOMAIN="silvermoat.com"
+    CLOUDFRONT_OUTPUT_KEY="LandingCloudFrontDomain"
+elif [[ -n "$VERTICAL" ]]; then
     SUBDOMAIN="${VERTICAL}.${DOMAIN_NAME}"
     CLOUDFRONT_OUTPUT_KEY="${VERTICAL^}CloudFrontDomain"  # InsuranceCloudFrontDomain or RetailCloudFrontDomain
 else
@@ -198,7 +205,10 @@ if [[ -z "$CLOUDFRONT_DOMAIN" || "$CLOUDFRONT_DOMAIN" == "None" ]]; then
 fi
 
 if [[ -z "$CLOUDFRONT_DOMAIN" || "$CLOUDFRONT_DOMAIN" == "None" ]]; then
-    error "Could not fetch CloudFront domain from stack outputs (tried $CLOUDFRONT_OUTPUT_KEY and CloudFrontDomain)"
+    info "CloudFront not found in stack outputs (tried $CLOUDFRONT_OUTPUT_KEY and CloudFrontDomain)"
+    info "This is expected for test stacks that skip CloudFront for faster deployment"
+    info "Skipping DNS update"
+    exit 0
 fi
 
 success "CloudFront domain: $CLOUDFRONT_DOMAIN"

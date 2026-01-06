@@ -114,6 +114,33 @@ def retail_base_url():
 
 
 @pytest.fixture(scope="session")
+def landing_base_url():
+    """Get landing page base URL"""
+    # Check environment variable first
+    app_url = os.environ.get('LANDING_URL')
+    if app_url:
+        return app_url.rstrip('/')
+
+    # Try to fetch from CloudFormation stack
+    stack_name = os.environ.get('STACK_NAME', os.environ.get('TEST_STACK_NAME'))
+    if stack_name:
+        try:
+            import boto3
+            cfn = boto3.client('cloudformation')
+            response = cfn.describe_stacks(StackName=stack_name)
+            outputs = {o['OutputKey']: o['OutputValue'] for o in response['Stacks'][0].get('Outputs', [])}
+            if 'LandingDomainUrl' in outputs:
+                return outputs['LandingDomainUrl'].rstrip('/')
+            if 'LandingUiBucketWebsiteURL' in outputs:
+                return outputs['LandingUiBucketWebsiteURL'].rstrip('/')
+        except Exception as e:
+            print(f"Warning: Could not fetch stack outputs: {e}")
+
+    # No fallback - skip landing tests if not configured
+    pytest.skip("LANDING_URL not configured")
+
+
+@pytest.fixture(scope="session")
 def api_base_url():
     """Get API base URL for E2E tests (defaults to insurance vertical)"""
     # Check environment variable first
