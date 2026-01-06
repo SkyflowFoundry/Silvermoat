@@ -46,14 +46,6 @@ CUSTOMER_TOOLS = [
     }
 ]
 
-# Domain mapping (retail → storage)
-DOMAIN_MAPPING = {
-    "product": "quote",
-    "order": "policy",
-    "customer": "customer"
-}
-
-
 def execute_customer_tool(tool_name, tool_input, storage, customer_email):
     """Execute a customer-scoped tool call and return results"""
     # Get customer by email using GSI
@@ -66,7 +58,7 @@ def execute_customer_tool(tool_name, tool_input, storage, customer_email):
 
     if tool_name == "search_my_orders":
         # Query orders by customerId using GSI
-        items = storage.query_by_customer_id(DOMAIN_MAPPING["order"], customer_id)
+        items = storage.query_by_customer_id("order", customer_id)
 
         print(f"[DEBUG] search_my_orders: customer_id='{customer_id}', total_orders={len(items)}")
 
@@ -82,7 +74,7 @@ def execute_customer_tool(tool_name, tool_input, storage, customer_email):
 
     elif tool_name == "track_order":
         order_id = tool_input["order_id"]
-        item = storage.get(DOMAIN_MAPPING["order"], order_id)
+        item = storage.get("order", order_id)
 
         if not item:
             return {"error": "Order not found"}
@@ -96,7 +88,7 @@ def execute_customer_tool(tool_name, tool_input, storage, customer_email):
 
     elif tool_name == "browse_products":
         # Get all active products
-        items = storage.scan(DOMAIN_MAPPING["product"])
+        items = storage.scan("product")
         items = [i for i in items if i.get("status") == "ACTIVE"]
 
         # Filter by criteria

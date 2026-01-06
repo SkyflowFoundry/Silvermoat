@@ -75,19 +75,10 @@ TOOLS = [
     }
 ]
 
-# Domain mapping (retail → storage)
-DOMAIN_MAPPING = {
-    "product": "quote",
-    "order": "policy",
-    "inventory": "claim",
-    "case": "case"
-}
-
-
 def execute_tool(tool_name, tool_input, storage):
     """Execute a tool call and return results"""
     if tool_name == "search_products":
-        items = storage.scan(DOMAIN_MAPPING["product"])
+        items = storage.scan("product")
 
         # Filter by criteria
         if tool_input.get("sku"):
@@ -105,7 +96,7 @@ def execute_tool(tool_name, tool_input, storage):
         return {"products": items[:10], "count": len(items)}
 
     elif tool_name == "search_orders":
-        items = storage.scan(DOMAIN_MAPPING["order"])
+        items = storage.scan("order")
 
         # Filter by criteria
         if tool_input.get("order_number"):
@@ -120,7 +111,7 @@ def execute_tool(tool_name, tool_input, storage):
         return {"orders": items[:10], "count": len(items)}
 
     elif tool_name == "search_inventory":
-        items = storage.scan(DOMAIN_MAPPING["inventory"])
+        items = storage.scan("inventory")
 
         # Filter by criteria
         if tool_input.get("location"):
@@ -134,7 +125,7 @@ def execute_tool(tool_name, tool_input, storage):
         return {"inventory": items[:10], "count": len(items)}
 
     elif tool_name == "search_cases":
-        items = storage.scan(DOMAIN_MAPPING["case"])
+        items = storage.scan("case")
 
         # Filter by criteria
         if tool_input.get("title"):
@@ -154,8 +145,7 @@ def execute_tool(tool_name, tool_input, storage):
         entity_type = tool_input["entity_type"]
         entity_id = tool_input["entity_id"]
 
-        storage_domain = DOMAIN_MAPPING.get(entity_type, entity_type)
-        item = storage.get(storage_domain, entity_id)
+        item = storage.get(entity_type, entity_id)
         if not item:
             return {"error": f"{entity_type} not found"}
 

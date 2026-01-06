@@ -9,19 +9,41 @@ from ..status import StatusTracker
 
 
 class DynamoDBBackend(StorageBackend):
-    """Storage backend using DynamoDB"""
+    """Storage backend using DynamoDB with flexible domain-to-table mapping"""
 
-    def __init__(self, status_tracker=None):
+    def __init__(self, status_tracker=None, domain_mapping=None):
+        """
+        Initialize DynamoDB backend with optional domain mapping.
+
+        Args:
+            status_tracker: Optional status tracker for query logging
+            domain_mapping: Optional dict mapping domain names to env var names
+                           Default (insurance): {"customer": "CUSTOMERS_TABLE", "quote": "QUOTES_TABLE", ...}
+                           Retail example: {"customer": "CUSTOMERS_TABLE", "product": "QUOTES_TABLE",
+                                           "order": "POLICIES_TABLE", "inventory": "CLAIMS_TABLE", ...}
+        """
         self.ddb = boto3.resource("dynamodb")
-        self.tables = {
-            "customer": self.ddb.Table(os.environ["CUSTOMERS_TABLE"]),
-            "quote": self.ddb.Table(os.environ["QUOTES_TABLE"]),
-            "policy": self.ddb.Table(os.environ["POLICIES_TABLE"]),
-            "claim": self.ddb.Table(os.environ["CLAIMS_TABLE"]),
-            "payment": self.ddb.Table(os.environ["PAYMENTS_TABLE"]),
-            "case": self.ddb.Table(os.environ["CASES_TABLE"]),
-        }
         self.status_tracker = status_tracker
+
+        # Default mapping (insurance/legacy)
+        if domain_mapping is None:
+            domain_mapping = {
+                "customer": "CUSTOMERS_TABLE",
+                "quote": "QUOTES_TABLE",
+                "policy": "POLICIES_TABLE",
+                "claim": "CLAIMS_TABLE",
+                "payment": "PAYMENTS_TABLE",
+                "case": "CASES_TABLE",
+            }
+
+        # Build table mapping from domain names to DynamoDB table resources
+        self.tables = {}
+        for domain, env_var in domain_mapping.items():
+            if env_var in os.environ:
+                self.tables[domain] = self.ddb.Table(os.environ[env_var])
+            else:
+                # Skip if env var not set (allows partial configurations)
+                pass
 
     def _get_table(self, domain: str):
         """Get table for domain, raise error if invalid"""

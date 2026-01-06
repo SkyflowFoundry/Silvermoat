@@ -9,8 +9,22 @@ from chatbot import handle_chat as handle_retail_chat
 from customer_chatbot import handle_customer_chat as handle_retail_customer_chat
 
 
-# Initialize storage backend
-storage = DynamoDBBackend()
+# Retail domain mapping: retail entity names -> environment variable names
+# Retail reuses insurance table env vars but with different semantics:
+# - QUOTES_TABLE -> products
+# - POLICIES_TABLE -> orders
+# - CLAIMS_TABLE -> inventory
+RETAIL_DOMAIN_MAPPING = {
+    "customer": "CUSTOMERS_TABLE",
+    "product": "QUOTES_TABLE",      # Retail products stored in quotes table
+    "order": "POLICIES_TABLE",       # Retail orders stored in policies table
+    "inventory": "CLAIMS_TABLE",     # Retail inventory stored in claims table
+    "payment": "PAYMENTS_TABLE",
+    "case": "CASES_TABLE"
+}
+
+# Initialize storage backend with retail domain mapping
+storage = DynamoDBBackend(domain_mapping=RETAIL_DOMAIN_MAPPING)
 
 
 # Retail entities (domains)
