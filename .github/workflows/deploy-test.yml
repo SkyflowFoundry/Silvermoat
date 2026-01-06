@@ -119,6 +119,8 @@ jobs:
 
       - name: Install dependencies
         uses: ./.github/actions/install-deps
+        with:
+          install-ui: 'false'
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
