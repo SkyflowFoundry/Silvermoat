@@ -21,5 +21,5 @@ runs:
     - name: Install UI dependencies
       if: ${{ inputs.install-ui == 'true' }}
       shell: bash
-      working-directory: ui
+      working-directory: ui-insurance
       run: npm ci
