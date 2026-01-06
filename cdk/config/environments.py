@@ -17,8 +17,11 @@ def get_config(stack_name: str, stage_name: str) -> SilvermoatConfig:
 
     # Test stacks (PR ephemeral stacks)
     elif stack_name.startswith("silvermoat-test-pr-"):
+        # Extract PR number from stack name for unique resource naming
+        # Format: silvermoat-test-pr-{N}-{vertical}
+        pr_number = stack_name.split("-")[3]
         return SilvermoatConfig(
-            app_name="silvermoat-test",
+            app_name=f"silvermoat-test-pr-{pr_number}",
             stage_name="test",
             api_deployment_token="v1",
             ui_seeding_mode="external",
