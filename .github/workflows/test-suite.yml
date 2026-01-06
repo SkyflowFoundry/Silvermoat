@@ -27,7 +27,7 @@ on:
 
 jobs:
   lambda-unit-tests:
-    name: Lambda Unit Tests
+    name: Lambda Unit
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -100,7 +100,7 @@ jobs:
           fi
 
   unit-tests:
-    name: UI Unit Tests
+    name: UI Unit
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -163,7 +163,7 @@ jobs:
           fi
 
   api-tests:
-    name: API Tests
+    name: API
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -260,7 +260,7 @@ jobs:
           fi
 
   e2e-tests:
-    name: E2E Tests
+    name: E2E
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
