@@ -434,7 +434,7 @@ jobs:
         id: deploy
         env:
           VERTICAL: landing
-          STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}-landing
+          STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
         run: ./scripts/deploy-ui.sh
 
       - name: Set output
