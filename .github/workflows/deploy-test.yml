@@ -1,4 +1,4 @@
-name: Deploy Test Stack
+name: Deploy Test Stack (Parallel)
 
 on:
   pull_request:
@@ -6,7 +6,9 @@ on:
     paths:
       - 'cdk/**'
       - 'lambda/**'
-      - 'ui/**'
+      - 'ui-insurance/**'
+      - 'ui-retail/**'
+      - 'ui-shared/**'
       - 'tests/**'
       - 'scripts/**'
       - '.github/workflows/**'
@@ -27,21 +29,17 @@ on:
 permissions:
   id-token: write
   contents: read
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   detect-changes:
     name: Detect Changed Files
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write  # Required to post comment
-      id-token: write      # Required for AWS
     outputs:
       infrastructure_changed: ${{ steps.filter.outputs.infrastructure }}
       ui_changed: ${{ steps.filter.outputs.ui }}
       tests_changed: ${{ steps.filter.outputs.tests }}
-      stack_exists: ${{ steps.check-stack.outputs.stack_exists }}
+      base_stack_name: ${{ steps.stack-name.outputs.base_stack_name }}
     steps:
       - name: Post workflow start comment
         if: github.event.pull_request.number
@@ -52,7 +50,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `🚀 **Test deployment started**\n\n[View workflow run →](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`
+              body: `🚀 **Test deployment started** (Parallel Multi-Vertical)\n\n[View workflow run →](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`
             });
 
       - name: Checkout code
@@ -75,37 +73,35 @@ jobs:
               - 'scripts/deploy-ui.sh'
             tests:
               - 'tests/**'
-              - '.github/workflows/deploy-test.yml'
+              - '.github/workflows/**'
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Check if test stack exists
-        id: check-stack
+      - name: Determine base stack name
+        id: stack-name
         run: |
-          STACK_NAME=$(./scripts/ci/get-stack-name.sh "${{ github.event.pull_request.number || inputs.pr_number }}" "${{ github.run_id }}")
-          ./scripts/ci/check-stack-status.sh "${STACK_NAME}"
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            BASE_STACK_NAME="silvermoat-test-pr-${{ github.event.pull_request.number }}"
+          elif [ -n "${{ inputs.pr_number }}" ]; then
+            BASE_STACK_NAME="silvermoat-test-pr-${{ inputs.pr_number }}"
+          else
+            BASE_STACK_NAME="silvermoat-test-${{ github.run_id }}"
+          fi
+          echo "base_stack_name=${BASE_STACK_NAME}" >> $GITHUB_OUTPUT
+          echo "Base stack name: ${BASE_STACK_NAME}"
 
-  deploy-stack:
-    name: Deploy Infra
+  # ========================================
+  # Insurance Vertical Pipeline
+  # ========================================
+
+  deploy-insurance-infra:
+    name: Deploy Insurance Infra
     needs: [detect-changes]
     if: |
       needs.detect-changes.outputs.infrastructure_changed == 'true' ||
-      needs.detect-changes.outputs.stack_exists == 'false' ||
       inputs.force_deploy == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-
+    timeout-minutes: 15
     outputs:
-      stack_name: ${{ steps.stack-name.outputs.stack_name }}
-      stack_status: ${{ steps.check-stack.outputs.stack_status }}
-      stack_deleted: ${{ steps.check-stack.outputs.stack_deleted }}
-      skip_deploy: ${{ steps.check-deployment.outputs.skip_deploy || 'false' }}
-      skip_reason: ${{ steps.check-deployment.outputs.skip_reason || '' }}
-
+      stack_name: ${{ steps.deploy.outputs.stack_name }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -128,100 +124,34 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Determine test stack name
-        id: stack-name
-        run: |
-          STACK_NAME=$(./scripts/ci/get-stack-name.sh "${{ github.event.pull_request.number || inputs.pr_number }}" "${{ github.run_id }}")
-          echo "stack_name=${STACK_NAME}" >> $GITHUB_OUTPUT
-          echo "Test stack name: ${STACK_NAME}"
-
-      - name: Check if CDK stack exists
-        id: check-stack
-        run: ./scripts/ci/check-stack-status.sh "${{ steps.stack-name.outputs.stack_name }}"
-
       - name: Setup AWS CDK
         uses: ./.github/actions/setup-aws-cdk
 
-      - name: Check if infrastructure changes require deployment
-        id: check-deployment
-        if: |
-          needs.detect-changes.outputs.infrastructure_changed != 'true' &&
-          steps.check-stack.outputs.stack_status != 'NOT_FOUND' &&
-          inputs.force_deploy != 'true'
-        run: |
-          echo "No infrastructure file changes detected. Checking CDK diff..."
-
-          cd cdk
-
-          # Run cdk diff to check for actual changes
-          if cdk diff "${{ steps.stack-name.outputs.stack_name }}" > /tmp/cdk-diff.txt 2>&1; then
-            DIFF_EXIT=$?
-
-            if [ $DIFF_EXIT -eq 0 ]; then
-              echo "✓ CDK diff shows no changes - deployment can be skipped"
-              echo "skip_deploy=true" >> $GITHUB_OUTPUT
-              echo "skip_reason=No infrastructure changes detected" >> $GITHUB_OUTPUT
-            else
-              echo "⚠ CDK diff detected changes despite no file changes (possibly parameter updates)"
-              echo "skip_deploy=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "⚠ CDK diff failed - will deploy to be safe"
-            echo "skip_deploy=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Validate CDK stacks (synth)
-        if: |
-          needs.detect-changes.outputs.infrastructure_changed == 'true' ||
-          steps.check-stack.outputs.stack_status == 'NOT_FOUND'
-        env:
-          STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
-          STAGE_NAME: test
-          CREATE_CLOUDFRONT: "false"
-          DOMAIN_NAME: ""
-        run: |
-          echo "Validating CDK stacks via synthesis..."
-          cd cdk
-          cdk synth ${{ steps.stack-name.outputs.stack_name }} > /dev/null
-          echo "✅ CDK stack synthesis successful"
-
       - name: Bootstrap CDK
-        if: steps.check-deployment.outputs.skip_deploy != 'true'
         uses: ./.github/actions/bootstrap-cdk
 
-      - name: Deploy test stack
-        if: steps.check-deployment.outputs.skip_deploy != 'true'
+      - name: Deploy insurance stack
+        id: deploy
         env:
-          STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
-          APP_NAME: silvermoat-test
-          STAGE_NAME: test
-          UI_SEEDING_MODE: external
-          CREATE_CLOUDFRONT: false
-          DOMAIN_NAME: ""
+          STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
+          VERTICAL: insurance
         run: |
-          echo "Deploying test stack: ${STACK_NAME}"
+          echo "Deploying insurance stack: ${STACK_NAME}-insurance"
           chmod +x scripts/deploy-stack.sh
           ./scripts/deploy-stack.sh
+          echo "stack_name=${STACK_NAME}-insurance" >> $GITHUB_OUTPUT
 
-  deploy-ui:
-    name: Deploy UI
-    needs: [detect-changes, deploy-stack]
+  deploy-insurance-ui:
+    name: Deploy Insurance UI
+    needs: [detect-changes, deploy-insurance-infra]
     if: |
       always() &&
-      (needs.deploy-stack.result == 'success' || needs.deploy-stack.result == 'skipped') &&
-      (needs.deploy-stack.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true')
+      (needs.deploy-insurance-infra.result == 'success' || needs.deploy-insurance-infra.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     outputs:
-      stack_name: ${{ steps.stack-name.outputs.stack_name }}
-      api_url: ${{ steps.stack-outputs.outputs.api_url }}
-      web_url: ${{ steps.stack-outputs.outputs.web_url }}
-      insurance_api_url: ${{ steps.stack-outputs.outputs.insurance_api_url }}
-      insurance_web_url: ${{ steps.stack-outputs.outputs.insurance_web_url }}
-      retail_api_url: ${{ steps.stack-outputs.outputs.retail_api_url }}
-      retail_web_url: ${{ steps.stack-outputs.outputs.retail_web_url }}
-
+      api_url: ${{ steps.outputs.outputs.api_url }}
+      web_url: ${{ steps.outputs.outputs.web_url }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -238,134 +168,228 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Determine stack name
-        id: stack-name
-        run: |
-          # Use output from deploy-stack if available, otherwise recalculate
-          if [ "${{ needs.deploy-stack.result }}" = "success" ]; then
-            STACK_NAME="${{ needs.deploy-stack.outputs.stack_name }}"
-          else
-            # Recalculate (same logic as deploy-stack)
-            if [ -n "${{ github.event.pull_request.number }}" ]; then
-              STACK_NAME="silvermoat-test-pr-${{ github.event.pull_request.number }}"
-            elif [ -n "${{ inputs.pr_number }}" ]; then
-              STACK_NAME="silvermoat-test-pr-${{ inputs.pr_number }}"
-            else
-              STACK_NAME="silvermoat-test-${{ github.run_id }}"
-            fi
-          fi
-          echo "stack_name=${STACK_NAME}" >> $GITHUB_OUTPUT
-          echo "Stack name: ${STACK_NAME}"
-
-      - name: Build and deploy React UI
+      - name: Build and deploy insurance UI
         env:
-          STACK_NAME: ${{ steps.stack-name.outputs.stack_name }}
+          STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
+          VERTICAL: insurance
         run: |
-          echo "Building and deploying React UI..."
           chmod +x scripts/deploy-ui.sh
           ./scripts/deploy-ui.sh
 
       - name: Get stack outputs
-        id: stack-outputs
+        id: outputs
         run: |
-          STACK_NAME="${{ steps.stack-name.outputs.stack_name }}"
+          STACK_NAME="${{ needs.detect-changes.outputs.base_stack_name }}-insurance"
 
-          # Get all outputs as JSON
           OUTPUTS=$(aws cloudformation describe-stacks \
             --stack-name "${STACK_NAME}" \
             --query 'Stacks[0].Outputs' \
             --output json)
 
-          # Extract insurance vertical outputs
-          INSURANCE_API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceApiUrl") | .OutputValue')
-          INSURANCE_WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceUiBucketWebsiteURL") | .OutputValue')
+          API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceApiUrl") | .OutputValue')
+          WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceUiBucketWebsiteURL") | .OutputValue')
 
-          # Extract retail vertical outputs
-          RETAIL_API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailApiUrl") | .OutputValue')
-          RETAIL_WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailUiBucketWebsiteURL") | .OutputValue')
-
-          # Try CloudFront URLs if available
-          if [ -z "$INSURANCE_WEB_URL" ] || [ "$INSURANCE_WEB_URL" == "null" ]; then
-            INSURANCE_WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceDomainUrl") | .OutputValue')
-          fi
-          if [ -z "$RETAIL_WEB_URL" ] || [ "$RETAIL_WEB_URL" == "null" ]; then
-            RETAIL_WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailDomainUrl") | .OutputValue')
-          fi
-
-          # Fall back to generic WebUrl for backwards compatibility
-          if [ -z "$INSURANCE_WEB_URL" ] || [ "$INSURANCE_WEB_URL" == "null" ]; then
-            INSURANCE_WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="WebUrl") | .OutputValue')
-          fi
-
-          # Legacy single API URL for backwards compatibility (defaults to insurance)
-          API_URL="${INSURANCE_API_URL}"
-          WEB_URL="${INSURANCE_WEB_URL}"
-
-          echo "insurance_api_url=${INSURANCE_API_URL}" >> $GITHUB_OUTPUT
-          echo "insurance_web_url=${INSURANCE_WEB_URL}" >> $GITHUB_OUTPUT
-          echo "retail_api_url=${RETAIL_API_URL}" >> $GITHUB_OUTPUT
-          echo "retail_web_url=${RETAIL_WEB_URL}" >> $GITHUB_OUTPUT
           echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
           echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
 
-          echo "Insurance API URL: ${INSURANCE_API_URL}"
-          echo "Insurance Web URL: ${INSURANCE_WEB_URL}"
-          echo "Retail API URL: ${RETAIL_API_URL}"
-          echo "Retail Web URL: ${RETAIL_WEB_URL}"
-
-  tests:
-    name: Tests
-    needs: [deploy-stack, deploy-ui]
-    if: always() && needs.deploy-ui.result == 'success'
+  insurance-tests:
+    name: Insurance Tests
+    needs: [detect-changes, deploy-insurance-ui]
+    if: always() && needs.deploy-insurance-ui.result == 'success'
     uses: ./.github/workflows/test-suite.yml
     with:
-      stack_name: ${{ needs.deploy-ui.outputs.stack_name || needs.deploy-stack.outputs.stack_name }}
-      api_url: ${{ needs.deploy-ui.outputs.api_url }}
-      web_url: ${{ needs.deploy-ui.outputs.web_url }}
-      insurance_api_url: ${{ needs.deploy-ui.outputs.insurance_api_url }}
-      insurance_web_url: ${{ needs.deploy-ui.outputs.insurance_web_url }}
-      retail_api_url: ${{ needs.deploy-ui.outputs.retail_api_url }}
-      retail_web_url: ${{ needs.deploy-ui.outputs.retail_web_url }}
+      stack_name: ${{ needs.detect-changes.outputs.base_stack_name }}-insurance
+      api_url: ${{ needs.deploy-insurance-ui.outputs.api_url }}
+      web_url: ${{ needs.deploy-insurance-ui.outputs.web_url }}
+      insurance_api_url: ${{ needs.deploy-insurance-ui.outputs.api_url }}
+      insurance_web_url: ${{ needs.deploy-insurance-ui.outputs.web_url }}
+      retail_api_url: ""
+      retail_web_url: ""
       environment: 'test'
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
-  clear-and-seed-data:
-    name: Seed Demo Data
-    needs: [deploy-stack, deploy-ui, tests]
+  seed-insurance-data:
+    name: Seed Insurance Data
+    needs: [deploy-insurance-ui, insurance-tests]
     if: |
       always() &&
-      (needs.deploy-stack.result == 'success' || needs.deploy-stack.result == 'skipped') &&
-      needs.deploy-ui.result == 'success' &&
-      needs.tests.result == 'success'
+      needs.deploy-insurance-ui.result == 'success' &&
+      needs.insurance-tests.result == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-
+    timeout-minutes: 5
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Clear and seed insurance demo data
+      - name: Seed insurance demo data
         uses: ./.github/actions/clear-and-seed-data
         with:
-          api-base-url: ${{ needs.deploy-ui.outputs.insurance_api_url }}
+          api-base-url: ${{ needs.deploy-insurance-ui.outputs.api_url }}
           vertical: insurance
 
-      - name: Clear and seed retail demo data
+  # ========================================
+  # Retail Vertical Pipeline
+  # ========================================
+
+  deploy-retail-infra:
+    name: Deploy Retail Infra
+    needs: [detect-changes]
+    if: |
+      needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+      inputs.force_deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      stack_name: ${{ steps.deploy.outputs.stack_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-deps
+        with:
+          install-ui: 'false'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Setup AWS CDK
+        uses: ./.github/actions/setup-aws-cdk
+
+      - name: Bootstrap CDK
+        uses: ./.github/actions/bootstrap-cdk
+
+      - name: Deploy retail stack
+        id: deploy
+        env:
+          STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
+          VERTICAL: retail
+        run: |
+          echo "Deploying retail stack: ${STACK_NAME}-retail"
+          chmod +x scripts/deploy-stack.sh
+          ./scripts/deploy-stack.sh
+          echo "stack_name=${STACK_NAME}-retail" >> $GITHUB_OUTPUT
+
+  deploy-retail-ui:
+    name: Deploy Retail UI
+    needs: [detect-changes, deploy-retail-infra]
+    if: |
+      always() &&
+      (needs.deploy-retail-infra.result == 'success' || needs.deploy-retail-infra.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      api_url: ${{ steps.outputs.outputs.api_url }}
+      web_url: ${{ steps.outputs.outputs.web_url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-deps
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Build and deploy retail UI
+        env:
+          STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
+          VERTICAL: retail
+        run: |
+          chmod +x scripts/deploy-ui.sh
+          ./scripts/deploy-ui.sh
+
+      - name: Get stack outputs
+        id: outputs
+        run: |
+          STACK_NAME="${{ needs.detect-changes.outputs.base_stack_name }}-retail"
+
+          OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].Outputs' \
+            --output json)
+
+          API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailApiUrl") | .OutputValue')
+          WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailUiBucketWebsiteURL") | .OutputValue')
+
+          echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
+          echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
+
+  retail-tests:
+    name: Retail Tests
+    needs: [detect-changes, deploy-retail-ui]
+    if: always() && needs.deploy-retail-ui.result == 'success'
+    uses: ./.github/workflows/test-suite.yml
+    with:
+      stack_name: ${{ needs.detect-changes.outputs.base_stack_name }}-retail
+      api_url: ${{ needs.deploy-retail-ui.outputs.api_url }}
+      web_url: ${{ needs.deploy-retail-ui.outputs.web_url }}
+      insurance_api_url: ""
+      insurance_web_url: ""
+      retail_api_url: ${{ needs.deploy-retail-ui.outputs.api_url }}
+      retail_web_url: ${{ needs.deploy-retail-ui.outputs.web_url }}
+      environment: 'test'
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
+  seed-retail-data:
+    name: Seed Retail Data
+    needs: [deploy-retail-ui, retail-tests]
+    if: |
+      always() &&
+      needs.deploy-retail-ui.result == 'success' &&
+      needs.retail-tests.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Seed retail demo data
         uses: ./.github/actions/clear-and-seed-data
         with:
-          api-base-url: ${{ needs.deploy-ui.outputs.retail_api_url }}
+          api-base-url: ${{ needs.deploy-retail-ui.outputs.api_url }}
           vertical: retail
+
+  # ========================================
+  # Post-Deployment Summary
+  # ========================================
 
   pr-summary:
     name: Post PR Summary
-    needs: [detect-changes, deploy-stack, deploy-ui, tests, clear-and-seed-data]
+    needs: [
+      detect-changes,
+      deploy-insurance-infra,
+      deploy-insurance-ui,
+      insurance-tests,
+      seed-insurance-data,
+      deploy-retail-infra,
+      deploy-retail-ui,
+      retail-tests,
+      seed-retail-data
+    ]
     if: always() && github.event.pull_request.number
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
       contents: read
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -374,123 +398,95 @@ jobs:
         id: summary
         run: |
           cat > /tmp/pr-comment.md <<'EOF'
-          ## 🚀 Test Deployment Summary
+          ## 🚀 Multi-Vertical Test Deployment Summary
 
           **PR**: #${{ github.event.pull_request.number }}
           **Workflow Run**: [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
           EOF
 
-          # Add prominent Web URL box if deployment succeeded
-          UI_RESULT="${{ needs.deploy-ui.result }}"
-          SEED_RESULT="${{ needs.clear-and-seed-data.result }}"
-          if [ "$UI_RESULT" = "success" ] && [ "$SEED_RESULT" = "success" ]; then
+          # Add deployment status table
+          cat >> /tmp/pr-comment.md <<EOF
+          ### Deployment Status
+
+          | Vertical | Infrastructure | UI | Tests | Data Seeding |
+          |----------|---------------|-----|-------|--------------|
+          | 🏥 **Insurance** | ${{ needs.deploy-insurance-infra.result == 'success' && '✅' || needs.deploy-insurance-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-insurance-ui.result == 'success' && '✅' || needs.deploy-insurance-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.insurance-tests.result == 'success' && '✅' || needs.insurance-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-insurance-data.result == 'success' && '✅' || needs.seed-insurance-data.result == 'skipped' && '⏭️' || '❌' }} |
+          | 🛒 **Retail** | ${{ needs.deploy-retail-infra.result == 'success' && '✅' || needs.deploy-retail-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-retail-ui.result == 'success' && '✅' || needs.deploy-retail-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.retail-tests.result == 'success' && '✅' || needs.retail-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-retail-data.result == 'success' && '✅' || needs.seed-retail-data.result == 'skipped' && '⏭️' || '❌' }} |
+
+          EOF
+
+          # Add environment URLs if successful
+          INSURANCE_UI_SUCCESS="${{ needs.deploy-insurance-ui.result == 'success' }}"
+          RETAIL_UI_SUCCESS="${{ needs.deploy-retail-ui.result == 'success' }}"
+          INSURANCE_SEED_SUCCESS="${{ needs.seed-insurance-data.result == 'success' }}"
+          RETAIL_SEED_SUCCESS="${{ needs.seed-retail-data.result == 'success' }}"
+
+          if [ "$INSURANCE_UI_SUCCESS" = "true" ] || [ "$RETAIL_UI_SUCCESS" = "true" ]; then
             cat >> /tmp/pr-comment.md <<EOF
           ---
 
-          ### 🌐 **Test Environment Ready**
+          ### 🌐 Test Environments
 
-          #### 🏥 Insurance Vertical
-          **Web URL:** ${{ needs.deploy-ui.outputs.insurance_web_url }}
-          **API URL:** ${{ needs.deploy-ui.outputs.insurance_api_url }}
-
-          #### 🛒 Retail Vertical
-          **Web URL:** ${{ needs.deploy-ui.outputs.retail_web_url }}
-          **API URL:** ${{ needs.deploy-ui.outputs.retail_api_url }}
-
-          Demo data has been seeded for both verticals. You can now test your changes!
-
-          ---
-          EOF
-          fi
-
-          cat >> /tmp/pr-comment.md <<'EOF'
-
-          ### 📦 Infrastructure Deployment
           EOF
 
-          # Stack deployment status
-          STACK_RESULT="${{ needs.deploy-stack.result }}"
-          if [ "$STACK_RESULT" = "success" ]; then
-            echo "✅ **Deployed** - Stack deployed successfully" >> /tmp/pr-comment.md
-            echo "- Stack: \`${{ needs.deploy-stack.outputs.stack_name }}\`" >> /tmp/pr-comment.md
-          elif [ "$STACK_RESULT" = "skipped" ]; then
-            SKIP_REASON="${{ needs.deploy-stack.outputs.skip_reason }}"
-            if [ -z "$SKIP_REASON" ]; then
-              SKIP_REASON="No infrastructure changes detected"
+            if [ "$INSURANCE_UI_SUCCESS" = "true" ]; then
+              INSURANCE_STATUS=""
+              if [ "$INSURANCE_SEED_SUCCESS" = "true" ]; then
+                INSURANCE_STATUS=" ✅ Ready with demo data"
+              else
+                INSURANCE_STATUS=" ⚠️ Deployed (demo data pending)"
+              fi
+              cat >> /tmp/pr-comment.md <<EOF
+          #### 🏥 Insurance Vertical${INSURANCE_STATUS}
+          **Web URL:** ${{ needs.deploy-insurance-ui.outputs.web_url }}
+          **API URL:** ${{ needs.deploy-insurance-ui.outputs.api_url }}
+
+          EOF
             fi
-            echo "⏭️ **Skipped** - ${SKIP_REASON}" >> /tmp/pr-comment.md
-          elif [ "$STACK_RESULT" = "failure" ]; then
-            echo "❌ **Failed** - Stack deployment failed" >> /tmp/pr-comment.md
-          else
-            echo "⚠️ **${STACK_RESULT}** - Unexpected status" >> /tmp/pr-comment.md
-          fi
 
-          cat >> /tmp/pr-comment.md <<'EOF'
+            if [ "$RETAIL_UI_SUCCESS" = "true" ]; then
+              RETAIL_STATUS=""
+              if [ "$RETAIL_SEED_SUCCESS" = "true" ]; then
+                RETAIL_STATUS=" ✅ Ready with demo data"
+              else
+                RETAIL_STATUS=" ⚠️ Deployed (demo data pending)"
+              fi
+              cat >> /tmp/pr-comment.md <<EOF
+          #### 🛒 Retail Vertical${RETAIL_STATUS}
+          **Web URL:** ${{ needs.deploy-retail-ui.outputs.web_url }}
+          **API URL:** ${{ needs.deploy-retail-ui.outputs.api_url }}
 
-          ### 🎨 UI Deployment
           EOF
-
-          # UI deployment status
-          UI_RESULT="${{ needs.deploy-ui.result }}"
-          if [ "$UI_RESULT" = "success" ]; then
-            echo "✅ **Deployed** - UI built and deployed successfully" >> /tmp/pr-comment.md
-          elif [ "$UI_RESULT" = "skipped" ]; then
-            echo "⏭️ **Skipped** - UI deployment was skipped" >> /tmp/pr-comment.md
-          elif [ "$UI_RESULT" = "failure" ]; then
-            echo "❌ **Failed** - UI deployment failed" >> /tmp/pr-comment.md
-            echo "- Web URL: ${{ needs.deploy-ui.outputs.web_url }}" >> /tmp/pr-comment.md
-            echo "- API URL: ${{ needs.deploy-ui.outputs.api_url }}" >> /tmp/pr-comment.md
-          else
-            echo "⚠️ **${UI_RESULT}** - Unexpected status" >> /tmp/pr-comment.md
+            fi
           fi
 
-          cat >> /tmp/pr-comment.md <<'EOF'
-
-          ### 🧪 Tests
-          EOF
-
-          # Test results
-          TESTS_RESULT="${{ needs.tests.result }}"
-          if [ "$TESTS_RESULT" = "success" ]; then
-            echo "✅ **Passed** - All tests passed" >> /tmp/pr-comment.md
-          elif [ "$TESTS_RESULT" = "failure" ]; then
-            echo "❌ **Failed** - Some tests failed (see workflow details)" >> /tmp/pr-comment.md
-          elif [ "$TESTS_RESULT" = "skipped" ]; then
-            echo "⏭️ **Skipped** - Tests were skipped" >> /tmp/pr-comment.md
-          else
-            echo "⚠️ **${TESTS_RESULT}** - Unexpected status" >> /tmp/pr-comment.md
-          fi
-
-          cat >> /tmp/pr-comment.md <<'EOF'
-
-          ### 🌱 Demo Data Seeding
-          EOF
-
-          # Data seeding status
-          SEED_RESULT="${{ needs.clear-and-seed-data.result }}"
-          if [ "$SEED_RESULT" = "success" ]; then
-            echo "✅ **Completed** - Demo data seeded successfully" >> /tmp/pr-comment.md
-          elif [ "$SEED_RESULT" = "skipped" ]; then
-            echo "⏭️ **Skipped** - Data seeding was skipped" >> /tmp/pr-comment.md
-          elif [ "$SEED_RESULT" = "failure" ]; then
-            echo "❌ **Failed** - Data seeding failed" >> /tmp/pr-comment.md
-          else
-            echo "⚠️ **${SEED_RESULT}** - Unexpected status" >> /tmp/pr-comment.md
-          fi
-
-          cat >> /tmp/pr-comment.md <<'EOF'
-
+          # Add failure notice if any failures
+          if [ "${{ needs.deploy-insurance-infra.result }}" = "failure" ] || \
+             [ "${{ needs.deploy-insurance-ui.result }}" = "failure" ] || \
+             [ "${{ needs.insurance-tests.result }}" = "failure" ] || \
+             [ "${{ needs.deploy-retail-infra.result }}" = "failure" ] || \
+             [ "${{ needs.deploy-retail-ui.result }}" = "failure" ] || \
+             [ "${{ needs.retail-tests.result }}" = "failure" ]; then
+            cat >> /tmp/pr-comment.md <<EOF
           ---
 
-          <sub>🤖 Auto-generated summary from test deployment workflow</sub>
+          ⚠️ **Some deployments or tests failed.** Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
           EOF
+          fi
 
-          echo "Generated comment:"
-          cat /tmp/pr-comment.md
+          echo "comment_file=/tmp/pr-comment.md" >> $GITHUB_OUTPUT
 
       - name: Post comment to PR
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/pr-comment.md
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const commentBody = fs.readFileSync('/tmp/pr-comment.md', 'utf8');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: commentBody
+            });
