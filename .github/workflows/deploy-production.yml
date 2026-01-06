@@ -368,7 +368,7 @@ jobs:
 
   # Phase 1: Comprehensive Test Suite (Matrix Strategy)
   tests:
-    name: Run Tests
+    name: Tests
     needs: [deploy-ui]
     if: always() && needs.deploy-ui.result == 'success'
     uses: ./.github/workflows/test-suite.yml

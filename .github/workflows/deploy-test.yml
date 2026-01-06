@@ -330,7 +330,7 @@ jobs:
           echo "Web URL: ${WEB_URL}"
 
   tests:
-    name: Run Tests
+    name: Tests
     needs: [deploy-stack, deploy-ui]
     if: always() && needs.deploy-ui.result == 'success'
     uses: ./.github/workflows/test-suite.yml
