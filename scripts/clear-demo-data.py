@@ -11,13 +11,19 @@ import sys
 import requests
 
 API_BASE_URL = os.environ.get('API_BASE_URL', '').rstrip('/')
+VERTICAL = os.environ.get('VERTICAL', 'insurance')
 
 if not API_BASE_URL:
     print("Error: API_BASE_URL environment variable not set", file=sys.stderr)
     sys.exit(1)
 
 # Delete in dependency order: dependents before their parents
-RESOURCE_TYPES = ['case', 'payment', 'claim', 'policy', 'quote', 'customer']
+# Insurance: case → payment → claim → policy → quote → customer
+# Retail: case → payment → inventory → order → product → customer
+if VERTICAL == 'retail':
+    RESOURCE_TYPES = ['case', 'payment', 'inventory', 'order', 'product', 'customer']
+else:
+    RESOURCE_TYPES = ['case', 'payment', 'claim', 'policy', 'quote', 'customer']
 
 def clear_resource(resource_type):
     """Delete all records of a given resource type."""

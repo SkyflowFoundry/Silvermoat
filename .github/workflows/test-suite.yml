@@ -8,12 +8,28 @@ on:
         required: true
         type: string
       api_url:
-        description: 'API base URL'
+        description: 'API base URL (legacy - defaults to insurance)'
         required: true
         type: string
       web_url:
-        description: 'Web application URL'
+        description: 'Web application URL (legacy - defaults to insurance)'
         required: true
+        type: string
+      insurance_api_url:
+        description: 'Insurance vertical API URL'
+        required: false
+        type: string
+      insurance_web_url:
+        description: 'Insurance vertical web URL'
+        required: false
+        type: string
+      retail_api_url:
+        description: 'Retail vertical API URL'
+        required: false
+        type: string
+      retail_web_url:
+        description: 'Retail vertical web URL'
+        required: false
         type: string
       environment:
         description: 'Environment name (test/production)'
@@ -150,7 +166,7 @@ jobs:
 
       - name: Install UI dependencies
         run: |
-          cd ui
+          cd ui-insurance
           npm ci --silent
 
       - name: Run ${{ matrix.test }} tests
@@ -158,7 +174,7 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          cd ui
+          cd ui-insurance
           # Run tests matching the pattern, exit 0 if no tests found
           npm test -- --run "${{ steps.config.outputs.pattern }}" 2>&1 | tee ../${{ matrix.test }}-tests-output.txt || {
             if grep -q "No test files found" ../${{ matrix.test }}-tests-output.txt; then
@@ -258,6 +274,10 @@ jobs:
           STACK_NAME: ${{ inputs.stack_name }}
           SILVERMOAT_API_URL: ${{ inputs.api_url }}
           SILVERMOAT_URL: ${{ inputs.web_url }}
+          INSURANCE_API_URL: ${{ inputs.insurance_api_url || inputs.api_url }}
+          INSURANCE_URL: ${{ inputs.insurance_web_url || inputs.web_url }}
+          RETAIL_API_URL: ${{ inputs.retail_api_url }}
+          RETAIL_URL: ${{ inputs.retail_web_url }}
         run: |
           set -o pipefail
           echo "Running ${{ matrix.test }} tests against ${{ inputs.environment }}..."
@@ -374,6 +394,10 @@ jobs:
           STACK_NAME: ${{ inputs.stack_name }}
           SILVERMOAT_API_URL: ${{ inputs.api_url }}
           SILVERMOAT_URL: ${{ inputs.web_url }}
+          INSURANCE_API_URL: ${{ inputs.insurance_api_url || inputs.api_url }}
+          INSURANCE_URL: ${{ inputs.insurance_web_url || inputs.web_url }}
+          RETAIL_API_URL: ${{ inputs.retail_api_url }}
+          RETAIL_URL: ${{ inputs.retail_web_url }}
           HEADLESS: '1'
         run: |
           set -o pipefail

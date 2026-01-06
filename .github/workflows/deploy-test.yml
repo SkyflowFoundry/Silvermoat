@@ -68,7 +68,9 @@ jobs:
               - 'lambda/**'
               - 'scripts/deploy-stack.sh'
             ui:
-              - 'ui/**'
+              - 'ui-insurance/**'
+              - 'ui-retail/**'
+              - 'ui-shared/**'
               - 'scripts/generate-architecture-diagram.py'
               - 'scripts/deploy-ui.sh'
             tests:
@@ -209,6 +211,10 @@ jobs:
       stack_name: ${{ steps.stack-name.outputs.stack_name }}
       api_url: ${{ steps.stack-outputs.outputs.api_url }}
       web_url: ${{ steps.stack-outputs.outputs.web_url }}
+      insurance_api_url: ${{ steps.stack-outputs.outputs.insurance_api_url }}
+      insurance_web_url: ${{ steps.stack-outputs.outputs.insurance_web_url }}
+      retail_api_url: ${{ steps.stack-outputs.outputs.retail_api_url }}
+      retail_web_url: ${{ steps.stack-outputs.outputs.retail_web_url }}
 
     steps:
       - name: Checkout code
@@ -264,20 +270,42 @@ jobs:
             --query 'Stacks[0].Outputs' \
             --output json)
 
-          # Extract specific outputs
-          API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="ApiBaseUrl") | .OutputValue')
+          # Extract insurance vertical outputs
+          INSURANCE_API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceApiUrl") | .OutputValue')
+          INSURANCE_WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceUiBucketWebsiteURL") | .OutputValue')
 
-          # Try CloudFrontUrl first (production), fall back to WebUrl (test stacks)
-          WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="CloudFrontUrl") | .OutputValue')
-          if [ -z "$WEB_URL" ] || [ "$WEB_URL" == "null" ]; then
-            WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="WebUrl") | .OutputValue')
+          # Extract retail vertical outputs
+          RETAIL_API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailApiUrl") | .OutputValue')
+          RETAIL_WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailUiBucketWebsiteURL") | .OutputValue')
+
+          # Try CloudFront URLs if available
+          if [ -z "$INSURANCE_WEB_URL" ] || [ "$INSURANCE_WEB_URL" == "null" ]; then
+            INSURANCE_WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceDomainUrl") | .OutputValue')
+          fi
+          if [ -z "$RETAIL_WEB_URL" ] || [ "$RETAIL_WEB_URL" == "null" ]; then
+            RETAIL_WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailDomainUrl") | .OutputValue')
           fi
 
+          # Fall back to generic WebUrl for backwards compatibility
+          if [ -z "$INSURANCE_WEB_URL" ] || [ "$INSURANCE_WEB_URL" == "null" ]; then
+            INSURANCE_WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="WebUrl") | .OutputValue')
+          fi
+
+          # Legacy single API URL for backwards compatibility (defaults to insurance)
+          API_URL="${INSURANCE_API_URL}"
+          WEB_URL="${INSURANCE_WEB_URL}"
+
+          echo "insurance_api_url=${INSURANCE_API_URL}" >> $GITHUB_OUTPUT
+          echo "insurance_web_url=${INSURANCE_WEB_URL}" >> $GITHUB_OUTPUT
+          echo "retail_api_url=${RETAIL_API_URL}" >> $GITHUB_OUTPUT
+          echo "retail_web_url=${RETAIL_WEB_URL}" >> $GITHUB_OUTPUT
           echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
           echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
 
-          echo "API URL: ${API_URL}"
-          echo "Web URL: ${WEB_URL}"
+          echo "Insurance API URL: ${INSURANCE_API_URL}"
+          echo "Insurance Web URL: ${INSURANCE_WEB_URL}"
+          echo "Retail API URL: ${RETAIL_API_URL}"
+          echo "Retail Web URL: ${RETAIL_WEB_URL}"
 
   tests:
     name: Tests
@@ -288,6 +316,10 @@ jobs:
       stack_name: ${{ needs.deploy-ui.outputs.stack_name || needs.deploy-stack.outputs.stack_name }}
       api_url: ${{ needs.deploy-ui.outputs.api_url }}
       web_url: ${{ needs.deploy-ui.outputs.web_url }}
+      insurance_api_url: ${{ needs.deploy-ui.outputs.insurance_api_url }}
+      insurance_web_url: ${{ needs.deploy-ui.outputs.insurance_web_url }}
+      retail_api_url: ${{ needs.deploy-ui.outputs.retail_api_url }}
+      retail_web_url: ${{ needs.deploy-ui.outputs.retail_web_url }}
       environment: 'test'
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
@@ -307,10 +339,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Clear and seed demo data
+      - name: Clear and seed insurance demo data
         uses: ./.github/actions/clear-and-seed-data
         with:
-          api-base-url: ${{ needs.deploy-ui.outputs.api_url }}
+          api-base-url: ${{ needs.deploy-ui.outputs.insurance_api_url }}
+          vertical: insurance
+
+      - name: Clear and seed retail demo data
+        uses: ./.github/actions/clear-and-seed-data
+        with:
+          api-base-url: ${{ needs.deploy-ui.outputs.retail_api_url }}
+          vertical: retail
 
   pr-summary:
     name: Post PR Summary
@@ -345,11 +384,15 @@ jobs:
 
           ### 🌐 **Test Environment Ready**
 
-          **Web URL:** ${{ needs.deploy-ui.outputs.web_url }}
+          #### 🏥 Insurance Vertical
+          **Web URL:** ${{ needs.deploy-ui.outputs.insurance_web_url }}
+          **API URL:** ${{ needs.deploy-ui.outputs.insurance_api_url }}
 
-          **API URL:** ${{ needs.deploy-ui.outputs.api_url }}
+          #### 🛒 Retail Vertical
+          **Web URL:** ${{ needs.deploy-ui.outputs.retail_web_url }}
+          **API URL:** ${{ needs.deploy-ui.outputs.retail_api_url }}
 
-          Demo data has been seeded. You can now test your changes!
+          Demo data has been seeded for both verticals. You can now test your changes!
 
           ---
           EOF
