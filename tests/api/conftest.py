@@ -19,13 +19,16 @@ def api_base_url():
     """
     Get API base URL from environment or CloudFormation stack.
 
+    For multi-vertical testing, defaults to insurance vertical.
+    Use insurance_api_base_url or retail_api_base_url for vertical-specific testing.
+
     Priority:
-    1. SILVERMOAT_API_URL environment variable
+    1. SILVERMOAT_API_URL or INSURANCE_API_URL environment variable
     2. CloudFormation stack outputs (via STACK_NAME)
     3. Default localhost
     """
-    # Check environment variable first
-    api_url = os.environ.get('SILVERMOAT_API_URL')
+    # Check environment variable first (prefer INSURANCE_API_URL for backwards compat)
+    api_url = os.environ.get('SILVERMOAT_API_URL') or os.environ.get('INSURANCE_API_URL')
     if api_url:
         return api_url.rstrip('/')
 
@@ -37,6 +40,11 @@ def api_base_url():
             cfn = boto3.client('cloudformation')
             response = cfn.describe_stacks(StackName=stack_name)
             outputs = {o['OutputKey']: o['OutputValue'] for o in response['Stacks'][0].get('Outputs', [])}
+            # Try insurance-specific output first, then generic
+            if 'InsuranceApiUrl' in outputs:
+                return outputs['InsuranceApiUrl'].rstrip('/')
+            if 'InsuranceApiBaseUrl' in outputs:
+                return outputs['InsuranceApiBaseUrl'].rstrip('/')
             if 'ApiBaseUrl' in outputs:
                 return outputs['ApiBaseUrl'].rstrip('/')
         except Exception as e:
@@ -46,10 +54,64 @@ def api_base_url():
     return os.environ.get('API_BASE_URL', 'http://localhost:3000').rstrip('/')
 
 
+@pytest.fixture(scope="session")
+def insurance_api_base_url():
+    """Get insurance vertical API base URL"""
+    # Check environment variable first
+    api_url = os.environ.get('INSURANCE_API_URL')
+    if api_url:
+        return api_url.rstrip('/')
+
+    # Try to fetch from CloudFormation stack
+    stack_name = os.environ.get('STACK_NAME', os.environ.get('TEST_STACK_NAME'))
+    if stack_name:
+        try:
+            import boto3
+            cfn = boto3.client('cloudformation')
+            response = cfn.describe_stacks(StackName=stack_name)
+            outputs = {o['OutputKey']: o['OutputValue'] for o in response['Stacks'][0].get('Outputs', [])}
+            if 'InsuranceApiUrl' in outputs:
+                return outputs['InsuranceApiUrl'].rstrip('/')
+            if 'InsuranceApiBaseUrl' in outputs:
+                return outputs['InsuranceApiBaseUrl'].rstrip('/')
+        except Exception as e:
+            print(f"Warning: Could not fetch stack outputs: {e}")
+
+    # Fallback to api_base_url fixture
+    return os.environ.get('API_BASE_URL', 'http://localhost:3000').rstrip('/')
+
+
+@pytest.fixture(scope="session")
+def retail_api_base_url():
+    """Get retail vertical API base URL"""
+    # Check environment variable first
+    api_url = os.environ.get('RETAIL_API_URL')
+    if api_url:
+        return api_url.rstrip('/')
+
+    # Try to fetch from CloudFormation stack
+    stack_name = os.environ.get('STACK_NAME', os.environ.get('TEST_STACK_NAME'))
+    if stack_name:
+        try:
+            import boto3
+            cfn = boto3.client('cloudformation')
+            response = cfn.describe_stacks(StackName=stack_name)
+            outputs = {o['OutputKey']: o['OutputValue'] for o in response['Stacks'][0].get('Outputs', [])}
+            if 'RetailApiUrl' in outputs:
+                return outputs['RetailApiUrl'].rstrip('/')
+            if 'RetailApiBaseUrl' in outputs:
+                return outputs['RetailApiBaseUrl'].rstrip('/')
+        except Exception as e:
+            print(f"Warning: Could not fetch stack outputs: {e}")
+
+    # No fallback - retail tests should be skipped if not configured
+    pytest.skip("RETAIL_API_URL not configured")
+
+
 @pytest.fixture
 def api_client(api_base_url):
     """
-    API client with base URL configured.
+    API client with base URL configured (defaults to insurance vertical).
     Returns requests session for making API calls.
     """
     session = requests.Session()
@@ -58,6 +120,42 @@ def api_client(api_base_url):
     def request(method, path, **kwargs):
         """Make request with base URL prepended"""
         url = f"{api_base_url}{path}"
+        return session.request(method, url, **kwargs)
+
+    session.api_request = request
+    return session
+
+
+@pytest.fixture
+def insurance_api_client(insurance_api_base_url):
+    """
+    Insurance vertical API client.
+    Returns requests session for making API calls to insurance vertical.
+    """
+    session = requests.Session()
+    session.base_url = insurance_api_base_url
+
+    def request(method, path, **kwargs):
+        """Make request with base URL prepended"""
+        url = f"{insurance_api_base_url}{path}"
+        return session.request(method, url, **kwargs)
+
+    session.api_request = request
+    return session
+
+
+@pytest.fixture
+def retail_api_client(retail_api_base_url):
+    """
+    Retail vertical API client.
+    Returns requests session for making API calls to retail vertical.
+    """
+    session = requests.Session()
+    session.base_url = retail_api_base_url
+
+    def request(method, path, **kwargs):
+        """Make request with base URL prepended"""
+        url = f"{retail_api_base_url}{path}"
         return session.request(method, url, **kwargs)
 
     session.api_request = request
@@ -154,6 +252,93 @@ def sample_case_data():
     }
 
 
+# Retail Vertical Sample Data Fixtures
+
+@pytest.fixture
+def sample_product_data():
+    """Sample product data for testing (generated with Faker)"""
+    categories = ['Electronics', 'Apparel', 'Home & Garden', 'Sports & Outdoors', 'Books', 'Toys & Games']
+    return {
+        "sku": fake.bothify(text='SKU-#####'),
+        "name": fake.catch_phrase(),
+        "description": fake.text(max_nb_chars=150),
+        "price": fake.random_int(10, 500),
+        "category": fake.random_element(categories),
+        "stockQuantity": fake.random_int(0, 500),
+        "manufacturer": fake.company(),
+        "weight": fake.random_int(1, 50)
+    }
+
+
+@pytest.fixture
+def sample_order_data():
+    """Sample order data for testing (generated with Faker)"""
+    return {
+        "orderNumber": fake.bothify(text='ORD-######'),
+        "customerName": fake.name(),
+        "customerEmail": fake.email(),
+        "customerPhone": fake.phone_number(),
+        "shippingAddress": fake.address().replace('\n', ', '),
+        "items": [
+            {
+                "productId": f"product-{fake.uuid4()}",
+                "productName": fake.catch_phrase(),
+                "quantity": fake.random_int(1, 3),
+                "price": fake.random_int(20, 200),
+                "total": fake.random_int(20, 600)
+            }
+        ],
+        "totalAmount": fake.random_int(50, 1000),
+        "orderDate": fake.date_between(start_date='-90d', end_date='today').isoformat(),
+        "status": fake.random_element(['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'])
+    }
+
+
+@pytest.fixture
+def sample_inventory_data():
+    """Sample inventory data for testing (generated with Faker)"""
+    warehouses = ['NYC-01', 'LA-02', 'CHI-03', 'DAL-04', 'ATL-05']
+    return {
+        "productId": f"product-{fake.uuid4()}",
+        "productName": fake.catch_phrase(),
+        "sku": fake.bothify(text='SKU-#####'),
+        "location": fake.random_element(warehouses),
+        "quantity": fake.random_int(0, 500),
+        "reorderPoint": fake.random_int(10, 50),
+        "lastRestocked": fake.date_between(start_date='-30d', end_date='today').isoformat()
+    }
+
+
+@pytest.fixture
+def sample_retail_payment_data():
+    """Sample retail payment data for testing (generated with Faker)"""
+    return {
+        "orderId": f"order-{fake.uuid4()}",
+        "orderNumber": fake.bothify(text='ORD-######'),
+        "amount": fake.random_int(50, 1000),
+        "paymentMethod": fake.random_element(['CREDIT_CARD', 'DEBIT_CARD', 'PAYPAL', 'GIFT_CARD']),
+        "transactionId": fake.bothify(text='TXN-#######'),
+        "paymentDate": fake.date_between(start_date='-90d', end_date='today').isoformat()
+    }
+
+
+@pytest.fixture
+def sample_retail_case_data():
+    """Sample retail case data for testing (generated with Faker)"""
+    topics = ['ORDER_INQUIRY', 'PRODUCT_DEFECT', 'SHIPPING_DELAY', 'REFUND_REQUEST', 'PRODUCT_QUESTION']
+    priorities = ['LOW', 'MEDIUM', 'HIGH']
+    return {
+        "title": f"{fake.random_element(topics).replace('_', ' ')} - {fake.name()}",
+        "description": fake.text(max_nb_chars=200),
+        "customerName": fake.name(),
+        "customerEmail": fake.email(),
+        "topic": fake.random_element(topics),
+        "priority": fake.random_element(priorities),
+        "assignee": fake.random_element(['Support Team', 'Sales Team', 'Fulfillment']),
+        "createdDate": fake.date_between(start_date='-60d', end_date='today').isoformat()
+    }
+
+
 # Self-contained test fixtures with automatic cleanup
 
 @pytest.fixture
@@ -220,6 +405,63 @@ def created_case(api_client, sample_case_data):
     yield case_id
     # Cleanup
     api_client.api_request('DELETE', f'/case/{case_id}')
+
+
+# Retail Vertical Test Fixtures with Cleanup
+
+@pytest.fixture
+def created_product(retail_api_client, sample_product_data):
+    """Create a product for testing, clean up after."""
+    response = retail_api_client.api_request('POST', '/product', json=sample_product_data)
+    assert response.status_code == 201, f"Failed to create test product: {response.status_code}"
+    product_id = response.json()['id']
+    yield product_id
+    # Cleanup
+    retail_api_client.api_request('DELETE', f'/product/{product_id}')
+
+
+@pytest.fixture
+def created_order(retail_api_client, sample_order_data):
+    """Create an order for testing, clean up after."""
+    response = retail_api_client.api_request('POST', '/order', json=sample_order_data)
+    assert response.status_code == 201, f"Failed to create test order: {response.status_code}"
+    order_id = response.json()['id']
+    yield order_id
+    # Cleanup
+    retail_api_client.api_request('DELETE', f'/order/{order_id}')
+
+
+@pytest.fixture
+def created_inventory(retail_api_client, sample_inventory_data):
+    """Create an inventory record for testing, clean up after."""
+    response = retail_api_client.api_request('POST', '/inventory', json=sample_inventory_data)
+    assert response.status_code == 201, f"Failed to create test inventory: {response.status_code}"
+    inventory_id = response.json()['id']
+    yield inventory_id
+    # Cleanup
+    retail_api_client.api_request('DELETE', f'/inventory/{inventory_id}')
+
+
+@pytest.fixture
+def created_retail_payment(retail_api_client, sample_retail_payment_data):
+    """Create a retail payment for testing, clean up after."""
+    response = retail_api_client.api_request('POST', '/payment', json=sample_retail_payment_data)
+    assert response.status_code == 201, f"Failed to create test payment: {response.status_code}"
+    payment_id = response.json()['id']
+    yield payment_id
+    # Cleanup
+    retail_api_client.api_request('DELETE', f'/payment/{payment_id}')
+
+
+@pytest.fixture
+def created_retail_case(retail_api_client, sample_retail_case_data):
+    """Create a retail case for testing, clean up after."""
+    response = retail_api_client.api_request('POST', '/case', json=sample_retail_case_data)
+    assert response.status_code == 201, f"Failed to create test case: {response.status_code}"
+    case_id = response.json()['id']
+    yield case_id
+    # Cleanup
+    retail_api_client.api_request('DELETE', f'/case/{case_id}')
 
 
 def pytest_collection_modifyitems(config, items):
