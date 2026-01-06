@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { getQuote } from '../services/api'
-import './QuoteList.css'
 
 function QuoteList({ quotes, apiBase, onError }) {
   const [expandedQuote, setExpandedQuote] = useState(null)

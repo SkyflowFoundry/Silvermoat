@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { createQuote } from '../services/api'
-import './QuoteForm.css'
 
 function QuoteForm({ apiBase, onQuoteCreated, onError }) {
   const [formData, setFormData] = useState({
