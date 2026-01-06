@@ -233,5 +233,5 @@ class VerticalStack(Construct):
         # Also handle root path
         self.api.root.add_method("ANY", integration)
 
-        # Store API URL
-        self.api_url = f"{self.api.url}{self.stage_name}/"
+        # Store API URL (api.url already includes stage name)
+        self.api_url = self.api.url
