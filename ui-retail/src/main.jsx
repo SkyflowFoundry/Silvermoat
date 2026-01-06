@@ -8,3 +8,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <App />
   </React.StrictMode>,
 )
+
+// Hide loading screen after app has mounted
+if (window.hideLoadingScreen) {
+  window.hideLoadingScreen()
+}
