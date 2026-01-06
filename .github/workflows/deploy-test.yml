@@ -192,30 +192,129 @@ jobs:
           echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
           echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
 
-  insurance-tests:
-    name: Insurance Tests
-    needs: [detect-changes, deploy-insurance-ui]
+  insurance-lambda-tests:
+    name: Insurance Lambda Tests
+    needs: [deploy-insurance-infra]
+    if: always() && needs.deploy-insurance-infra.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.12']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: 'pip'
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install Python dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Run insurance handler tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/lambda/layer/python:${{ github.workspace }}/lambda:${{ github.workspace }}/lambda/insurance
+        run: |
+          cd lambda/insurance
+          pytest -v --tb=short
+
+  insurance-ui-tests:
+    name: Insurance UI Tests
+    needs: [deploy-insurance-ui]
     if: always() && needs.deploy-insurance-ui.result == 'success'
-    uses: ./.github/workflows/test-suite.yml
-    with:
-      stack_name: ${{ needs.detect-changes.outputs.base_stack_name }}-insurance
-      api_url: ${{ needs.deploy-insurance-ui.outputs.api_url }}
-      web_url: ${{ needs.deploy-insurance-ui.outputs.web_url }}
-      insurance_api_url: ${{ needs.deploy-insurance-ui.outputs.api_url }}
-      insurance_web_url: ${{ needs.deploy-insurance-ui.outputs.web_url }}
-      retail_api_url: ""
-      retail_web_url: ""
-      environment: 'test'
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install UI dependencies
+        working-directory: ui-insurance
+        run: npm ci
+
+      - name: Run UI unit tests
+        working-directory: ui-insurance
+        run: npm test
+
+  insurance-api-tests:
+    name: Insurance API Tests
+    needs: [deploy-insurance-ui]
+    if: always() && needs.deploy-insurance-ui.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install Python dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Run insurance API tests
+        env:
+          API_BASE_URL: ${{ needs.deploy-insurance-ui.outputs.api_url }}
+        run: |
+          cd tests/api
+          pytest -v --tb=short -m "not retail"
+
+  insurance-e2e-tests:
+    name: Insurance E2E Tests
+    needs: [deploy-insurance-ui, insurance-api-tests]
+    if: always() && needs.deploy-insurance-ui.result == 'success' && needs.insurance-api-tests.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test: ['smoke-land', 'smoke-deploy', 'navigation', 'forms-1', 'forms-2', 'customer']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install Python dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Install Chrome and ChromeDriver
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Run insurance E2E tests
+        env:
+          WEB_BASE_URL: ${{ needs.deploy-insurance-ui.outputs.web_url }}
+          API_BASE_URL: ${{ needs.deploy-insurance-ui.outputs.api_url }}
+        run: |
+          cd tests/e2e
+          pytest -v --tb=short -m "${{ matrix.test }}"
 
   seed-insurance-data:
     name: Seed Insurance Data
-    needs: [deploy-insurance-ui, insurance-tests]
+    needs: [deploy-insurance-ui, insurance-lambda-tests, insurance-ui-tests, insurance-api-tests, insurance-e2e-tests]
     if: |
       always() &&
       needs.deploy-insurance-ui.result == 'success' &&
-      needs.insurance-tests.result == 'success'
+      needs.insurance-api-tests.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -332,30 +431,129 @@ jobs:
           echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
           echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
 
-  retail-tests:
-    name: Retail Tests
-    needs: [detect-changes, deploy-retail-ui]
+  retail-lambda-tests:
+    name: Retail Lambda Tests
+    needs: [deploy-retail-infra]
+    if: always() && needs.deploy-retail-infra.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.12']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: 'pip'
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install Python dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Run retail handler tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/lambda/layer/python:${{ github.workspace }}/lambda:${{ github.workspace }}/lambda/retail
+        run: |
+          cd lambda/retail
+          pytest -v --tb=short
+
+  retail-ui-tests:
+    name: Retail UI Tests
+    needs: [deploy-retail-ui]
     if: always() && needs.deploy-retail-ui.result == 'success'
-    uses: ./.github/workflows/test-suite.yml
-    with:
-      stack_name: ${{ needs.detect-changes.outputs.base_stack_name }}-retail
-      api_url: ${{ needs.deploy-retail-ui.outputs.api_url }}
-      web_url: ${{ needs.deploy-retail-ui.outputs.web_url }}
-      insurance_api_url: ""
-      insurance_web_url: ""
-      retail_api_url: ${{ needs.deploy-retail-ui.outputs.api_url }}
-      retail_web_url: ${{ needs.deploy-retail-ui.outputs.web_url }}
-      environment: 'test'
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install UI dependencies
+        working-directory: ui-retail
+        run: npm ci
+
+      - name: Run UI unit tests
+        working-directory: ui-retail
+        run: npm test
+
+  retail-api-tests:
+    name: Retail API Tests
+    needs: [deploy-retail-ui]
+    if: always() && needs.deploy-retail-ui.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install Python dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Run retail API tests
+        env:
+          API_BASE_URL: ${{ needs.deploy-retail-ui.outputs.api_url }}
+        run: |
+          cd tests/api
+          pytest -v --tb=short -m "retail"
+
+  retail-e2e-tests:
+    name: Retail E2E Tests
+    needs: [deploy-retail-ui, retail-api-tests]
+    if: always() && needs.deploy-retail-ui.result == 'success' && needs.retail-api-tests.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test: ['smoke-land', 'smoke-deploy', 'navigation', 'forms-1', 'forms-2', 'customer']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install Python dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Install Chrome and ChromeDriver
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Run retail E2E tests
+        env:
+          WEB_BASE_URL: ${{ needs.deploy-retail-ui.outputs.web_url }}
+          API_BASE_URL: ${{ needs.deploy-retail-ui.outputs.api_url }}
+        run: |
+          cd tests/e2e
+          pytest -v --tb=short -m "${{ matrix.test }}"
 
   seed-retail-data:
     name: Seed Retail Data
-    needs: [deploy-retail-ui, retail-tests]
+    needs: [deploy-retail-ui, retail-lambda-tests, retail-ui-tests, retail-api-tests, retail-e2e-tests]
     if: |
       always() &&
       needs.deploy-retail-ui.result == 'success' &&
-      needs.retail-tests.result == 'success'
+      needs.retail-api-tests.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -378,11 +576,17 @@ jobs:
       detect-changes,
       deploy-insurance-infra,
       deploy-insurance-ui,
-      insurance-tests,
+      insurance-lambda-tests,
+      insurance-ui-tests,
+      insurance-api-tests,
+      insurance-e2e-tests,
       seed-insurance-data,
       deploy-retail-infra,
       deploy-retail-ui,
-      retail-tests,
+      retail-lambda-tests,
+      retail-ui-tests,
+      retail-api-tests,
+      retail-e2e-tests,
       seed-retail-data
     ]
     if: always() && github.event.pull_request.number
@@ -409,10 +613,10 @@ jobs:
           cat >> /tmp/pr-comment.md <<EOF
           ### Deployment Status
 
-          | Vertical | Infrastructure | UI | Tests | Data Seeding |
-          |----------|---------------|-----|-------|--------------|
-          | 🏥 **Insurance** | ${{ needs.deploy-insurance-infra.result == 'success' && '✅' || needs.deploy-insurance-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-insurance-ui.result == 'success' && '✅' || needs.deploy-insurance-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.insurance-tests.result == 'success' && '✅' || needs.insurance-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-insurance-data.result == 'success' && '✅' || needs.seed-insurance-data.result == 'skipped' && '⏭️' || '❌' }} |
-          | 🛒 **Retail** | ${{ needs.deploy-retail-infra.result == 'success' && '✅' || needs.deploy-retail-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-retail-ui.result == 'success' && '✅' || needs.deploy-retail-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.retail-tests.result == 'success' && '✅' || needs.retail-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-retail-data.result == 'success' && '✅' || needs.seed-retail-data.result == 'skipped' && '⏭️' || '❌' }} |
+          | Vertical | Infrastructure | UI | Lambda Tests | UI Tests | API Tests | E2E Tests | Data Seeding |
+          |----------|---------------|-----|--------------|----------|-----------|-----------|--------------|
+          | 🏥 **Insurance** | ${{ needs.deploy-insurance-infra.result == 'success' && '✅' || needs.deploy-insurance-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-insurance-ui.result == 'success' && '✅' || needs.deploy-insurance-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.insurance-lambda-tests.result == 'success' && '✅' || needs.insurance-lambda-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.insurance-ui-tests.result == 'success' && '✅' || needs.insurance-ui-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.insurance-api-tests.result == 'success' && '✅' || needs.insurance-api-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.insurance-e2e-tests.result == 'success' && '✅' || needs.insurance-e2e-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-insurance-data.result == 'success' && '✅' || needs.seed-insurance-data.result == 'skipped' && '⏭️' || '❌' }} |
+          | 🛒 **Retail** | ${{ needs.deploy-retail-infra.result == 'success' && '✅' || needs.deploy-retail-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-retail-ui.result == 'success' && '✅' || needs.deploy-retail-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.retail-lambda-tests.result == 'success' && '✅' || needs.retail-lambda-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.retail-ui-tests.result == 'success' && '✅' || needs.retail-ui-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.retail-api-tests.result == 'success' && '✅' || needs.retail-api-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.retail-e2e-tests.result == 'success' && '✅' || needs.retail-e2e-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-retail-data.result == 'success' && '✅' || needs.seed-retail-data.result == 'skipped' && '⏭️' || '❌' }} |
 
           EOF
 
@@ -464,10 +668,16 @@ jobs:
           # Add failure notice if any failures
           if [ "${{ needs.deploy-insurance-infra.result }}" = "failure" ] || \
              [ "${{ needs.deploy-insurance-ui.result }}" = "failure" ] || \
-             [ "${{ needs.insurance-tests.result }}" = "failure" ] || \
+             [ "${{ needs.insurance-lambda-tests.result }}" = "failure" ] || \
+             [ "${{ needs.insurance-ui-tests.result }}" = "failure" ] || \
+             [ "${{ needs.insurance-api-tests.result }}" = "failure" ] || \
+             [ "${{ needs.insurance-e2e-tests.result }}" = "failure" ] || \
              [ "${{ needs.deploy-retail-infra.result }}" = "failure" ] || \
              [ "${{ needs.deploy-retail-ui.result }}" = "failure" ] || \
-             [ "${{ needs.retail-tests.result }}" = "failure" ]; then
+             [ "${{ needs.retail-lambda-tests.result }}" = "failure" ] || \
+             [ "${{ needs.retail-ui-tests.result }}" = "failure" ] || \
+             [ "${{ needs.retail-api-tests.result }}" = "failure" ] || \
+             [ "${{ needs.retail-e2e-tests.result }}" = "failure" ]; then
             cat >> /tmp/pr-comment.md <<EOF
           ---
 
