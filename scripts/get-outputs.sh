@@ -1,5 +1,5 @@
 #!/bin/bash
-# Get and display CloudFormation stack outputs
+# Get and display CDK stack outputs (via CloudFormation)
 
 set -e
 

@@ -1,14 +1,16 @@
 #!/bin/bash
-# Delete and redeploy complete Silvermoat stack (infrastructure + UI)
+# Delete and redeploy complete Silvermoat stack (infrastructure + UI) using CDK
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Load AWS CLI check utility
 source "$SCRIPT_DIR/lib/check-aws.sh"
 
 STACK_NAME="${STACK_NAME:-silvermoat}"
+export STACK_NAME
 
 # AWS Profile support
 AWS_PROFILE="${AWS_PROFILE:-}"
@@ -22,18 +24,18 @@ fi
 check_aws_configured
 
 echo "=========================================="
-echo "Silvermoat Full Redeployment"
+echo "Silvermoat Full Redeployment (CDK)"
 echo "=========================================="
 echo ""
 echo "This will:"
-echo "  1. Delete the existing stack: $STACK_NAME"
+echo "  1. Delete the existing CDK stack: $STACK_NAME"
 echo "  2. Redeploy everything from scratch"
 echo ""
 
 # ==========================================
 # Step 1: Delete existing stack
 # ==========================================
-echo "Step 1: Deleting existing stack"
+echo "Step 1: Deleting existing CDK stack"
 echo "----------------------------------------"
 echo ""
 
@@ -64,9 +66,16 @@ else
   fi
 
   echo ""
-  echo "Deleting stack..."
+  echo "Deleting CDK stack..."
 
-  $AWS_CMD cloudformation delete-stack --stack-name "$STACK_NAME"
+  # Check if CDK CLI is installed
+  if ! command -v cdk >/dev/null 2>&1; then
+    echo "Warning: CDK CLI not found. Falling back to CloudFormation delete."
+    $AWS_CMD cloudformation delete-stack --stack-name "$STACK_NAME"
+  else
+    cd "$PROJECT_ROOT/cdk"
+    cdk destroy "$STACK_NAME" --force
+  fi
 
   echo "Stack deletion initiated."
   echo "Waiting for deletion to complete..."

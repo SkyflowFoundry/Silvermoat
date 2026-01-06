@@ -31,16 +31,16 @@ if [ ! -d "$UI_DIR" ]; then
   exit 1
 fi
 
-# Get UI bucket name from stack outputs
-echo "Getting UI bucket name from stack outputs..."
+# Get UI bucket name from CDK stack outputs
+echo "Getting UI bucket name from CDK stack outputs..."
 UI_BUCKET=$($AWS_CMD cloudformation describe-stacks \
   --stack-name "$STACK_NAME" \
   --query "Stacks[0].Outputs[?OutputKey=='UiBucketName'].OutputValue" \
   --output text 2>/dev/null || echo "")
 
 if [ -z "$UI_BUCKET" ]; then
-  echo "Error: Could not get UiBucketName from stack '$STACK_NAME'"
-  echo "Make sure the stack is deployed and has the UiBucketName output."
+  echo "Error: Could not get UiBucketName from CDK stack '$STACK_NAME'"
+  echo "Make sure the CDK stack is deployed and has the UiBucketName output."
   exit 1
 fi
 
