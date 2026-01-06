@@ -2,7 +2,7 @@
 
 **Silvermoat** is a production-ready, full-stack insurance platform built entirely on AWS serverless infrastructure. This repository provides a complete, deployable demonstration of a modern insurance system featuring quote management, policy administration, claims processing, payment handling, and AI-powered customer service.
 
-The platform showcases enterprise-grade patterns including Infrastructure as Code with nested CloudFormation stacks, A-B deployment workflows for zero-downtime releases, comprehensive test automation, and seamless integration with Claude AI for intelligent customer interactions.
+The platform showcases enterprise-grade patterns including Infrastructure as Code with AWS CDK, A-B deployment workflows for zero-downtime releases, comprehensive test automation, and seamless integration with Claude AI for intelligent customer interactions.
 
 ## Table of Contents
 
@@ -11,7 +11,7 @@ The platform showcases enterprise-grade patterns including Infrastructure as Cod
   - [High-Level Architecture](#high-level-architecture)
   - [Request Flow](#request-flow)
   - [AWS Services](#aws-services)
-  - [CloudFormation Stack Hierarchy](#cloudformation-stack-hierarchy)
+  - [CDK Stack Architecture](#cdk-stack-architecture)
 - [Development & Deployment](#development--deployment)
   - [A-B Deployment Model](#a-b-deployment-model)
   - [Deployment Decision Flow](#deployment-decision-flow)
@@ -44,7 +44,7 @@ The platform showcases enterprise-grade patterns including Infrastructure as Cod
 
 Silvermoat demonstrates a complete end-to-end insurance platform with the following capabilities:
 
-- **Infrastructure as Code**: Complete CloudFormation templates for reproducible deployments
+- **Infrastructure as Code**: AWS CDK for type-safe, reproducible deployments
 - **A-B Deployment Model**: Production (A) and ephemeral PR testing (B) stacks
 - **Static Website Hosting**: S3 website hosting with CloudFront CDN
 - **Serverless API**: API Gateway REST API proxying to Lambda functions
@@ -239,20 +239,19 @@ Shows how data moves through the system for key operations including quote creat
 
 All diagrams are generated at build time and automatically deployed with the application.
 
-### CloudFormation Stack Hierarchy
+### CDK Stack Architecture
 
-This diagram shows the nested CloudFormation stack structure that organizes infrastructure into logical components. The parent stack orchestrates five nested stacks (Data, Storage, Compute, API, and Frontend) plus custom resources for seeding and cleanup, enabling modular infrastructure management and reusable templates.
+This diagram shows the CDK stack structure that organizes infrastructure into logical components. The main CDK stack contains five nested constructs (Data, Storage, Compute, API, and Frontend), enabling modular infrastructure management and reusable patterns.
 
 ```mermaid
 graph TB
-    Parent[Parent Stack<br/>silvermoat-mvp-s3-website.yaml]
+    Main[Main CDK Stack<br/>silvermoat_stack.py]
 
-    Parent --> Data[Data Stack<br/>data-stack.yaml]
-    Parent --> Storage[Storage Stack<br/>storage-stack.yaml]
-    Parent --> Compute[Compute Stack<br/>compute-stack.yaml]
-    Parent --> API[API Stack<br/>api-stack.yaml]
-    Parent --> Frontend[Frontend Stack<br/>frontend-stack.yaml]
-    Parent --> Seeder[Custom Resources<br/>Parent Stack]
+    Main --> Data[Data Construct<br/>data_stack.py]
+    Main --> Storage[Storage Construct<br/>storage_stack.py]
+    Main --> Compute[Compute Construct<br/>compute_stack.py]
+    Main --> API[API Construct<br/>api_stack.py]
+    Main --> Frontend[Frontend Construct<br/>frontend_stack.py]
 
     Data --> DDB1[DynamoDB: Quotes]
     Data --> DDB2[DynamoDB: Policies]
@@ -1132,7 +1131,7 @@ Silvermoat/
   - CloudFront distributions
   - ACM certificates
   - EventBridge events
-  - CloudFormation stacks
+  - CloudFormation stacks (CDK-managed)
 - **Node.js** 18+ for building the React app
 - **npm** or **yarn** for package management
 - **Python** 3.12+ for Lambda development and testing
@@ -1143,7 +1142,7 @@ Silvermoat/
 
 #### 1. Deploy Infrastructure
 
-Deploy the CloudFormation stack:
+Deploy the CDK stack:
 
 ```bash
 ./scripts/deploy-stack.sh
@@ -1155,18 +1154,20 @@ Or with custom parameters:
 STACK_NAME=my-silvermoat \
 APP_NAME=silvermoat \
 STAGE_NAME=prod \
-UI_SEEDING_MODE=external \
+CREATE_CLOUDFRONT=true \
+DOMAIN_NAME=my-domain.com \
 ./scripts/deploy-stack.sh
 ```
 
 **Parameters:**
-- `STACK_NAME`: CloudFormation stack name (default: `silvermoat`)
+- `STACK_NAME`: CDK stack name (default: `silvermoat`)
 - `APP_NAME`: Short app name for resource naming (default: `silvermoat`)
 - `STAGE_NAME`: API Gateway stage name (default: `demo`)
 - `API_DEPLOYMENT_TOKEN`: Token to force API redeployment (default: `v1`)
-- `UI_SEEDING_MODE`: `seeded` (Lambda uploads simple HTML) or `external` (React SPA) (default: `external`)
+- `CREATE_CLOUDFRONT`: Create CloudFront distribution (default: `true`)
+- `DOMAIN_NAME`: Custom domain for CloudFront (default: `silvermoat.net`)
 
-Wait for `CREATE_COMPLETE` status.
+Wait for deployment to complete.
 
 #### 2. Get Stack Outputs
 

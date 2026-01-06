@@ -19,17 +19,17 @@ if [ -n "${AWS_PROFILE:-}" ]; then
   AWS_CMD="aws --profile $AWS_PROFILE"
 fi
 
-echo "Running smoke tests for stack: $STACK_NAME"
+echo "Running smoke tests for CDK stack: $STACK_NAME"
 echo ""
 
-# Get API base URL
+# Get API base URL from CDK stack outputs
 API_BASE=$($AWS_CMD cloudformation describe-stacks \
   --stack-name "$STACK_NAME" \
   --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" \
   --output text 2>/dev/null || echo "")
 
 if [ -z "$API_BASE" ]; then
-  echo "Error: Could not get ApiBaseUrl from stack '$STACK_NAME'"
+  echo "Error: Could not get ApiBaseUrl from CDK stack '$STACK_NAME'"
   exit 1
 fi
 

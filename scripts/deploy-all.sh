@@ -1,5 +1,5 @@
 #!/bin/bash
-# Deploy complete Silvermoat stack (infrastructure + UI)
+# Deploy complete Silvermoat stack (infrastructure + UI) using CDK
 
 set -e
 
@@ -10,7 +10,6 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/check-aws.sh"
 
 STACK_NAME="${STACK_NAME:-silvermoat}"
-TEMPLATE_FILE="$PROJECT_ROOT/infra/silvermoat-mvp-s3-website.yaml"
 UI_DIR="$PROJECT_ROOT/ui"
 BUILD_DIR="$UI_DIR/dist"
 
@@ -25,70 +24,55 @@ fi
 # Check AWS CLI and credentials
 check_aws_configured
 
-# Default parameters
-APP_NAME="${APP_NAME:-silvermoat}"
-STAGE_NAME="${STAGE_NAME:-demo}"
-API_DEPLOYMENT_TOKEN="${API_DEPLOYMENT_TOKEN:-v1}"
-UI_SEEDING_MODE="${UI_SEEDING_MODE:-external}"
+# Default parameters (exported as environment variables for CDK)
+export APP_NAME="${APP_NAME:-silvermoat}"
+export STAGE_NAME="${STAGE_NAME:-demo}"
+export API_DEPLOYMENT_TOKEN="${API_DEPLOYMENT_TOKEN:-v1}"
+export UI_SEEDING_MODE="${UI_SEEDING_MODE:-external}"
+export CREATE_CLOUDFRONT="${CREATE_CLOUDFRONT:-true}"
+export DOMAIN_NAME="${DOMAIN_NAME:-silvermoat.net}"
+export STACK_NAME
 
 echo "=========================================="
-echo "Silvermoat Full Deployment"
+echo "Silvermoat Full Deployment (CDK)"
 echo "=========================================="
 echo ""
 
 # ==========================================
-# Step 1: Deploy CloudFormation Stack
+# Step 1: Deploy CDK Stack
 # ==========================================
-echo "Step 1: Deploying CloudFormation stack"
+echo "Step 1: Deploying CDK stack"
 echo "----------------------------------------"
 echo "Stack Name: $STACK_NAME"
-echo "Template: $TEMPLATE_FILE"
 echo "Parameters:"
 echo "  AppName: $APP_NAME"
 echo "  StageName: $STAGE_NAME"
 echo "  ApiDeploymentToken: $API_DEPLOYMENT_TOKEN"
 echo "  UiSeedingMode: $UI_SEEDING_MODE"
+echo "  CreateCloudFront: $CREATE_CLOUDFRONT"
+echo "  DomainName: $DOMAIN_NAME"
 echo ""
 
-# Check if template file exists
-if [ ! -f "$TEMPLATE_FILE" ]; then
-  echo "Error: Template file not found: $TEMPLATE_FILE"
+# Install CDK dependencies (first time only)
+if [ ! -d "$PROJECT_ROOT/cdk/cdk.out" ]; then
+  echo "Installing CDK dependencies..."
+  cd "$PROJECT_ROOT/cdk"
+  pip install -q -r requirements.txt
+  echo "✓ CDK dependencies installed"
+  echo ""
+fi
+
+# Check if CDK CLI is installed
+if ! command -v cdk >/dev/null 2>&1; then
+  echo "Error: AWS CDK CLI not found. Install with:"
+  echo "  npm install -g aws-cdk"
   exit 1
 fi
 
-# Get AWS account ID and region for S3 bucket name
-AWS_ACCOUNT_ID=$($AWS_CMD sts get-caller-identity --query Account --output text)
-AWS_REGION=$($AWS_CMD configure get region || echo "us-east-1")
-S3_BUCKET="${CFN_S3_BUCKET:-cf-templates-${STACK_NAME}-${AWS_ACCOUNT_ID}-${AWS_REGION}}"
-
-echo "S3 Bucket for templates: $S3_BUCKET"
-echo ""
-
-# Create S3 bucket if it doesn't exist
-if ! $AWS_CMD s3 ls "s3://$S3_BUCKET" 2>/dev/null; then
-  echo "Creating S3 bucket: $S3_BUCKET"
-  if [ "$AWS_REGION" = "us-east-1" ]; then
-    $AWS_CMD s3 mb "s3://$S3_BUCKET"
-  else
-    $AWS_CMD s3 mb "s3://$S3_BUCKET" --region "$AWS_REGION"
-  fi
-  echo "S3 bucket created"
-else
-  echo "S3 bucket already exists"
-fi
-
-# Deploy stack
-$AWS_CMD cloudformation deploy \
-  --stack-name "$STACK_NAME" \
-  --template-file "$TEMPLATE_FILE" \
-  --s3-bucket "$S3_BUCKET" \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides \
-    AppName="$APP_NAME" \
-    StageName="$STAGE_NAME" \
-    ApiDeploymentToken="$API_DEPLOYMENT_TOKEN" \
-    UiSeedingMode="$UI_SEEDING_MODE" \
-  --no-fail-on-empty-changeset
+# Deploy CDK stack
+echo "Deploying CDK stack..."
+cd "$PROJECT_ROOT/cdk"
+cdk deploy "$STACK_NAME" --require-approval never
 
 echo ""
 echo "Stack deployment complete!"
@@ -107,7 +91,7 @@ if [ ! -d "$UI_DIR" ]; then
   exit 1
 fi
 
-# Get UI bucket name from stack outputs
+# Get UI bucket name from CDK stack outputs
 echo "Getting stack outputs..."
 UI_BUCKET=$($AWS_CMD cloudformation describe-stacks \
   --stack-name "$STACK_NAME" \
@@ -116,7 +100,7 @@ UI_BUCKET=$($AWS_CMD cloudformation describe-stacks \
 
 if [ -z "$UI_BUCKET" ]; then
   echo "Error: Could not get UiBucketName from stack '$STACK_NAME'"
-  echo "Make sure the stack is deployed and has the UiBucketName output."
+  echo "Make sure the CDK stack is deployed and has the UiBucketName output."
   exit 1
 fi
 

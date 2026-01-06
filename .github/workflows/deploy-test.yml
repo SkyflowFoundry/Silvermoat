@@ -93,13 +93,13 @@ jobs:
             STACK_NAME="silvermoat-test-${{ github.run_id }}"
           fi
 
-          # Check if stack exists
+          # Check if CDK stack exists
           if aws cloudformation describe-stacks --stack-name "${STACK_NAME}" >/dev/null 2>&1; then
             echo "stack_exists=true" >> $GITHUB_OUTPUT
-            echo "✅ Stack ${STACK_NAME} exists"
+            echo "✅ CDK stack ${STACK_NAME} exists"
           else
             echo "stack_exists=false" >> $GITHUB_OUTPUT
-            echo "ℹ️ Stack ${STACK_NAME} does not exist (first run)"
+            echo "ℹ️ CDK stack ${STACK_NAME} does not exist (first run)"
           fi
 
   deploy-stack:
@@ -148,13 +148,13 @@ jobs:
           echo "stack_name=${STACK_NAME}" >> $GITHUB_OUTPUT
           echo "Test stack name: ${STACK_NAME}"
 
-      - name: Check if stack exists
+      - name: Check if CDK stack exists
         id: check-stack
         run: |
           STACK_NAME="${{ steps.stack-name.outputs.stack_name }}"
-          echo "Checking if stack ${STACK_NAME} exists..."
+          echo "Checking if CDK stack ${STACK_NAME} exists..."
 
-          # Check stack status
+          # Check CDK stack status
           STACK_STATUS=$(aws cloudformation describe-stacks \
             --stack-name "${STACK_NAME}" \
             --query 'Stacks[0].StackStatus' \

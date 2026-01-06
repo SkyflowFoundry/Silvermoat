@@ -56,15 +56,15 @@ jobs:
           echo "stack_name=${STACK_NAME}" >> $GITHUB_OUTPUT
           echo "Cleaning up stack: ${STACK_NAME}"
 
-      - name: Check if stack exists
+      - name: Check if CDK stack exists
         id: stack-check
         run: |
           if aws cloudformation describe-stacks --stack-name "${{ steps.stack-name.outputs.stack_name }}" 2>/dev/null; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Stack exists, will delete"
+            echo "CDK stack exists, will delete"
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Stack does not exist, skipping deletion"
+            echo "CDK stack does not exist, skipping deletion"
           fi
 
       - name: Delete stack
@@ -138,15 +138,15 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Check if stack exists
+      - name: Check if CDK stack exists
         id: check-stack
         run: |
           if aws cloudformation describe-stacks --stack-name silvermoat >/dev/null 2>&1; then
             echo "stack_exists=true" >> $GITHUB_OUTPUT
-            echo "✅ Stack 'silvermoat' exists"
+            echo "✅ CDK stack 'silvermoat' exists"
           else
             echo "stack_exists=false" >> $GITHUB_OUTPUT
-            echo "ℹ️ Stack 'silvermoat' does not exist"
+            echo "ℹ️ CDK stack 'silvermoat' does not exist"
           fi
 
   deploy-stack:
@@ -273,13 +273,13 @@ jobs:
       - name: Get CloudFront distribution ID
         id: cloudfront
         run: |
-          # Get distribution ID from CloudFormation output
+          # Get distribution ID from CDK stack output
           DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
             --stack-name silvermoat \
             --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
             --output text 2>/dev/null || echo "")
 
-          # Fallback to resource query for backwards compatibility during rollout
+          # Fallback to resource query for backwards compatibility
           if [ -z "$DISTRIBUTION_ID" ] || [ "$DISTRIBUTION_ID" == "None" ]; then
             echo "Output not found, trying resource query (fallback)..."
             DISTRIBUTION_ID=$(aws cloudformation describe-stack-resources \
