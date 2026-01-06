@@ -34,35 +34,49 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: handlers
-            pattern: "test_*_handler.py"
-            python-version: '3.11'
-          - name: handlers
-            pattern: "test_*_handler.py"
-            python-version: '3.12'
-          - name: utilities
-            pattern: "test_responses.py test_validators.py test_events.py test_domain_logic.py test_storage_dynamodb.py"
-            python-version: '3.11'
-          - name: utilities
-            pattern: "test_responses.py test_validators.py test_events.py test_domain_logic.py test_storage_dynamodb.py"
-            python-version: '3.12'
+        test: [handlers-3.11, handlers-3.12, utilities-3.11, utilities-3.12]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set test config
+        id: config
+        run: |
+          case "${{ matrix.test }}" in
+            handlers-3.11)
+              echo "pattern=test_*_handler.py" >> $GITHUB_OUTPUT
+              echo "python-version=3.11" >> $GITHUB_OUTPUT
+              echo "name=handlers" >> $GITHUB_OUTPUT
+              ;;
+            handlers-3.12)
+              echo "pattern=test_*_handler.py" >> $GITHUB_OUTPUT
+              echo "python-version=3.12" >> $GITHUB_OUTPUT
+              echo "name=handlers" >> $GITHUB_OUTPUT
+              ;;
+            utilities-3.11)
+              echo "pattern=test_responses.py test_validators.py test_events.py test_domain_logic.py test_storage_dynamodb.py" >> $GITHUB_OUTPUT
+              echo "python-version=3.11" >> $GITHUB_OUTPUT
+              echo "name=utilities" >> $GITHUB_OUTPUT
+              ;;
+            utilities-3.12)
+              echo "pattern=test_responses.py test_validators.py test_events.py test_domain_logic.py test_storage_dynamodb.py" >> $GITHUB_OUTPUT
+              echo "python-version=3.12" >> $GITHUB_OUTPUT
+              echo "name=utilities" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Set up Python ${{ steps.config.outputs.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ steps.config.outputs.python-version }}
           cache: 'pip'
           cache-dependency-path: requirements-test.txt
 
       - name: Install Python dependencies
         run: pip install -r requirements-test.txt
 
-      - name: Run ${{ matrix.name }} tests (Python ${{ matrix.python-version }})
+      - name: Run ${{ steps.config.outputs.name }} tests (Python ${{ steps.config.outputs.python-version }})
         id: test-run
         continue-on-error: true
         env:
@@ -81,21 +95,21 @@ jobs:
         run: |
           set -o pipefail
           cd lambda/tests
-          pytest -v --tb=short ${{ matrix.pattern }} 2>&1 | tee ../../${{ matrix.name }}-python${{ matrix.python-version }}-tests-output.txt
+          pytest -v --tb=short ${{ steps.config.outputs.pattern }} 2>&1 | tee ../../${{ steps.config.outputs.name }}-python${{ steps.config.outputs.python-version }}-tests-output.txt
 
       - name: Upload test output
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.name }}-python${{ matrix.python-version }}-test-output
-          path: ${{ matrix.name }}-python${{ matrix.python-version }}-tests-output.txt
+          name: ${{ steps.config.outputs.name }}-python${{ steps.config.outputs.python-version }}-test-output
+          path: ${{ steps.config.outputs.name }}-python${{ steps.config.outputs.python-version }}-tests-output.txt
           retention-days: 7
 
       - name: Check test outcome
         if: always()
         run: |
           if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
-            echo "${{ matrix.name }} tests failed on Python ${{ matrix.python-version }}"
+            echo "${{ steps.config.outputs.name }} tests failed on Python ${{ steps.config.outputs.python-version }}"
             exit 1
           fi
 
@@ -107,19 +121,29 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: utils
-            pattern: "src/utils/**/*.test.{js,jsx,ts,tsx}"
-          - name: components
-            pattern: "src/components/**/*.test.{js,jsx,ts,tsx}"
-          - name: hooks
-            pattern: "src/hooks/**/*.test.{js,jsx,ts,tsx}"
-          - name: contexts
-            pattern: "src/contexts/**/*.test.{js,jsx,ts,tsx}"
+        test: [utils, components, hooks, contexts]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set test config
+        id: config
+        run: |
+          case "${{ matrix.test }}" in
+            utils)
+              echo "pattern=src/utils/**/*.test.{js,jsx,ts,tsx}" >> $GITHUB_OUTPUT
+              ;;
+            components)
+              echo "pattern=src/components/**/*.test.{js,jsx,ts,tsx}" >> $GITHUB_OUTPUT
+              ;;
+            hooks)
+              echo "pattern=src/hooks/**/*.test.{js,jsx,ts,tsx}" >> $GITHUB_OUTPUT
+              ;;
+            contexts)
+              echo "pattern=src/contexts/**/*.test.{js,jsx,ts,tsx}" >> $GITHUB_OUTPUT
+              ;;
+          esac
 
       - name: Setup environment
         uses: ./.github/actions/setup-env
@@ -129,16 +153,16 @@ jobs:
           cd ui
           npm ci --silent
 
-      - name: Run ${{ matrix.name }} tests
+      - name: Run ${{ matrix.test }} tests
         id: test-run
         continue-on-error: true
         run: |
           set -o pipefail
           cd ui
           # Run tests matching the pattern, exit 0 if no tests found
-          npm test -- --run "${{ matrix.pattern }}" 2>&1 | tee ../${{ matrix.name }}-tests-output.txt || {
-            if grep -q "No test files found" ../${{ matrix.name }}-tests-output.txt; then
-              echo "No tests found for ${{ matrix.pattern }}, skipping..."
+          npm test -- --run "${{ steps.config.outputs.pattern }}" 2>&1 | tee ../${{ matrix.test }}-tests-output.txt || {
+            if grep -q "No test files found" ../${{ matrix.test }}-tests-output.txt; then
+              echo "No tests found for ${{ steps.config.outputs.pattern }}, skipping..."
               echo "SKIPPED=true" >> $GITHUB_OUTPUT
               exit 0
             else
@@ -150,15 +174,15 @@ jobs:
         if: always() && steps.test-run.outputs.SKIPPED != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.name }}-test-output
-          path: ${{ matrix.name }}-tests-output.txt
+          name: ${{ matrix.test }}-test-output
+          path: ${{ matrix.test }}-tests-output.txt
           retention-days: 7
 
       - name: Check test outcome
         if: always() && steps.test-run.outputs.SKIPPED != 'true'
         run: |
           if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
-            echo "${{ matrix.name }} tests failed"
+            echo "${{ matrix.test }} tests failed"
             exit 1
           fi
 
@@ -170,44 +194,50 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: smoke
-            file: ""
-            args: ""
-          - name: cases
-            file: test_cases.py
-            args: ""
-          - name: security
-            file: test_security.py
-            args: ""
-          - name: chatbot
-            file: test_chatbot.py
-            args: ""
-          - name: cust-chat
-            file: test_customer_chatbot.py
-            args: ""
-          - name: customers
-            file: test_customers.py
-            args: ""
-          - name: payments
-            file: test_payments.py
-            args: ""
-          - name: policies
-            file: test_policies.py
-            args: ""
-          - name: quotes
-            file: test_quotes.py
-            args: ""
-          - name: claims
-            file: test_claims.py
-            args: ""
-          - name: root
-            file: test_root.py
-            args: ""
+        test: [smoke, cases, security, chatbot, cust-chat, customers, payments, policies, quotes, claims, root]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set test config
+        id: config
+        run: |
+          case "${{ matrix.test }}" in
+            smoke)
+              echo "file=" >> $GITHUB_OUTPUT
+              ;;
+            cases)
+              echo "file=test_cases.py" >> $GITHUB_OUTPUT
+              ;;
+            security)
+              echo "file=test_security.py" >> $GITHUB_OUTPUT
+              ;;
+            chatbot)
+              echo "file=test_chatbot.py" >> $GITHUB_OUTPUT
+              ;;
+            cust-chat)
+              echo "file=test_customer_chatbot.py" >> $GITHUB_OUTPUT
+              ;;
+            customers)
+              echo "file=test_customers.py" >> $GITHUB_OUTPUT
+              ;;
+            payments)
+              echo "file=test_payments.py" >> $GITHUB_OUTPUT
+              ;;
+            policies)
+              echo "file=test_policies.py" >> $GITHUB_OUTPUT
+              ;;
+            quotes)
+              echo "file=test_quotes.py" >> $GITHUB_OUTPUT
+              ;;
+            claims)
+              echo "file=test_claims.py" >> $GITHUB_OUTPUT
+              ;;
+            root)
+              echo "file=test_root.py" >> $GITHUB_OUTPUT
+              ;;
+          esac
 
       - name: Setup environment
         uses: ./.github/actions/setup-env
@@ -221,7 +251,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Run ${{ matrix.name }} tests
+      - name: Run ${{ matrix.test }} tests
         id: test-run
         continue-on-error: true
         env:
@@ -230,23 +260,23 @@ jobs:
           SILVERMOAT_URL: ${{ inputs.web_url }}
         run: |
           set -o pipefail
-          echo "Running ${{ matrix.name }} tests against ${{ inputs.environment }}..."
+          echo "Running ${{ matrix.test }} tests against ${{ inputs.environment }}..."
           cd tests/api
-          pytest -v --tb=short ${{ matrix.file }} ${{ matrix.args }} 2>&1 | tee ../../${{ matrix.name }}-tests-output.txt
+          pytest -v --tb=short ${{ steps.config.outputs.file }} 2>&1 | tee ../../${{ matrix.test }}-tests-output.txt
 
       - name: Upload test output
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.name }}-test-output
-          path: ${{ matrix.name }}-tests-output.txt
+          name: ${{ matrix.test }}-test-output
+          path: ${{ matrix.test }}-tests-output.txt
           retention-days: 7
 
       - name: Upload test artifacts (screenshots, page source, logs)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.name }}-test-artifacts
+          name: ${{ matrix.test }}-test-artifacts
           path: tests/api/test-artifacts/
           retention-days: 7
           if-no-files-found: ignore
@@ -255,7 +285,7 @@ jobs:
         if: always()
         run: |
           if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
-            echo "${{ matrix.name }} tests failed"
+            echo "${{ matrix.test }} tests failed"
             exit 1
           fi
 
@@ -267,31 +297,42 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: smoke-deploy
-            dir: smoke
-            args: ""
-            needs-chrome: false
-          - name: smoke-land
-            dir: e2e
-            args: "-m smoke"
-            needs-chrome: true
-          - name: forms
-            dir: e2e
-            args: "-m forms"
-            needs-chrome: true
-          - name: customer
-            dir: e2e
-            args: "-m customer"
-            needs-chrome: true
-          - name: navigation
-            dir: e2e
-            args: "tests/test_landing_page.py -m 'e2e and not smoke'"
-            needs-chrome: true
+        test: [smoke-deploy, smoke-land, forms, customer, navigation]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set test config
+        id: config
+        run: |
+          case "${{ matrix.test }}" in
+            smoke-deploy)
+              echo "dir=smoke" >> $GITHUB_OUTPUT
+              echo "args=" >> $GITHUB_OUTPUT
+              echo "needs-chrome=false" >> $GITHUB_OUTPUT
+              ;;
+            smoke-land)
+              echo "dir=e2e" >> $GITHUB_OUTPUT
+              echo "args=-m smoke" >> $GITHUB_OUTPUT
+              echo "needs-chrome=true" >> $GITHUB_OUTPUT
+              ;;
+            forms)
+              echo "dir=e2e" >> $GITHUB_OUTPUT
+              echo "args=-m forms" >> $GITHUB_OUTPUT
+              echo "needs-chrome=true" >> $GITHUB_OUTPUT
+              ;;
+            customer)
+              echo "dir=e2e" >> $GITHUB_OUTPUT
+              echo "args=-m customer" >> $GITHUB_OUTPUT
+              echo "needs-chrome=true" >> $GITHUB_OUTPUT
+              ;;
+            navigation)
+              echo "dir=e2e" >> $GITHUB_OUTPUT
+              echo "args=tests/test_landing_page.py -m 'e2e and not smoke'" >> $GITHUB_OUTPUT
+              echo "needs-chrome=true" >> $GITHUB_OUTPUT
+              ;;
+          esac
 
       - name: Setup environment
         uses: ./.github/actions/setup-env
@@ -306,14 +347,14 @@ jobs:
           aws-region: us-east-1
 
       - name: Install Chrome and ChromeDriver
-        if: matrix.needs-chrome
+        if: steps.config.outputs.needs-chrome == 'true'
         uses: browser-actions/setup-chrome@v1
         with:
           chrome-version: stable
           install-chromedriver: true
 
       - name: Cache ChromeDriver
-        if: matrix.needs-chrome
+        if: steps.config.outputs.needs-chrome == 'true'
         uses: actions/cache@v4
         with:
           path: /usr/local/bin/chromedriver
@@ -321,7 +362,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-chromedriver-
 
-      - name: Run ${{ matrix.name }} tests
+      - name: Run ${{ matrix.test }} tests
         id: test-run
         continue-on-error: true
         env:
@@ -331,24 +372,24 @@ jobs:
           HEADLESS: '1'
         run: |
           set -o pipefail
-          echo "Running ${{ matrix.name }} tests against ${{ inputs.environment }}..."
-          cd tests/${{ matrix.dir }}
-          pytest -v --tb=short ${{ matrix.args }} 2>&1 | tee ../../${{ matrix.name }}-tests-output.txt
+          echo "Running ${{ matrix.test }} tests against ${{ inputs.environment }}..."
+          cd tests/${{ steps.config.outputs.dir }}
+          pytest -v --tb=short ${{ steps.config.outputs.args }} 2>&1 | tee ../../${{ matrix.test }}-tests-output.txt
 
       - name: Upload test output
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.name }}-test-output
-          path: ${{ matrix.name }}-tests-output.txt
+          name: ${{ matrix.test }}-test-output
+          path: ${{ matrix.test }}-tests-output.txt
           retention-days: 7
 
       - name: Upload test artifacts (screenshots, page source, logs)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.name }}-test-artifacts
-          path: tests/${{ matrix.dir }}/test-artifacts/
+          name: ${{ matrix.test }}-test-artifacts
+          path: tests/${{ steps.config.outputs.dir }}/test-artifacts/
           retention-days: 7
           if-no-files-found: ignore
 
@@ -356,6 +397,6 @@ jobs:
         if: always()
         run: |
           if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
-            echo "${{ matrix.name }} tests failed"
+            echo "${{ matrix.test }} tests failed"
             exit 1
           fi
