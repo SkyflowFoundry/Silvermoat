@@ -67,6 +67,7 @@ jobs:
             ui:
               - 'ui-insurance/**'
               - 'ui-retail/**'
+              - 'ui-landing/**'
               - 'scripts/generate-architecture-diagram.py'
               - 'scripts/deploy-ui.sh'
             tests:
@@ -403,6 +404,104 @@ jobs:
           vertical: retail
 
   # ========================================
+  # Landing Page Pipeline
+  # ========================================
+
+  deploy-landing-ui:
+    name: Deploy Landing UI
+    needs: [detect-changes]
+    if: |
+      always() &&
+      (needs.detect-changes.outputs.ui_changed == 'true' || inputs.force_deploy == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      web_url: ${{ steps.deploy.outputs.web_url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: ./.github/actions/setup-env
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Deploy Landing UI
+        id: deploy
+        env:
+          VERTICAL: landing
+          STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}-landing
+        run: ./scripts/deploy-ui.sh
+
+      - name: Set output
+        run: |
+          WEB_URL=$(aws cloudformation describe-stacks \
+            --stack-name "${{ needs.detect-changes.outputs.base_stack_name }}-landing" \
+            --query 'Stacks[0].Outputs[?OutputKey==`LandingUiBucketWebsiteURL`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
+
+  landing-tests:
+    name: Landing E2E Tests
+    needs: [detect-changes, deploy-landing-ui]
+    if: always() && needs.deploy-landing-ui.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install Python dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Install Chrome and ChromeDriver
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Run landing E2E tests
+        id: test-run
+        continue-on-error: true
+        env:
+          LANDING_URL: ${{ needs.deploy-landing-ui.outputs.web_url }}
+          HEADLESS: 'true'
+        run: |
+          set -o pipefail
+          echo "Running landing E2E tests..."
+          cd tests/e2e
+          pytest -v --tb=short -m "landing" 2>&1 | tee ../../landing-e2e-tests-output.txt
+
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: landing-e2e-test-output
+          path: landing-e2e-tests-output.txt
+          retention-days: 7
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: landing-e2e-test-artifacts
+          path: tests/e2e/test-artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Check test outcome
+        if: always()
+        run: |
+          if [ "${{ steps.test-run.outcome }}" = "failure" ]; then
+            echo "Landing E2E tests failed"
+            exit 1
+          fi
+
+  # ========================================
   # Post-Deployment Summary
   # ========================================
 
@@ -417,7 +516,9 @@ jobs:
       deploy-retail-infra,
       deploy-retail-ui,
       retail-tests,
-      seed-retail-data
+      seed-retail-data,
+      deploy-landing-ui,
+      landing-tests
     ]
     if: always() && github.event.pull_request.number
     runs-on: ubuntu-latest

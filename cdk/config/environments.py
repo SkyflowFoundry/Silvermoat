@@ -4,8 +4,8 @@ from .base import SilvermoatConfig
 def get_config(stack_name: str, stage_name: str) -> SilvermoatConfig:
     """Get configuration based on stack name and stage"""
 
-    # Production stack
-    if stack_name == "silvermoat":
+    # Production stacks
+    if stack_name in ["silvermoat", "silvermoat-insurance", "silvermoat-retail", "silvermoat-landing"]:
         return SilvermoatConfig(
             app_name="silvermoat",
             stage_name="prod",

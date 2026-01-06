@@ -55,6 +55,14 @@ def generate_architecture_diagram():
         with Cluster("DNS Management"):
             cloudflare = Cloudflare("Cloudflare\n*.silvermoat.net")
 
+        # Landing Page
+        with Cluster("Landing Page"):
+            with Cluster("Frontend Distribution"):
+                landing_cloudfront = CloudFront("CloudFront\nsilvermoat.com")
+                landing_ui_bucket = S3("UI Bucket")
+
+            landing_cloudfront >> landing_ui_bucket
+
         # Insurance Vertical
         with Cluster("Insurance Vertical"):
             with Cluster("Frontend Distribution"):
@@ -143,6 +151,9 @@ def generate_architecture_diagram():
         # AI handlers to Bedrock
         ins_ai_fn >> bedrock
         ret_ai_fn >> bedrock
+
+        # DNS to Landing
+        cloudflare >> landing_cloudfront
 
 def generate_data_flow_diagram():
     """Generate detailed data flow diagram showing request flows with vertical isolation."""
