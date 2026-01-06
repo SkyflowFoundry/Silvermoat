@@ -9,7 +9,7 @@ import { QuestionCircleOutlined, CloseOutlined } from '@ant-design/icons';
 import ChatMessage from './ChatMessage';
 import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
-import { useSendMessage } from '../../hooks/mutations/useSendMessage';
+import { streamChatMessage } from '../../services/chatbot';
 import { useAppContext } from '../../contexts/AppContext';
 
 const { Title, Text } = Typography;
@@ -23,8 +23,9 @@ const STARTER_PROMPTS = [
 const ChatInterface = () => {
   const [messages, setMessages] = useState([]);
   const [conversationHistory, setConversationHistory] = useState([]);
+  const [streamingStatusMessages, setStreamingStatusMessages] = useState([]);
+  const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef(null);
-  const { mutate: sendMessage, isPending } = useSendMessage();
   const { isMobile, closeChatDrawer } = useAppContext();
 
   const scrollToBottom = () => {
@@ -35,7 +36,7 @@ const ChatInterface = () => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSend = (text) => {
+  const handleSend = async (text) => {
     // Add user message to UI
     const userMessage = {
       role: 'user',
@@ -44,36 +45,46 @@ const ChatInterface = () => {
     };
     setMessages((prev) => [...prev, userMessage]);
 
-    // Send to backend
-    sendMessage(
-      {
-        message: text,
-        history: conversationHistory,
-      },
-      {
-        onSuccess: (data) => {
-          // Add assistant response to UI
-          const assistantMessage = {
-            role: 'assistant',
-            content: data.response,
-            timestamp: Date.now(),
-          };
-          setMessages((prev) => [...prev, assistantMessage]);
+    // Clear streaming status messages and start streaming
+    setStreamingStatusMessages([]);
+    setIsStreaming(true);
 
-          // Update conversation history for context
-          setConversationHistory(data.conversation || []);
-        },
-        onError: (error) => {
-          // Show error message
-          const errorMessage = {
-            role: 'assistant',
-            content: `Sorry, I encountered an error: ${error.message}`,
-            timestamp: Date.now(),
-          };
-          setMessages((prev) => [...prev, errorMessage]);
-        },
-      }
-    );
+    // Stream message with real-time callbacks
+    await streamChatMessage(text, conversationHistory, {
+      onStatus: (statusData) => {
+        // Append status message to streaming array
+        setStreamingStatusMessages((prev) => [...prev, statusData]);
+      },
+      onResponse: (data) => {
+        // Add assistant response to UI
+        const assistantMessage = {
+          role: 'assistant',
+          content: data.response,
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+
+        // Update conversation history for context
+        setConversationHistory(data.conversation || []);
+
+        // Clear streaming state
+        setStreamingStatusMessages([]);
+        setIsStreaming(false);
+      },
+      onError: (error) => {
+        // Show error message
+        const errorMessage = {
+          role: 'assistant',
+          content: `Sorry, I encountered an error: ${error.message}`,
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+
+        // Clear streaming state
+        setStreamingStatusMessages([]);
+        setIsStreaming(false);
+      },
+    });
   };
 
   const handleStarterPrompt = (prompt) => {
@@ -173,14 +184,14 @@ const ChatInterface = () => {
                 timestamp={msg.timestamp}
               />
             ))}
-            {isPending && <TypingIndicator />}
+            {isStreaming && <TypingIndicator statusMessages={streamingStatusMessages} />}
             <div ref={messagesEndRef} />
           </>
         )}
       </div>
 
       {/* Input */}
-      <MessageInput onSend={handleSend} disabled={isPending} />
+      <MessageInput onSend={handleSend} disabled={isStreaming} />
     </div>
   );
 };
