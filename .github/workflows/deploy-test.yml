@@ -57,25 +57,55 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Detect file changes
-        uses: dorny/paths-filter@v3
         id: filter
-        with:
-          filters: |
-            infrastructure:
-              - 'cdk/**'
-              - 'lambda/**'
-              - 'scripts/deploy-stack.sh'
-            ui:
-              - 'ui-insurance/**'
-              - 'ui-retail/**'
-              - 'ui-landing/**'
-              - 'scripts/generate-architecture-diagram.py'
-              - 'scripts/deploy-ui.sh'
-            tests:
-              - 'tests/e2e/**'
-              - '.github/workflows/**'
+        run: |
+          # For PRs, compare HEAD against base branch
+          # For manual dispatch, compare against previous commit
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            echo "Analyzing changes in PR #${{ github.event.pull_request.number }}"
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.sha }}"
+            echo "Comparing ${BASE_SHA:0:7}..${HEAD_SHA:0:7}"
+            CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA)
+          else
+            echo "Analyzing changes in commit ${{ github.sha }}"
+            CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD)
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          echo ""
+
+          # Infrastructure changes
+          if echo "$CHANGED_FILES" | grep -E '^(cdk/|lambda/|scripts/deploy-stack\.sh)'; then
+            echo "infrastructure=true" >> $GITHUB_OUTPUT
+            echo "✅ Infrastructure files changed"
+          else
+            echo "infrastructure=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No infrastructure changes"
+          fi
+
+          # UI changes
+          if echo "$CHANGED_FILES" | grep -E '^(ui-insurance/|ui-retail/|ui-landing/|scripts/generate-architecture-diagram\.py|scripts/deploy-ui\.sh)'; then
+            echo "ui=true" >> $GITHUB_OUTPUT
+            echo "✅ UI files changed"
+          else
+            echo "ui=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No UI changes"
+          fi
+
+          # Test changes
+          if echo "$CHANGED_FILES" | grep -E '^(tests/e2e/|\.github/workflows/)'; then
+            echo "tests=true" >> $GITHUB_OUTPUT
+            echo "✅ Test files changed"
+          else
+            echo "tests=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No test changes"
+          fi
 
       - name: Determine base stack name
         id: stack-name

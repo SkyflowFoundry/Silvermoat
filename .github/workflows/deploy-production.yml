@@ -119,10 +119,20 @@ jobs:
       - name: Detect infrastructure and UI changes
         id: check
         run: |
-          # For merged PRs, compare merge commit with its parent
+          # For merged PRs, use git diff-tree to reliably detect changed files
           if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "Analyzing changes in merge commit ${{ github.event.pull_request.merge_commit_sha }}"
+
+            # Use git diff-tree to show files in the merge commit
+            # This is more reliable than git diff HEAD^ HEAD in CI environments
+            CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD)
+
+            echo "Changed files:"
+            echo "$CHANGED_FILES"
+            echo ""
+
             # Infrastructure = files that require CDK deploy
-            if git diff --name-only HEAD^ HEAD | grep -E '^(cdk/|lambda/|scripts/deploy-stack\\.sh)'; then
+            if echo "$CHANGED_FILES" | grep -E '^(cdk/|lambda/|scripts/deploy-stack\.sh)'; then
               echo "infrastructure_changed=true" >> $GITHUB_OUTPUT
               echo "✅ Infrastructure files changed (requires CDK deploy)"
             else
@@ -131,7 +141,7 @@ jobs:
             fi
 
             # UI changes
-            if git diff --name-only HEAD^ HEAD | grep -E '^(ui-insurance/|ui-retail/|ui-landing/|scripts/generate-architecture-diagram\\.py|scripts/deploy-ui\\.sh)'; then
+            if echo "$CHANGED_FILES" | grep -E '^(ui-insurance/|ui-retail/|ui-landing/|scripts/generate-architecture-diagram\.py|scripts/deploy-ui\.sh)'; then
               echo "ui_changed=true" >> $GITHUB_OUTPUT
               echo "✅ UI files changed (requires rebuild)"
             else
