@@ -3,7 +3,7 @@
  * Creates realistic retail demo data (products, orders, inventory, etc.)
  */
 
-import { getApiBase } from '../services/api';
+import { getApiBaseUrl } from '../services/api';
 
 // Helper data for realistic retail demo generation
 const FIRST_NAMES = ['John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily', 'Robert', 'Jessica', 'William', 'Jennifer'];
@@ -42,7 +42,7 @@ const randomDateWithinDays = (days) => {
 
 // API helper functions
 const apiCall = async (endpoint, method = 'GET', body = null) => {
-  const apiBase = getApiBase();
+  const apiBase = getApiBaseUrl();
   const url = `${apiBase}${endpoint}`;
   const options = {
     method,
