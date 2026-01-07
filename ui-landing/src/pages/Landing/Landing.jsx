@@ -13,10 +13,33 @@ import {
 
 const { Title, Text, Paragraph } = Typography;
 
+/**
+ * Get vertical URLs from environment variables
+ * Requires VITE_INSURANCE_URL and VITE_RETAIL_URL in production builds
+ * Falls back to localhost for local development
+ */
+const getVerticalUrls = () => {
+  const insuranceUrl = import.meta.env.VITE_INSURANCE_URL;
+  const retailUrl = import.meta.env.VITE_RETAIL_URL;
+
+  // In production builds, URLs must be explicitly provided
+  if (import.meta.env.PROD && (!insuranceUrl || !retailUrl)) {
+    throw new Error(
+      'VITE_INSURANCE_URL and VITE_RETAIL_URL must be set for production builds. ' +
+      'These should be passed during build via deploy-ui.sh script.'
+    );
+  }
+
+  // Local development fallbacks (localhost)
+  return {
+    insurance: insuranceUrl || 'http://localhost:5173',
+    retail: retailUrl || 'http://localhost:5174',
+  };
+};
+
 const Landing = () => {
-  // Get vertical URLs from environment (for test deployments) or use production defaults
-  const insuranceUrl = import.meta.env.VITE_INSURANCE_URL || 'https://insurance.silvermoat.net';
-  const retailUrl = import.meta.env.VITE_RETAIL_URL || 'https://retail.silvermoat.net';
+  // Get vertical URLs dynamically (no hardcoded production URLs)
+  const { insurance: insuranceUrl, retail: retailUrl } = getVerticalUrls();
 
   const verticals = [
     {
