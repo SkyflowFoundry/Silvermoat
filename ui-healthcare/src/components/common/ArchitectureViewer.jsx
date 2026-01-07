@@ -5,7 +5,7 @@ const { Title, Paragraph, Text } = Typography;
 const ArchitectureViewer = ({ open, onClose }) => {
   return (
     <Modal
-      title="About Silvermoat Platform"
+      title="About Silvermoat Healthcare"
       open={open}
       onCancel={onClose}
       footer={null}
@@ -23,14 +23,14 @@ const ArchitectureViewer = ({ open, onClose }) => {
           Project Overview
         </Title>
         <Paragraph style={{ fontSize: 15, color: 'rgba(0, 0, 0, 0.65)', marginBottom: 16 }}>
-          Silvermoat is a comprehensive cloud-native multi-vertical platform built entirely on AWS serverless
+          Silvermoat Healthcare is a comprehensive cloud-native healthcare management platform built entirely on AWS serverless
           infrastructure. It demonstrates enterprise-grade patterns including Infrastructure as Code (IaC), continuous
-          deployment, automated testing, vertical isolation, and AI-powered customer service across multiple business domains.
+          deployment, automated testing, and AI-powered patient support.
         </Paragraph>
         <Paragraph style={{ fontSize: 15, color: 'rgba(0, 0, 0, 0.65)' }}>
-          The platform supports Insurance, Retail, and Healthcare verticals, each with complete isolation at the infrastructure level.
-          Each vertical manages its full lifecycle—from customer onboarding through transaction processing and support—all
-          through intuitive web interfaces powered by Claude AI for intelligent assistance.
+          The platform enables healthcare organizations to manage the complete patient care lifecycle—from appointment
+          scheduling through patient records, prescription management, care coordination, and support—all through an
+          intuitive web interface powered by Claude AI for intelligent assistance.
         </Paragraph>
       </div>
 
@@ -44,25 +44,13 @@ const ArchitectureViewer = ({ open, onClose }) => {
         <List
           size="small"
           dataSource={[
-            { title: 'Multi-Vertical Architecture', description: 'Complete infrastructure isolation between Insurance, Retail, and Healthcare verticals' },
-            { title: 'Insurance: Quote Management', description: 'Generate and manage insurance quotes with automated pricing' },
-            { title: 'Insurance: Policy Lifecycle', description: 'Complete policy creation, renewal, and management workflows' },
-            { title: 'Insurance: Claims Processing', description: 'End-to-end claims filing, document upload, and status tracking' },
-            { title: 'Retail: Product Catalog', description: 'Browse and manage product inventory with search and filtering' },
-            { title: 'Retail: Order Processing', description: 'Complete order lifecycle from cart to fulfillment' },
-            { title: 'Retail: Inventory Tracking', description: 'Real-time stock levels and warehouse management' },
-            { title: 'Retail: Payment Processing', description: 'Secure payment capture and transaction tracking' },
-            { title: 'Healthcare: Patient Records', description: 'Complete EHR with secure access controls' },
-            { title: 'Healthcare: Appointment Scheduling', description: 'Real-time calendar and availability management' },
-            { title: 'Healthcare: Prescription Management', description: 'Track medications from prescribe to fulfillment' },
-            { title: 'Healthcare: Care Coordination', description: 'Multi-provider communication and referrals' },
-            { title: 'Healthcare: HIPAA Compliance', description: 'Secure document storage and audit trails' },
-            { title: 'AI-Powered Support', description: 'Claude AI chatbot for customer and employee assistance across all verticals' },
-            { title: 'Document Management', description: 'Secure S3-based storage for policies, claims, receipts, and medical records' },
-            { title: 'Multi-Role Access', description: 'Separate interfaces for customers and employees in each vertical' },
-            { title: 'Real-time Notifications', description: 'SNS-based alerts for policy, claim, order, and appointment updates' },
-            { title: 'Shared AI Service', description: 'Centralized AWS Bedrock integration serving all verticals' },
-            { title: 'Vertical Isolation', description: 'Complete data and infrastructure separation ensuring security and scalability' },
+            { title: 'Patient Record Management', description: 'Complete EHR with secure access controls' },
+            { title: 'Appointment Scheduling', description: 'Real-time calendar and availability management' },
+            { title: 'Prescription Management', description: 'Track medications from prescribe to fulfillment' },
+            { title: 'Care Coordination', description: 'Multi-provider communication and referrals' },
+            { title: 'AI-Powered Support', description: 'Claude AI chatbot for patient and staff assistance' },
+            { title: 'HIPAA Compliance', description: 'Secure document storage and audit trails' },
+            { title: 'Multi-Role Access', description: 'Separate interfaces for patients and healthcare staff' },
           ]}
           renderItem={(item) => (
             <List.Item>
@@ -95,7 +83,7 @@ const ArchitectureViewer = ({ open, onClose }) => {
           <div>
             <Text strong style={{ display: 'block', marginBottom: 8 }}>Database</Text>
             <Text style={{ fontSize: 14, color: 'rgba(0, 0, 0, 0.65)' }}>
-              DynamoDB (21 tables across verticals)
+              DynamoDB (7 tables)
             </Text>
           </div>
           <div>
@@ -139,15 +127,14 @@ const ArchitectureViewer = ({ open, onClose }) => {
           AWS Infrastructure Architecture
         </Title>
         <Paragraph style={{ marginBottom: 24, fontSize: 15, color: 'rgba(0, 0, 0, 0.65)' }}>
-          Silvermoat multi-vertical platform is built on AWS serverless infrastructure with complete vertical isolation.
-          Each vertical (Insurance and Retail) has its own CloudFront distribution, API Gateway, Lambda handlers, and
-          DynamoDB tables. The only shared service is AWS Bedrock for AI capabilities, ensuring maximum scalability
-          and security through infrastructure separation.
+          Silvermoat Healthcare is built on AWS serverless infrastructure with CloudFront CDN for global content delivery,
+          API Gateway for REST APIs, four domain-based Lambda handlers, seven DynamoDB tables for data persistence,
+          S3 for document storage, and AWS Bedrock integration with Claude AI for intelligent patient support.
         </Paragraph>
 
         <img
-          src="/architecture.png"
-          alt="Silvermoat Multi-Vertical AWS Architecture"
+          src="/architecture-healthcare.png"
+          alt="Silvermoat Healthcare AWS Architecture"
           style={{
             width: '100%',
             height: 'auto',
@@ -167,14 +154,14 @@ const ArchitectureViewer = ({ open, onClose }) => {
           Request/Response Data Flow
         </Title>
         <Paragraph style={{ marginBottom: 24, fontSize: 15, color: 'rgba(0, 0, 0, 0.65)' }}>
-          Shows how requests flow through each vertical independently, from the React UI through CloudFront and
-          API Gateway to vertical-specific Lambda handlers. Each vertical maintains its own DynamoDB tables and
-          S3 storage, with only the Claude AI service shared across verticals for intelligent assistance.
+          Shows how patient requests flow through the system from the React UI through CloudFront and
+          API Gateway to the Lambda handlers, which interact with DynamoDB tables, S3 storage, Claude AI,
+          and healthcare systems to process and respond to requests.
         </Paragraph>
 
         <img
-          src="/data-flow.png"
-          alt="Silvermoat Multi-Vertical Data Flow"
+          src="/data-flow-healthcare.png"
+          alt="Silvermoat Healthcare Data Flow"
           style={{
             width: '100%',
             height: 'auto',

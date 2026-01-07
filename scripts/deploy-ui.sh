@@ -80,6 +80,27 @@ if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "retail" ]; then
   echo ""
 fi
 
+# Get Healthcare outputs
+HEALTHCARE_BUCKET=""
+HEALTHCARE_API_URL=""
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "healthcare" ]; then
+  echo "Fetching healthcare stack outputs..."
+  HEALTHCARE_OUTPUTS=$(get_stack_outputs "${BASE_STACK_NAME}-healthcare")
+
+  if [ "$HEALTHCARE_OUTPUTS" = "null" ] || [ -z "$HEALTHCARE_OUTPUTS" ]; then
+    echo "Error: Could not get outputs from ${BASE_STACK_NAME}-healthcare"
+    echo "Make sure the healthcare stack is deployed."
+    exit 1
+  fi
+
+  HEALTHCARE_BUCKET=$(echo "$HEALTHCARE_OUTPUTS" | jq -r '.[] | select(.OutputKey=="HealthcareUiBucketName") | .OutputValue')
+  HEALTHCARE_API_URL=$(echo "$HEALTHCARE_OUTPUTS" | jq -r '.[] | select(.OutputKey=="HealthcareApiUrl") | .OutputValue')
+
+  echo "Healthcare UI Bucket: $HEALTHCARE_BUCKET"
+  echo "Healthcare API URL: $HEALTHCARE_API_URL"
+  echo ""
+fi
+
 # Get Landing outputs
 LANDING_BUCKET=""
 if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "landing" ]; then
@@ -198,6 +219,19 @@ if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "retail" ]; then
     echo "Copying retail architecture diagrams to retail UI..."
     $AWS_CMD s3 cp "$PROJECT_ROOT/docs/architecture-retail.png" "s3://$RETAIL_BUCKET/architecture-retail.png"
     $AWS_CMD s3 cp "$PROJECT_ROOT/docs/data-flow-retail.png" "s3://$RETAIL_BUCKET/data-flow-retail.png"
+    echo ""
+  fi
+fi
+
+# Deploy Healthcare UI
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "healthcare" ]; then
+  deploy_vertical_ui "Healthcare" "$PROJECT_ROOT/ui-healthcare" "$HEALTHCARE_BUCKET" "$HEALTHCARE_API_URL"
+
+  # Copy healthcare-specific architecture diagrams to healthcare UI bucket
+  if [ -f "$PROJECT_ROOT/docs/architecture-healthcare.png" ]; then
+    echo "Copying healthcare architecture diagrams to healthcare UI..."
+    $AWS_CMD s3 cp "$PROJECT_ROOT/docs/architecture-healthcare.png" "s3://$HEALTHCARE_BUCKET/architecture-healthcare.png"
+    $AWS_CMD s3 cp "$PROJECT_ROOT/docs/data-flow-healthcare.png" "s3://$HEALTHCARE_BUCKET/data-flow-healthcare.png"
     echo ""
   fi
 fi
