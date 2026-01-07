@@ -13,19 +13,27 @@ STACK_NAME="${STACK_NAME:-silvermoat}"
 
 # Extract vertical from stack name if present
 # Format: silvermoat-{vertical} or silvermoat-test-pr-{N}-{vertical}
+BASE_STACK_NAME="$STACK_NAME"
+
 if [[ "$STACK_NAME" == *-insurance ]]; then
     export VERTICAL="insurance"
+    # Remove vertical suffix to get base name for CDK
+    BASE_STACK_NAME="${STACK_NAME%-insurance}"
 elif [[ "$STACK_NAME" == *-retail ]]; then
     export VERTICAL="retail"
+    BASE_STACK_NAME="${STACK_NAME%-retail}"
 elif [[ "$STACK_NAME" == *-landing ]]; then
     export VERTICAL="landing"
+    BASE_STACK_NAME="${STACK_NAME%-landing}"
 elif [[ "$STACK_NAME" == *-certificate ]]; then
     export VERTICAL="certificate"
+    BASE_STACK_NAME="${STACK_NAME%-certificate}"
 fi
 
 echo "Stack to delete: $STACK_NAME"
 if [[ -n "$VERTICAL" ]]; then
     echo "Detected vertical: $VERTICAL"
+    echo "Base stack name (for CDK): $BASE_STACK_NAME"
 fi
 echo ""
 
@@ -78,7 +86,21 @@ echo ""
 echo "Deleting stack..."
 
 cd "$PROJECT_ROOT/cdk"
-cdk destroy "$STACK_NAME" --force
+
+# Export BASE_STACK_NAME for CDK (app.py will append vertical suffix)
+export STACK_NAME="$BASE_STACK_NAME"
+
+# Determine which stack to destroy
+if [[ -n "$VERTICAL" ]]; then
+  # CDK will find the stack by reconstructing: {BASE_STACK_NAME}-{VERTICAL}
+  DESTROY_TARGET="$BASE_STACK_NAME-$VERTICAL"
+else
+  # No vertical detected - destroy all stacks matching base name
+  DESTROY_TARGET="$BASE_STACK_NAME*"
+fi
+
+echo "CDK destroy target: $DESTROY_TARGET"
+cdk destroy "$DESTROY_TARGET" --force
 
 echo ""
 echo "Stack deletion complete!"

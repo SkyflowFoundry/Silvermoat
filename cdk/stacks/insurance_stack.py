@@ -20,7 +20,6 @@ class InsuranceStack(Stack):
         scope: Construct,
         id: str,
         config: SilvermoatConfig,
-        certificate_stack=None,  # Optional: shared certificate stack
         **kwargs,
     ):
         super().__init__(scope, id, **kwargs)
@@ -51,16 +50,21 @@ class InsuranceStack(Stack):
         self.certificate = None
         self.distribution = None
 
-        if config.create_cloudfront and config.domain_name and certificate_stack:
-            # Use shared certificate from certificate stack
-            self.certificate = certificate_stack.certificate
-
+        if config.create_cloudfront and config.domain_name:
             # Determine the domain for this vertical
             if config.domain_name.startswith("*"):
                 base_domain = config.domain_name.lstrip("*").lstrip(".")
                 cert_domain = f"insurance.{base_domain}"
             else:
                 cert_domain = config.domain_name
+
+            # Create certificate for this vertical
+            self.certificate = acm.Certificate(
+                self,
+                "InsuranceCertificate",
+                domain_name=cert_domain,
+                validation=acm.CertificateValidation.from_dns(),
+            )
 
             # CloudFront origin pointing to S3 website endpoint
             s3_origin = origins.HttpOrigin(
@@ -95,10 +99,6 @@ class InsuranceStack(Stack):
                     ),
                 ],
             )
-
-            # Add explicit dependency on certificate stack
-            if certificate_stack:
-                self.add_dependency(certificate_stack)
 
         # ========================================
         # Outputs
