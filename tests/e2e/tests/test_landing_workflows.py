@@ -48,19 +48,20 @@ def test_landing_logo_displays(driver, landing_base_url):
 @pytest.mark.e2e
 @pytest.mark.landing
 def test_landing_vertical_cards_visible(driver, landing_base_url):
-    """Test insurance and retail cards are visible"""
+    """Test insurance, retail, and healthcare cards are visible"""
     driver.get(landing_base_url)
     wait_for_app_ready(driver)
 
     page_source = driver.page_source.lower()
 
-    # Both verticals should be mentioned
+    # All verticals should be mentioned
     assert "insurance" in page_source, "Insurance vertical should be displayed"
     assert "retail" in page_source, "Retail vertical should be displayed"
+    assert "healthcare" in page_source, "Healthcare vertical should be displayed"
 
     # Check for "Enter Portal" buttons/links (Ant Design Button with href renders as <a>)
     enter_portal_elements = driver.find_elements(By.XPATH, "//*[contains(., 'Enter Portal') and (self::button or self::a)]")
-    assert len(enter_portal_elements) >= 2, f"Should have at least 2 'Enter Portal' buttons/links, found {len(enter_portal_elements)}"
+    assert len(enter_portal_elements) >= 3, f"Should have at least 3 'Enter Portal' buttons/links, found {len(enter_portal_elements)}"
 
 
 @pytest.mark.e2e
@@ -109,6 +110,30 @@ def test_landing_retail_link(driver, landing_base_url):
     href = retail_links[0]
     assert href and len(href) > 0, "Retail link should have valid href"
     assert href.startswith('http'), f"Retail link should be absolute URL, got: {href}"
+
+
+@pytest.mark.e2e
+@pytest.mark.landing
+def test_landing_healthcare_link(driver, landing_base_url):
+    """Test healthcare card has working link"""
+    driver.get(landing_base_url)
+    wait_for_app_ready(driver)
+
+    # Find all "Enter Portal" links/buttons with href
+    enter_portal_links = driver.find_elements(By.XPATH, "//a[contains(., 'Enter Portal')][@href]")
+
+    # Get all hrefs
+    all_hrefs = [link.get_attribute('href') for link in enter_portal_links]
+
+    # Find healthcare link (should contain 'healthcare' in URL)
+    healthcare_links = [href for href in all_hrefs if href and 'healthcare' in href.lower()]
+
+    assert len(healthcare_links) > 0, f"Should have healthcare link. Found links: {all_hrefs}"
+
+    # Verify href is non-empty and valid (deployment-provided URL)
+    href = healthcare_links[0]
+    assert href and len(href) > 0, "Healthcare link should have valid href"
+    assert href.startswith('http'), f"Healthcare link should be absolute URL, got: {href}"
 
 
 @pytest.mark.e2e

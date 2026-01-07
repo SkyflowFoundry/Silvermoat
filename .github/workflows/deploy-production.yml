@@ -604,9 +604,119 @@ jobs:
             exit 1
           fi
 
+  deploy-healthcare-ui:
+    name: Deploy Healthcare UI
+    needs: [detect-changes, deploy-healthcare-infra, configure-healthcare-dns]
+    if: |
+      always() &&
+      (needs.deploy-healthcare-infra.result == 'success' || needs.deploy-healthcare-infra.result == 'skipped') &&
+      (needs.configure-healthcare-dns.result == 'success' || needs.configure-healthcare-dns.result == 'skipped') &&
+      (needs.deploy-healthcare-infra.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    outputs:
+      api_url: ${{ steps.stack-outputs.outputs.api_url }}
+      web_url: ${{ steps.stack-outputs.outputs.web_url }}
+      cloudfront_url: ${{ steps.stack-outputs.outputs.cloudfront_url }}
+      cloudfront_id: ${{ steps.cloudfront.outputs.distribution_id }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-deps
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Get CloudFront distribution ID
+        id: cloudfront
+        run: |
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name silvermoat-healthcare \
+            --query 'Stacks[0].Outputs[?OutputKey==`HealthcareCloudFrontDistributionId`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$DISTRIBUTION_ID" ] || [ "$DISTRIBUTION_ID" == "None" ]; then
+            echo "Output not found, trying resource query..."
+            DISTRIBUTION_ID=$(aws cloudformation describe-stack-resources \
+              --stack-name silvermoat-healthcare \
+              --query 'StackResources[?ResourceType==`AWS::CloudFront::Distribution`].PhysicalResourceId | [0]' \
+              --output text 2>/dev/null || echo "")
+          fi
+
+          if [ -n "$DISTRIBUTION_ID" ] && [ "$DISTRIBUTION_ID" != "None" ]; then
+            echo "distribution_id=${DISTRIBUTION_ID}" >> $GITHUB_OUTPUT
+            echo "CloudFront Distribution ID: ${DISTRIBUTION_ID}"
+          else
+            echo "No CloudFront distribution found"
+          fi
+
+      - name: Build and deploy healthcare UI
+        env:
+          STACK_NAME: silvermoat
+          VERTICAL: healthcare
+        run: |
+          echo "Building and deploying healthcare UI..."
+          chmod +x scripts/deploy-ui.sh
+          ./scripts/deploy-ui.sh
+
+      - name: Start CloudFront cache invalidation
+        id: invalidation
+        if: steps.cloudfront.outputs.distribution_id != ''
+        run: |
+          echo "Starting CloudFront cache invalidation..."
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.cloudfront.outputs.distribution_id }} \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)
+          echo "invalidation_id=${INVALIDATION_ID}" >> $GITHUB_OUTPUT
+          echo "Cache invalidation started: ${INVALIDATION_ID}"
+
+      - name: Get stack outputs
+        id: stack-outputs
+        run: |
+          OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name silvermoat-healthcare \
+            --query 'Stacks[0].Outputs' \
+            --output json)
+
+          API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="HealthcareApiUrl") | .OutputValue')
+          CF_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="HealthcareCloudFrontUrl") | .OutputValue')
+          CUSTOM_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="HealthcareDomainUrl") | .OutputValue')
+
+          echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
+          echo "cloudfront_url=${CF_URL}" >> $GITHUB_OUTPUT
+          echo "web_url=${CUSTOM_URL:-$CF_URL}" >> $GITHUB_OUTPUT
+
+          echo "API URL: ${API_URL}"
+          echo "CloudFront URL: ${CF_URL}"
+          echo "Custom Domain URL: ${CUSTOM_URL}"
+
+      - name: Quick health check
+        run: |
+          API_URL="${{ steps.stack-outputs.outputs.api_url }}"
+          echo "Running quick health check against ${API_URL}..."
+
+          if curl -f -s "${API_URL}/" > /dev/null; then
+            echo "✅ Healthcare API is responding"
+          else
+            echo "❌ Healthcare API not responding, deployment may have failed"
+            exit 1
+          fi
+
   deploy-landing-ui:
     name: Deploy Landing UI
-    needs: [detect-changes, deploy-landing-infra, configure-landing-dns, deploy-insurance-ui, deploy-retail-ui]
+    needs: [detect-changes, deploy-landing-infra, configure-landing-dns, deploy-insurance-ui, deploy-retail-ui, deploy-healthcare-ui]
     if: |
       always() &&
       (needs.deploy-landing-infra.result == 'success' || needs.deploy-landing-infra.result == 'skipped') &&
