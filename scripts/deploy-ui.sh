@@ -153,13 +153,23 @@ deploy_vertical_ui() {
   echo ""
 }
 
-# Generate architecture diagrams (all verticals)
+# Generate architecture diagrams based on vertical being deployed
 # Only if Graphviz is installed (optional, non-blocking)
 if command -v dot >/dev/null 2>&1; then
-  echo "Generating architecture diagrams..."
+  # Determine which diagrams to generate based on VERTICAL
+  # - insurance: Generate only insurance diagrams (2 files)
+  # - retail: Generate only retail diagrams (2 files)
+  # - landing: Generate all diagrams (6 files, but landing only uses multi-vertical ones)
+  # - all: Generate all diagrams (6 files)
+  DIAGRAM_VERTICAL="$VERTICAL"
+  if [ "$VERTICAL" = "landing" ]; then
+    DIAGRAM_VERTICAL="all"  # Landing needs multi-vertical diagrams from --vertical all
+  fi
+
+  echo "Generating architecture diagrams for: $DIAGRAM_VERTICAL"
   pip install -q -r "$PROJECT_ROOT/requirements-docs.txt" || echo "Warning: Failed to install diagram dependencies"
   cd "$PROJECT_ROOT"
-  python3 "$PROJECT_ROOT/scripts/generate-architecture-diagram.py" --vertical all || echo "Warning: Failed to generate diagrams"
+  python3 "$PROJECT_ROOT/scripts/generate-architecture-diagram.py" --vertical "$DIAGRAM_VERTICAL" || echo "Warning: Failed to generate diagrams"
   echo ""
 else
   echo "Skipping architecture diagram generation (Graphviz not installed)"
