@@ -15,6 +15,8 @@ import { retailTheme } from './config/theme';
 // Lazy load entity pages
 const ProductList = lazy(() => import('./pages/Products/ProductList'));
 const ProductDetail = lazy(() => import('./pages/Products/ProductDetail'));
+const InventoryList = lazy(() => import('./pages/Inventory/InventoryList'));
+const InventoryDetail = lazy(() => import('./pages/Inventory/InventoryDetail'));
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -61,8 +63,12 @@ function App() {
                     <Route path="/products/new" element={<ProductList />} />
                     <Route path="/products/:id" element={<ProductDetail />} />
 
+                    {/* Phase 3: Inventory */}
+                    <Route path="/inventory" element={<InventoryList />} />
+                    <Route path="/inventory/new" element={<InventoryList />} />
+                    <Route path="/inventory/:id" element={<InventoryDetail />} />
+
                     {/* Entity routes will be added in subsequent phases */}
-                    {/* Phase 3: /inventory, /inventory/:id */}
                     {/* Phase 4: /orders, /orders/:id */}
                     {/* Phase 5: /payments, /payments/:id */}
                     {/* Phase 6: /cases, /cases/:id */}
