@@ -20,7 +20,6 @@ class LandingStack(Stack):
         scope: Construct,
         id: str,
         config: SilvermoatConfig,
-        certificate_stack=None,  # Optional: shared certificate stack
         **kwargs,
     ):
         super().__init__(scope, id, **kwargs)
@@ -49,10 +48,7 @@ class LandingStack(Stack):
         self.certificate = None
         self.distribution = None
 
-        if config.create_cloudfront and config.domain_name and certificate_stack:
-            # Use shared certificate from certificate stack
-            self.certificate = certificate_stack.certificate
-
+        if config.create_cloudfront and config.domain_name:
             # Landing uses apex domain (silvermoat.com) instead of subdomain
             if config.domain_name.startswith("*"):
                 # Extract base domain for apex
@@ -60,6 +56,14 @@ class LandingStack(Stack):
                 cert_domain = base_domain  # Apex domain
             else:
                 cert_domain = config.domain_name
+
+            # Create certificate for landing page (apex domain)
+            self.certificate = acm.Certificate(
+                self,
+                "LandingCertificate",
+                domain_name=cert_domain,
+                validation=acm.CertificateValidation.from_dns(),
+            )
 
             # CloudFront origin pointing to S3 website endpoint
             s3_origin = origins.HttpOrigin(
@@ -94,10 +98,6 @@ class LandingStack(Stack):
                     ),
                 ],
             )
-
-            # Add explicit dependency on certificate stack
-            if certificate_stack:
-                self.add_dependency(certificate_stack)
 
         # ========================================
         # Outputs
