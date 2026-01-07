@@ -3,9 +3,12 @@
  */
 
 import { Suspense } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ConfigProvider, Spin, Result, Button } from 'antd';
+import { ConfigProvider, Spin } from 'antd';
+import { AppProvider } from './contexts/AppContext';
+import AppLayout from './components/layout/AppLayout';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import Dashboard from './pages/Dashboard';
 import { retailTheme } from './config/theme';
 
@@ -35,37 +38,39 @@ const LoadingFallback = () => (
   </div>
 );
 
-// Placeholder home page
-const RetailHome = () => (
-  <div style={{ padding: '48px', maxWidth: '1200px', margin: '0 auto' }}>
-    <Result
-      status="info"
-      title="Silvermoat Retail"
-      subTitle="Retail vertical UI coming soon. This is a placeholder for the retail platform."
-      extra={[
-        <Button key="dashboard" href="/dashboard" type="primary">
-          Go to Dashboard
-        </Button>,
-      ]}
-    />
-  </div>
-);
-
 function App() {
   return (
-    <BrowserRouter>
-      <QueryClientProvider client={queryClient}>
-        <ConfigProvider theme={retailTheme}>
-          <Suspense fallback={<LoadingFallback />}>
-            <Routes>
-              <Route path="/" element={<RetailHome />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="*" element={<RetailHome />} />
-            </Routes>
-          </Suspense>
-        </ConfigProvider>
-      </QueryClientProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <QueryClientProvider client={queryClient}>
+          <ConfigProvider theme={retailTheme}>
+            <AppProvider>
+              <Suspense fallback={<LoadingFallback />}>
+                <Routes>
+                  {/* Employee routes with layout */}
+                  <Route element={<AppLayout />}>
+                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    {/* Entity routes will be added in subsequent phases */}
+                    {/* Phase 2: /products, /products/:id */}
+                    {/* Phase 3: /inventory, /inventory/:id */}
+                    {/* Phase 4: /orders, /orders/:id */}
+                    {/* Phase 5: /payments, /payments/:id */}
+                    {/* Phase 6: /cases, /cases/:id */}
+                  </Route>
+
+                  {/* Customer portal routes (Phase 8) */}
+                  {/* <Route path="/customer/*" element={<CustomerPortal />} /> */}
+
+                  {/* Catch-all redirect */}
+                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                </Routes>
+              </Suspense>
+            </AppProvider>
+          </ConfigProvider>
+        </QueryClientProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 
