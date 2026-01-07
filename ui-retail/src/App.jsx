@@ -21,6 +21,8 @@ const OrderList = lazy(() => import('./pages/Orders/OrderList'));
 const OrderDetail = lazy(() => import('./pages/Orders/OrderDetail'));
 const PaymentList = lazy(() => import('./pages/Payments/PaymentList'));
 const PaymentDetail = lazy(() => import('./pages/Payments/PaymentDetail'));
+const CaseList = lazy(() => import('./pages/Cases/CaseList'));
+const CaseDetail = lazy(() => import('./pages/Cases/CaseDetail'));
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -82,8 +84,10 @@ function App() {
                     <Route path="/payments/new" element={<PaymentList />} />
                     <Route path="/payments/:id" element={<PaymentDetail />} />
 
-                    {/* Entity routes will be added in subsequent phases */}
-                    {/* Phase 6: /cases, /cases/:id */}
+                    {/* Phase 6: Cases */}
+                    <Route path="/cases" element={<CaseList />} />
+                    <Route path="/cases/new" element={<CaseList />} />
+                    <Route path="/cases/:id" element={<CaseDetail />} />
                   </Route>
 
                   {/* Customer portal routes (Phase 8) */}
