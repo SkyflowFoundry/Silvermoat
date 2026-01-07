@@ -41,6 +41,7 @@ jobs:
       base_stack_name: ${{ steps.stack-name.outputs.base_stack_name }}
       insurance_stack_exists: ${{ steps.check-stacks.outputs.insurance_exists }}
       retail_stack_exists: ${{ steps.check-stacks.outputs.retail_exists }}
+      healthcare_stack_exists: ${{ steps.check-stacks.outputs.healthcare_exists }}
       landing_stack_exists: ${{ steps.check-stacks.outputs.landing_exists }}
     steps:
       - name: Post workflow start comment
@@ -104,6 +105,15 @@ jobs:
           else
             echo "retail_exists=false" >> $GITHUB_OUTPUT
             echo "Retail stack does not exist: ${BASE_STACK_NAME}-retail"
+          fi
+
+          # Check healthcare stack
+          if aws cloudformation describe-stacks --stack-name "${BASE_STACK_NAME}-healthcare" >/dev/null 2>&1; then
+            echo "healthcare_exists=true" >> $GITHUB_OUTPUT
+            echo "Healthcare stack exists: ${BASE_STACK_NAME}-healthcare"
+          else
+            echo "healthcare_exists=false" >> $GITHUB_OUTPUT
+            echo "Healthcare stack does not exist: ${BASE_STACK_NAME}-healthcare"
           fi
 
           # Check landing stack
@@ -369,6 +379,37 @@ jobs:
           chmod +x scripts/deploy-stack.sh
           ./scripts/deploy-stack.sh
           echo "stack_name=${STACK_NAME}-retail" >> $GITHUB_OUTPUT
+
+  deploy-healthcare-infra:
+    name: Deploy Healthcare Infra
+    needs: [detect-changes]
+    if: |
+      needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+      needs.detect-changes.outputs.healthcare_stack_exists == 'false' ||
+      inputs.force_deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      stack_name: ${{ steps.deploy.outputs.stack_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup infrastructure deployment
+        uses: ./.github/actions/setup-infra-deploy
+        with:
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
+      - name: Deploy healthcare stack
+        id: deploy
+        env:
+          STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
+          VERTICAL: healthcare
+        run: |
+          echo "Deploying healthcare stack: ${STACK_NAME}-healthcare"
+          chmod +x scripts/deploy-stack.sh
+          ./scripts/deploy-stack.sh
+          echo "stack_name=${STACK_NAME}-healthcare" >> $GITHUB_OUTPUT
 
   deploy-retail-ui:
     name: Deploy Retail UI
