@@ -91,6 +91,115 @@ jobs:
   # Insurance Vertical Pipeline
   # ========================================
 
+  deploy-landing-infra:
+    name: Deploy Landing Infra
+    needs: [detect-changes]
+    if: |
+      needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+      inputs.force_deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      stack_name: ${{ steps.deploy.outputs.stack_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-deps
+        with:
+          install-ui: 'false'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Setup AWS CDK
+        uses: ./.github/actions/setup-aws-cdk
+
+      - name: Bootstrap CDK
+        uses: ./.github/actions/bootstrap-cdk
+
+      - name: Deploy landing stack
+        id: deploy
+        env:
+          STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
+          VERTICAL: landing
+        run: |
+          echo "Deploying landing stack: ${STACK_NAME}-landing"
+          chmod +x scripts/deploy-stack.sh
+          ./scripts/deploy-stack.sh
+          echo "stack_name=${STACK_NAME}-landing" >> $GITHUB_OUTPUT
+
+  deploy-landing-ui:
+    name: Deploy Landing UI
+    needs: [detect-changes, deploy-landing-infra]
+    if: |
+      always() &&
+      (needs.detect-changes.outputs.ui_changed == 'true' || needs.deploy-landing-infra.result == 'success' || inputs.force_deploy == 'true') &&
+      (needs.deploy-landing-infra.result == 'success' || needs.deploy-landing-infra.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      web_url: ${{ steps.deploy.outputs.web_url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: ./.github/actions/setup-env
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Deploy Landing UI
+        env:
+          VERTICAL: landing
+          STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
+        run: ./scripts/deploy-ui.sh
+
+      - name: Set output
+        id: deploy
+        run: |
+          WEB_URL=$(aws cloudformation describe-stacks \
+            --stack-name "${{ needs.detect-changes.outputs.base_stack_name }}-landing" \
+            --query 'Stacks[0].Outputs[?OutputKey==`LandingUiBucketWebsiteURL`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
+
+  landing-tests:
+    name: Landing E2E Tests
+    needs: [deploy-landing-infra, deploy-landing-ui]
+    if: always() && needs.deploy-landing-ui.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run landing E2E tests
+        uses: ./.github/actions/run-e2e-tests
+        with:
+          vertical: landing
+          web-url: ${{ needs.deploy-landing-ui.outputs.web_url }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
+  # ========================================
+  # Post-Deployment Summary
+  # ========================================
+
   deploy-insurance-infra:
     name: Deploy Insurance Infra
     needs: [detect-changes]
@@ -375,115 +484,6 @@ jobs:
   # Landing Page Pipeline
   # ========================================
 
-  deploy-landing-infra:
-    name: Deploy Landing Infra
-    needs: [detect-changes]
-    if: |
-      needs.detect-changes.outputs.infrastructure_changed == 'true' ||
-      inputs.force_deploy == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    outputs:
-      stack_name: ${{ steps.deploy.outputs.stack_name }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: requirements-test.txt
-
-      - name: Install dependencies
-        uses: ./.github/actions/install-deps
-        with:
-          install-ui: 'false'
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Setup AWS CDK
-        uses: ./.github/actions/setup-aws-cdk
-
-      - name: Bootstrap CDK
-        uses: ./.github/actions/bootstrap-cdk
-
-      - name: Deploy landing stack
-        id: deploy
-        env:
-          STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
-          VERTICAL: landing
-        run: |
-          echo "Deploying landing stack: ${STACK_NAME}-landing"
-          chmod +x scripts/deploy-stack.sh
-          ./scripts/deploy-stack.sh
-          echo "stack_name=${STACK_NAME}-landing" >> $GITHUB_OUTPUT
-
-  deploy-landing-ui:
-    name: Deploy Landing UI
-    needs: [detect-changes, deploy-landing-infra]
-    if: |
-      always() &&
-      (needs.detect-changes.outputs.ui_changed == 'true' || needs.deploy-landing-infra.result == 'success' || inputs.force_deploy == 'true') &&
-      (needs.deploy-landing-infra.result == 'success' || needs.deploy-landing-infra.result == 'skipped')
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      web_url: ${{ steps.deploy.outputs.web_url }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: ./.github/actions/setup-env
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Deploy Landing UI
-        env:
-          VERTICAL: landing
-          STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
-        run: ./scripts/deploy-ui.sh
-
-      - name: Set output
-        id: deploy
-        run: |
-          WEB_URL=$(aws cloudformation describe-stacks \
-            --stack-name "${{ needs.detect-changes.outputs.base_stack_name }}-landing" \
-            --query 'Stacks[0].Outputs[?OutputKey==`LandingUiBucketWebsiteURL`].OutputValue' \
-            --output text 2>/dev/null || echo "")
-          echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
-
-  landing-tests:
-    name: Landing E2E Tests
-    needs: [deploy-landing-infra, deploy-landing-ui]
-    if: always() && needs.deploy-landing-ui.result == 'success'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run landing E2E tests
-        uses: ./.github/actions/run-e2e-tests
-        with:
-          vertical: landing
-          web-url: ${{ needs.deploy-landing-ui.outputs.web_url }}
-          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
-
-  # ========================================
-  # Post-Deployment Summary
-  # ========================================
-
   pr-summary:
     name: Post PR Summary
     needs: [
@@ -618,3 +618,4 @@ jobs:
               issue_number: context.issue.number,
               body: commentBody
             });
+
