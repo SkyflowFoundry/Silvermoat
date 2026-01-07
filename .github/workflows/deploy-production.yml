@@ -107,6 +107,7 @@ jobs:
       ui_changed: ${{ steps.check.outputs.ui_changed }}
       insurance_stack_exists: ${{ steps.check-insurance.outputs.stack_exists }}
       retail_stack_exists: ${{ steps.check-retail.outputs.stack_exists }}
+      landing_stack_exists: ${{ steps.check-landing.outputs.stack_exists }}
 
     steps:
       - name: Checkout merged commit
@@ -163,6 +164,10 @@ jobs:
       - name: Check if retail stack exists
         id: check-retail
         run: ./scripts/ci/check-stack-status.sh silvermoat-retail
+
+      - name: Check if landing stack exists
+        id: check-landing
+        run: ./scripts/ci/check-stack-status.sh silvermoat-landing
 
   # ========================================
   # Insurance Vertical Pipeline
@@ -284,7 +289,8 @@ jobs:
     if: |
       always() &&
       needs.detect-changes.result == 'success' &&
-      needs.detect-changes.outputs.infrastructure_changed == 'true'
+      (needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+       needs.detect-changes.outputs.landing_stack_exists == 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
