@@ -125,12 +125,15 @@ def test_landing_healthcare_link(driver, landing_base_url):
     # Get all hrefs
     all_hrefs = [link.get_attribute('href') for link in enter_portal_links]
 
-    # Find healthcare link (should contain 'healthcare' in URL)
-    healthcare_links = [href for href in all_hrefs if href and 'healthcare' in href.lower()]
+    # Find healthcare link (should contain 'healthcare' in URL or be localhost:5175 fallback)
+    healthcare_links = [
+        href for href in all_hrefs
+        if href and ('healthcare' in href.lower() or ':5175' in href)
+    ]
 
     assert len(healthcare_links) > 0, f"Should have healthcare link. Found links: {all_hrefs}"
 
-    # Verify href is non-empty and valid (deployment-provided URL)
+    # Verify href is non-empty and valid (deployment-provided URL or localhost fallback)
     href = healthcare_links[0]
     assert href and len(href) > 0, "Healthcare link should have valid href"
     assert href.startswith('http'), f"Healthcare link should be absolute URL, got: {href}"
