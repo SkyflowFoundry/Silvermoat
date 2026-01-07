@@ -23,6 +23,9 @@ const PaymentList = lazy(() => import('./pages/Payments/PaymentList'));
 const PaymentDetail = lazy(() => import('./pages/Payments/PaymentDetail'));
 const CaseList = lazy(() => import('./pages/Cases/CaseList'));
 const CaseDetail = lazy(() => import('./pages/Cases/CaseDetail'));
+const CustomerDashboard = lazy(() => import('./pages/Customer/CustomerDashboard'));
+const CustomerOrderTracking = lazy(() => import('./pages/Customer/CustomerOrderTracking'));
+const CustomerProductBrowser = lazy(() => import('./pages/Customer/CustomerProductBrowser'));
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -90,8 +93,11 @@ function App() {
                     <Route path="/cases/:id" element={<CaseDetail />} />
                   </Route>
 
-                  {/* Customer portal routes (Phase 8) */}
-                  {/* <Route path="/customer/*" element={<CustomerPortal />} /> */}
+                  {/* Customer portal routes */}
+                  <Route path="/customer/dashboard" element={<CustomerDashboard />} />
+                  <Route path="/customer/orders" element={<CustomerOrderTracking />} />
+                  <Route path="/customer/products" element={<CustomerProductBrowser />} />
+                  <Route path="/customer" element={<Navigate to="/customer/dashboard" replace />} />
 
                   {/* Catch-all redirect */}
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
