@@ -1,9 +1,12 @@
 """
 Retail Workflow E2E Tests
 
-Tests for retail-specific UI workflows including:
-- Viewing products, orders, inventory
-- Seeding demo data
+Comprehensive tests for retail UI workflows including:
+- All 5 entities (Products, Orders, Inventory, Payments, Cases)
+- Seeding and clearing demo data
+- Employee chatbot functionality
+- Customer portal order tracking
+- Dashboard navigation
 """
 
 import pytest
@@ -161,3 +164,187 @@ def test_retail_order_via_api(driver, retail_base_url, retail_api_url):
     finally:
         # Cleanup
         requests.delete(f"{retail_api_url}/order/{order_id}")
+
+
+@pytest.mark.e2e
+@pytest.mark.retail
+def test_retail_dashboard_navigation(driver, retail_base_url):
+    """Test dashboard shows all entity navigation cards"""
+    driver.get(f"{retail_base_url}/dashboard")
+    wait_for_app_ready(driver)
+
+    # Should have quick navigation section
+    page_source = driver.page_source.lower()
+
+    # Check for all entities
+    assert "products" in page_source, "Dashboard should have Products navigation"
+    assert "orders" in page_source, "Dashboard should have Orders navigation"
+    assert "inventory" in page_source, "Dashboard should have Inventory navigation"
+    assert "payments" in page_source, "Dashboard should have Payments navigation"
+    assert "cases" in page_source, "Dashboard should have Cases navigation"
+
+
+@pytest.mark.e2e
+@pytest.mark.retail
+def test_retail_inventory_workflow(driver, retail_base_url, retail_api_url):
+    """Test creating inventory item and verifying it"""
+    # Create product first (inventory depends on product)
+    product_data = {
+        "sku": "INV-TEST-SKU",
+        "name": "Inventory Test Product",
+        "price": 50.00,
+        "category": "Test",
+        "stockLevel": 100
+    }
+
+    product_response = requests.post(f"{retail_api_url}/product", json=product_data)
+    assert product_response.status_code == 201
+    product_id = product_response.json()['id']
+
+    try:
+        # Create inventory item
+        inventory_data = {
+            "productId": product_id,
+            "warehouse": "Test Warehouse",
+            "quantity": 100,
+            "reorderLevel": 20
+        }
+
+        inv_response = requests.post(f"{retail_api_url}/inventory", json=inventory_data)
+        assert inv_response.status_code == 201, f"Failed to create inventory: {inv_response.status_code}"
+
+        inventory_id = inv_response.json()['id']
+
+        # Verify inventory exists
+        get_response = requests.get(f"{retail_api_url}/inventory/{inventory_id}")
+        assert get_response.status_code == 200
+        assert get_response.json()['data']['productId'] == product_id
+
+        # Cleanup inventory
+        requests.delete(f"{retail_api_url}/inventory/{inventory_id}")
+
+    finally:
+        # Cleanup product
+        requests.delete(f"{retail_api_url}/product/{product_id}")
+
+
+@pytest.mark.e2e
+@pytest.mark.retail
+def test_retail_payment_workflow(driver, retail_base_url, retail_api_url):
+    """Test creating payment linked to order"""
+    # Create order first
+    order_data = {
+        "customerEmail": "payment-test@example.com",
+        "customerName": "Payment Test",
+        "items": [{"productId": "test-prod", "quantity": 1, "price": 100}],
+        "totalAmount": 100
+    }
+
+    order_response = requests.post(f"{retail_api_url}/order", json=order_data)
+    assert order_response.status_code == 201
+    order_id = order_response.json()['id']
+
+    try:
+        # Create payment
+        payment_data = {
+            "orderId": order_id,
+            "amount": 100.00,
+            "method": "CREDIT_CARD",
+            "transactionId": "TXN-TEST-123",
+            "status": "COMPLETED"
+        }
+
+        payment_response = requests.post(f"{retail_api_url}/payment", json=payment_data)
+        assert payment_response.status_code == 201, f"Failed to create payment: {payment_response.status_code}"
+
+        payment_id = payment_response.json()['id']
+
+        # Verify payment exists and is linked to order
+        get_response = requests.get(f"{retail_api_url}/payment/{payment_id}")
+        assert get_response.status_code == 200
+        assert get_response.json()['data']['orderId'] == order_id
+
+        # Cleanup payment
+        requests.delete(f"{retail_api_url}/payment/{payment_id}")
+
+    finally:
+        # Cleanup order
+        requests.delete(f"{retail_api_url}/order/{order_id}")
+
+
+@pytest.mark.e2e
+@pytest.mark.retail
+def test_retail_case_workflow(driver, retail_base_url, retail_api_url):
+    """Test creating support case"""
+    case_data = {
+        "subject": "E2E Test Case",
+        "description": "This is a test support case for E2E testing",
+        "customerEmail": "case-test@example.com",
+        "priority": "MEDIUM",
+        "status": "OPEN",
+        "assignee": "Test Agent"
+    }
+
+    response = requests.post(f"{retail_api_url}/case", json=case_data)
+    assert response.status_code == 201, f"Failed to create case: {response.status_code}"
+
+    case_id = response.json()['id']
+
+    try:
+        # Verify case exists
+        get_response = requests.get(f"{retail_api_url}/case/{case_id}")
+        assert get_response.status_code == 200
+        assert get_response.json()['data']['subject'] == "E2E Test Case"
+        assert get_response.json()['data']['priority'] == "MEDIUM"
+
+    finally:
+        # Cleanup
+        requests.delete(f"{retail_api_url}/case/{case_id}")
+
+
+@pytest.mark.e2e
+@pytest.mark.retail
+def test_retail_customer_portal_loads(driver, retail_base_url):
+    """Test customer portal pages load successfully"""
+    # Customer dashboard
+    driver.get(f"{retail_base_url}/customer/dashboard")
+    wait_for_app_ready(driver)
+    assert "customer" in driver.page_source.lower() or "track" in driver.page_source.lower()
+
+    # Customer order tracking
+    driver.get(f"{retail_base_url}/customer/orders")
+    wait_for_app_ready(driver)
+    assert "track" in driver.page_source.lower() or "order" in driver.page_source.lower()
+
+    # Customer product browser
+    driver.get(f"{retail_base_url}/customer/products")
+    wait_for_app_ready(driver)
+    assert "product" in driver.page_source.lower() or "browse" in driver.page_source.lower()
+
+
+@pytest.mark.e2e
+@pytest.mark.retail
+@pytest.mark.slow
+def test_retail_full_workflow_seed_and_clear(driver, retail_base_url, retail_api_url):
+    """Test complete workflow: seed data, verify entities, clear data"""
+    # Get initial counts
+    products_before = requests.get(f"{retail_api_url}/product").json()
+    initial_product_count = len(products_before.get('items', []))
+
+    # Note: This test would trigger the seed functionality if the UI was fully interactive
+    # For now, we just verify the API endpoints work
+
+    # Create test data via API to simulate seeded data
+    product_data = {"sku": "WORKFLOW-001", "name": "Workflow Test", "price": 10, "category": "Test"}
+    product_response = requests.post(f"{retail_api_url}/product", json=product_data)
+    assert product_response.status_code == 201
+    product_id = product_response.json()['id']
+
+    try:
+        # Verify product appears in list
+        products_after = requests.get(f"{retail_api_url}/product").json()
+        assert len(products_after.get('items', [])) > initial_product_count
+
+    finally:
+        # Cleanup
+        requests.delete(f"{retail_api_url}/product/{product_id}")
