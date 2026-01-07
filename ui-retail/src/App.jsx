@@ -17,6 +17,8 @@ const ProductList = lazy(() => import('./pages/Products/ProductList'));
 const ProductDetail = lazy(() => import('./pages/Products/ProductDetail'));
 const InventoryList = lazy(() => import('./pages/Inventory/InventoryList'));
 const InventoryDetail = lazy(() => import('./pages/Inventory/InventoryDetail'));
+const OrderList = lazy(() => import('./pages/Orders/OrderList'));
+const OrderDetail = lazy(() => import('./pages/Orders/OrderDetail'));
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -68,8 +70,12 @@ function App() {
                     <Route path="/inventory/new" element={<InventoryList />} />
                     <Route path="/inventory/:id" element={<InventoryDetail />} />
 
+                    {/* Phase 4: Orders */}
+                    <Route path="/orders" element={<OrderList />} />
+                    <Route path="/orders/new" element={<OrderList />} />
+                    <Route path="/orders/:id" element={<OrderDetail />} />
+
                     {/* Entity routes will be added in subsequent phases */}
-                    {/* Phase 4: /orders, /orders/:id */}
                     {/* Phase 5: /payments, /payments/:id */}
                     {/* Phase 6: /cases, /cases/:id */}
                   </Route>

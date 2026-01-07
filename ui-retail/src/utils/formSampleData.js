@@ -79,7 +79,16 @@ export const generateOrderSampleData = () => {
     customerPhone: `(${randomNumber(200, 999)}) ${randomNumber(200, 999)}-${randomNumber(1000, 9999)}`,
     shippingAddress: `${randomNumber(100, 9999)} Main St, Apt ${randomNumber(1, 99)}, Springfield, ${randomItem(['FL', 'GA', 'NC', 'NY', 'CA'])} ${randomNumber(10000, 99999)}`,
     items: [
-      // Items will be added dynamically based on available products
+      {
+        productId: 'sample-product-id-1',
+        quantity: randomNumber(1, 5),
+        price: parseFloat(randomPrice(10, 200)),
+      },
+      {
+        productId: 'sample-product-id-2',
+        quantity: randomNumber(1, 3),
+        price: parseFloat(randomPrice(15, 150)),
+      },
     ],
   };
 };
