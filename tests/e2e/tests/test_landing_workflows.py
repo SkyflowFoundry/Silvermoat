@@ -58,9 +58,9 @@ def test_landing_vertical_cards_visible(driver, landing_base_url):
     assert "insurance" in page_source, "Insurance vertical should be displayed"
     assert "retail" in page_source, "Retail vertical should be displayed"
 
-    # Check for "Learn More" buttons
-    learn_more_buttons = driver.find_elements(By.XPATH, "//button[contains(., 'Learn More')]")
-    assert len(learn_more_buttons) >= 2, "Should have at least 2 'Learn More' buttons"
+    # Check for "Learn More" buttons/links (Ant Design Button with href renders as <a>)
+    learn_more_elements = driver.find_elements(By.XPATH, "//*[contains(., 'Learn More') and (self::button or self::a)]")
+    assert len(learn_more_elements) >= 2, f"Should have at least 2 'Learn More' buttons/links, found {len(learn_more_elements)}"
 
 
 @pytest.mark.e2e
@@ -70,14 +70,17 @@ def test_landing_insurance_link(driver, landing_base_url):
     driver.get(landing_base_url)
     wait_for_app_ready(driver)
 
-    # Find insurance link
-    insurance_links = driver.find_elements(By.XPATH, "//a[contains(@href, 'insurance.silvermoat.net')]")
+    # Find insurance link (production or test S3 URL)
+    insurance_links = driver.find_elements(By.XPATH, "//a[contains(@href, 'insurance') or contains(@href, 'Insurance')]")
     assert len(insurance_links) > 0, "Should have insurance link"
 
-    # Verify href
+    # Verify href contains insurance reference
     insurance_link = insurance_links[0]
-    href = insurance_link.get_attribute('href')
-    assert 'insurance.silvermoat.net' in href, "Insurance link should point to insurance.silvermoat.net"
+    href = insurance_link.get_attribute('href').lower()
+    assert 'insurance' in href, "Insurance link should contain 'insurance' in URL"
+    # Should be either production domain or S3 test URL
+    assert ('silvermoat.net' in href or 's3-website' in href or 's3.amazonaws.com' in href), \
+        "Insurance link should be valid URL"
 
 
 @pytest.mark.e2e
@@ -87,14 +90,17 @@ def test_landing_retail_link(driver, landing_base_url):
     driver.get(landing_base_url)
     wait_for_app_ready(driver)
 
-    # Find retail link
-    retail_links = driver.find_elements(By.XPATH, "//a[contains(@href, 'retail.silvermoat.net')]")
+    # Find retail link (production or test S3 URL)
+    retail_links = driver.find_elements(By.XPATH, "//a[contains(@href, 'retail') or contains(@href, 'Retail')]")
     assert len(retail_links) > 0, "Should have retail link"
 
-    # Verify href
+    # Verify href contains retail reference
     retail_link = retail_links[0]
-    href = retail_link.get_attribute('href')
-    assert 'retail.silvermoat.net' in href, "Retail link should point to retail.silvermoat.net"
+    href = retail_link.get_attribute('href').lower()
+    assert 'retail' in href, "Retail link should contain 'retail' in URL"
+    # Should be either production domain or S3 test URL
+    assert ('silvermoat.net' in href or 's3-website' in href or 's3.amazonaws.com' in href), \
+        "Retail link should be valid URL"
 
 
 @pytest.mark.e2e
