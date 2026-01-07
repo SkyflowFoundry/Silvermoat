@@ -20,6 +20,7 @@ class InsuranceStack(Stack):
         scope: Construct,
         id: str,
         config: SilvermoatConfig,
+        certificate_stack=None,  # Optional: shared certificate stack
         **kwargs,
     ):
         super().__init__(scope, id, **kwargs)
@@ -50,8 +51,10 @@ class InsuranceStack(Stack):
         self.certificate = None
         self.distribution = None
 
-        if config.create_cloudfront and config.domain_name:
-            # ACM Certificate for custom domain (must be in us-east-1 for CloudFront)
+        if config.create_cloudfront and config.domain_name and certificate_stack:
+            # Use shared certificate from certificate stack
+            self.certificate = certificate_stack.certificate
+
             # Determine the domain for this vertical
             if config.domain_name.startswith("*"):
                 base_domain = config.domain_name.lstrip("*").lstrip(".")
@@ -59,20 +62,13 @@ class InsuranceStack(Stack):
             else:
                 cert_domain = config.domain_name
 
-            self.certificate = acm.Certificate(
-                self,
-                "InsuranceCertificate",
-                domain_name=cert_domain,
-                validation=acm.CertificateValidation.from_dns(),
-            )
-
             # CloudFront origin pointing to S3 website endpoint
             s3_origin = origins.HttpOrigin(
                 self.insurance.ui_bucket.bucket_website_domain_name,
                 protocol_policy=cloudfront.OriginProtocolPolicy.HTTP_ONLY,
             )
 
-            # CloudFront distribution
+            # CloudFront distribution using shared certificate
             self.distribution = cloudfront.Distribution(
                 self,
                 "InsuranceDistribution",
@@ -99,6 +95,10 @@ class InsuranceStack(Stack):
                     ),
                 ],
             )
+
+            # Add explicit dependency on certificate stack
+            if certificate_stack:
+                self.add_dependency(certificate_stack)
 
         # ========================================
         # Outputs
