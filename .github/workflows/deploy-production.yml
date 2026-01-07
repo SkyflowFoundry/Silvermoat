@@ -24,7 +24,7 @@ on:
         type: boolean
         default: false
       force_deploy:
-        description: 'Force deploy both verticals'
+        description: 'Run all stages/jobs for all verticals (infrastructure, UI, tests, seeding)'
         type: boolean
         default: false
 
