@@ -2,7 +2,7 @@
  * Silvermoat Retail UI - Root Application Component
  */
 
-import { Suspense } from 'react';
+import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ConfigProvider, Spin } from 'antd';
@@ -11,6 +11,10 @@ import AppLayout from './components/layout/AppLayout';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import Dashboard from './pages/Dashboard';
 import { retailTheme } from './config/theme';
+
+// Lazy load entity pages
+const ProductList = lazy(() => import('./pages/Products/ProductList'));
+const ProductDetail = lazy(() => import('./pages/Products/ProductDetail'));
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -51,8 +55,13 @@ function App() {
                   <Route element={<AppLayout />}>
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/dashboard" element={<Dashboard />} />
+
+                    {/* Phase 2: Products */}
+                    <Route path="/products" element={<ProductList />} />
+                    <Route path="/products/new" element={<ProductList />} />
+                    <Route path="/products/:id" element={<ProductDetail />} />
+
                     {/* Entity routes will be added in subsequent phases */}
-                    {/* Phase 2: /products, /products/:id */}
                     {/* Phase 3: /inventory, /inventory/:id */}
                     {/* Phase 4: /orders, /orders/:id */}
                     {/* Phase 5: /payments, /payments/:id */}
