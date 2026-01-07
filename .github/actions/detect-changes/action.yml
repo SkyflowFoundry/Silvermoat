@@ -1,0 +1,84 @@
+name: Detect Changes
+description: Detect infrastructure, UI, and test file changes using git diff
+
+inputs:
+  base_sha:
+    description: 'Base SHA for comparison (optional, auto-detected from context)'
+    required: false
+  head_sha:
+    description: 'Head SHA for comparison (optional, auto-detected from context)'
+    required: false
+
+outputs:
+  infrastructure:
+    description: 'Whether infrastructure files changed (true/false)'
+    value: ${{ steps.detect.outputs.infrastructure }}
+  ui:
+    description: 'Whether UI files changed (true/false)'
+    value: ${{ steps.detect.outputs.ui }}
+  tests:
+    description: 'Whether test files changed (true/false)'
+    value: ${{ steps.detect.outputs.tests }}
+  # Legacy aliases for backwards compatibility
+  infrastructure_changed:
+    description: 'Alias for infrastructure (backwards compatibility)'
+    value: ${{ steps.detect.outputs.infrastructure }}
+  ui_changed:
+    description: 'Alias for ui (backwards compatibility)'
+    value: ${{ steps.detect.outputs.ui }}
+
+runs:
+  using: composite
+  steps:
+    - name: Detect file changes
+      id: detect
+      shell: bash
+      run: |
+        # Determine comparison strategy based on context
+        if [ -n "${{ github.event.pull_request.number }}" ]; then
+          # Active PR: compare base and head
+          echo "Analyzing changes in PR #${{ github.event.pull_request.number }}"
+          BASE_SHA="${{ inputs.base_sha || github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ inputs.head_sha || github.sha }}"
+          echo "Comparing ${BASE_SHA:0:7}..${HEAD_SHA:0:7}"
+          CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA)
+        elif [ "${{ github.event_name }}" = "pull_request" ]; then
+          # Merged PR: use git diff-tree on merge commit
+          echo "Analyzing changes in merge commit ${{ github.event.pull_request.merge_commit_sha || github.sha }}"
+          CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD)
+        else
+          # Manual dispatch or other: use git diff-tree
+          echo "Analyzing changes in commit ${{ github.sha }}"
+          CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD)
+        fi
+
+        echo "Changed files:"
+        echo "$CHANGED_FILES"
+        echo ""
+
+        # Infrastructure changes
+        if echo "$CHANGED_FILES" | grep -E '^(cdk/|lambda/|scripts/deploy-stack\.sh)'; then
+          echo "infrastructure=true" >> $GITHUB_OUTPUT
+          echo "✅ Infrastructure files changed"
+        else
+          echo "infrastructure=false" >> $GITHUB_OUTPUT
+          echo "ℹ️ No infrastructure changes"
+        fi
+
+        # UI changes
+        if echo "$CHANGED_FILES" | grep -E '^(ui-insurance/|ui-retail/|ui-landing/|scripts/generate-architecture-diagram\.py|scripts/deploy-ui\.sh)'; then
+          echo "ui=true" >> $GITHUB_OUTPUT
+          echo "✅ UI files changed"
+        else
+          echo "ui=false" >> $GITHUB_OUTPUT
+          echo "ℹ️ No UI changes"
+        fi
+
+        # Test changes
+        if echo "$CHANGED_FILES" | grep -E '^(tests/e2e/|\.github/workflows/)'; then
+          echo "tests=true" >> $GITHUB_OUTPUT
+          echo "✅ Test files changed"
+        else
+          echo "tests=false" >> $GITHUB_OUTPUT
+          echo "ℹ️ No test changes"
+        fi
