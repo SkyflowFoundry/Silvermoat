@@ -771,6 +771,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Run insurance E2E tests
         uses: ./.github/actions/run-e2e-tests
         with:
@@ -786,6 +789,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Run retail E2E tests
         uses: ./.github/actions/run-e2e-tests
         with:
@@ -801,6 +807,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Run landing E2E tests
         uses: ./.github/actions/run-e2e-tests
         with:
@@ -895,7 +904,12 @@ jobs:
           echo "  UI: ${{ needs.deploy-landing-ui.result }}"
           echo "  Web: ${{ needs.deploy-landing-ui.outputs.web_url }}"
           echo ""
-          echo "Tests: ${{ needs.tests.result }}"
-          echo "Insurance Data: ${{ needs.seed-insurance-data.result }}"
-          echo "Retail Data: ${{ needs.seed-retail-data.result }}"
+          echo "🧪 E2E Tests:"
+          echo "  Insurance: ${{ needs.insurance-tests.result }}"
+          echo "  Retail: ${{ needs.retail-tests.result }}"
+          echo "  Landing: ${{ needs.landing-tests.result }}"
+          echo ""
+          echo "🌱 Data Seeding:"
+          echo "  Insurance: ${{ needs.seed-insurance-data.result }}"
+          echo "  Retail: ${{ needs.seed-retail-data.result }}"
           echo "========================================="
