@@ -96,67 +96,6 @@ const Landing = () => {
           }}>
             Silvermoat Platform
           </Title>
-          <Paragraph style={{
-            fontSize: 20,
-            color: 'rgba(255, 255, 255, 0.9)',
-            marginBottom: 24,
-            lineHeight: 1.6,
-          }}>
-            Cloud-native multi-vertical platform for modern enterprises
-          </Paragraph>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            gap: 40,
-            marginTop: 40,
-            flexWrap: 'wrap',
-          }}>
-            <div style={{ textAlign: 'center' }}>
-              <Text style={{
-                display: 'block',
-                fontSize: 32,
-                fontWeight: 700,
-                color: 'white',
-                marginBottom: 4,
-              }}>2</Text>
-              <Text style={{
-                fontSize: 14,
-                color: 'rgba(255, 255, 255, 0.8)',
-                textTransform: 'uppercase',
-                letterSpacing: 1,
-              }}>Verticals</Text>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <Text style={{
-                display: 'block',
-                fontSize: 32,
-                fontWeight: 700,
-                color: 'white',
-                marginBottom: 4,
-              }}>100%</Text>
-              <Text style={{
-                fontSize: 14,
-                color: 'rgba(255, 255, 255, 0.8)',
-                textTransform: 'uppercase',
-                letterSpacing: 1,
-              }}>Serverless</Text>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <Text style={{
-                display: 'block',
-                fontSize: 32,
-                fontWeight: 700,
-                color: 'white',
-                marginBottom: 4,
-              }}>AI</Text>
-              <Text style={{
-                fontSize: 14,
-                color: 'rgba(255, 255, 255, 0.8)',
-                textTransform: 'uppercase',
-                letterSpacing: 1,
-              }}>Powered</Text>
-            </div>
-          </div>
         </div>
       </div>
 
