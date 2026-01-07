@@ -49,7 +49,7 @@ class LandingStack(Stack):
         self.distribution = None
 
         if config.create_cloudfront and config.domain_name:
-            # Landing uses apex domain (silvermoat.com) instead of subdomain
+            # Landing uses apex domain instead of subdomain
             if config.domain_name.startswith("*"):
                 # Extract base domain for apex
                 base_domain = config.domain_name.lstrip("*").lstrip(".")
