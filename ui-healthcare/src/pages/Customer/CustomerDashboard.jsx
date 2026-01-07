@@ -1,97 +1,103 @@
 /**
- * Customer Dashboard
- * Landing page for customer portal with navigation
+ * Customer (Patient) Dashboard Page
+ * Patient portal showing appointments, prescriptions, and medical records
  */
 
-import { Card, Row, Col, Typography, Button, Space } from 'antd';
-import {
-  ShoppingOutlined,
-  SearchOutlined,
-  ShoppingCartOutlined,
-  CustomerServiceOutlined,
-} from '@ant-design/icons';
+import { Card, Row, Col, Typography, Space, Button } from 'antd';
 import { useNavigate } from 'react-router-dom';
+import {
+  CalendarOutlined,
+  MedicineBoxOutlined,
+  FileTextOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 
-const { Title, Paragraph } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
 const CustomerDashboard = () => {
   const navigate = useNavigate();
 
-  const features = [
-    {
-      icon: <SearchOutlined style={{ fontSize: 48, color: '#531dab' }} />,
-      title: 'Track Your Order',
-      description: 'Check the status of your orders by entering your email address',
-      action: 'Track Orders',
-      path: '/customer/orders',
-    },
-    {
-      icon: <ShoppingOutlined style={{ fontSize: 48, color: '#531dab' }} />,
-      title: 'Browse Products',
-      description: 'Explore our product catalog and find what you need',
-      action: 'View Products',
-      path: '/customer/products',
-    },
-    {
-      icon: <CustomerServiceOutlined style={{ fontSize: 48, color: '#531dab' }} />,
-      title: 'Get Help',
-      description: 'Chat with our AI assistant for instant support',
-      action: 'Chat Now',
-      onClick: () => {
-        // Scroll to bottom to reveal chat (or trigger chat drawer)
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-      },
-    },
-  ];
-
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px' }}>
-      {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 48 }}>
-        <ShoppingCartOutlined style={{ fontSize: 64, color: '#531dab', marginBottom: 16 }} />
-        <Title level={1} style={{ margin: 0, color: '#531dab' }}>
-          Welcome to Silvermoat Retail
-        </Title>
-        <Paragraph style={{ fontSize: 16, color: '#666', marginTop: 12 }}>
-          Track your orders, browse products, and get instant support
-        </Paragraph>
-      </div>
+    <div style={{ minHeight: '100vh', background: '#f5f5f5', padding: '24px' }}>
+      <Card style={{ maxWidth: 1200, margin: '0 auto' }}>
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <div>
+            <Title level={2}>
+              <UserOutlined /> Patient Portal
+            </Title>
+            <Paragraph type="secondary">
+              Welcome to Silvermoat Healthcare. Access your health information and manage appointments.
+            </Paragraph>
+          </div>
 
-      {/* Feature Cards */}
-      <Row gutter={[24, 24]}>
-        {features.map((feature, idx) => (
-          <Col xs={24} md={8} key={idx}>
-            <Card
-              hoverable
-              style={{
-                height: '100%',
-                textAlign: 'center',
-                borderRadius: 8,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-              }}
-            >
-              <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                {feature.icon}
-                <div>
-                  <Title level={3} style={{ margin: 0 }}>
-                    {feature.title}
-                  </Title>
-                  <Paragraph style={{ color: '#666', marginTop: 8 }}>
-                    {feature.description}
-                  </Paragraph>
-                </div>
-                <Button
-                  type="primary"
-                  size="large"
-                  onClick={feature.onClick || (() => navigate(feature.path))}
-                >
-                  {feature.action}
-                </Button>
-              </Space>
-            </Card>
-          </Col>
-        ))}
-      </Row>
+          <Row gutter={[16, 16]}>
+            {/* Appointments Card */}
+            <Col xs={24} md={8}>
+              <Card
+                hoverable
+                style={{ height: '100%', cursor: 'pointer' }}
+                onClick={() => navigate('/customer/appointments')}
+              >
+                <Space direction="vertical" align="center" style={{ width: '100%' }}>
+                  <CalendarOutlined style={{ fontSize: 48, color: '#52c41a' }} />
+                  <Title level={4}>My Appointments</Title>
+                  <Text type="secondary">View and manage your appointments</Text>
+                  <Button type="primary" icon={<CalendarOutlined />}>
+                    View Appointments
+                  </Button>
+                </Space>
+              </Card>
+            </Col>
+
+            {/* Medical Records Card */}
+            <Col xs={24} md={8}>
+              <Card
+                hoverable
+                style={{ height: '100%', cursor: 'pointer' }}
+                onClick={() => navigate('/customer/records')}
+              >
+                <Space direction="vertical" align="center" style={{ width: '100%' }}>
+                  <FileTextOutlined style={{ fontSize: 48, color: '#52c41a' }} />
+                  <Title level={4}>Medical Records</Title>
+                  <Text type="secondary">Access your medical history</Text>
+                  <Button type="primary" icon={<FileTextOutlined />}>
+                    View Records
+                  </Button>
+                </Space>
+              </Card>
+            </Col>
+
+            {/* Prescriptions Card */}
+            <Col xs={24} md={8}>
+              <Card hoverable style={{ height: '100%' }}>
+                <Space direction="vertical" align="center" style={{ width: '100%' }}>
+                  <MedicineBoxOutlined style={{ fontSize: 48, color: '#52c41a' }} />
+                  <Title level={4}>Prescriptions</Title>
+                  <Text type="secondary">View your prescriptions</Text>
+                  <Button type="primary" icon={<MedicineBoxOutlined />} disabled>
+                    View Prescriptions
+                  </Button>
+                </Space>
+              </Card>
+            </Col>
+          </Row>
+
+          {/* Quick Links */}
+          <Card title="Quick Links" size="small">
+            <Space direction="vertical">
+              <Button type="link" onClick={() => navigate('/customer/appointments')}>
+                Schedule New Appointment
+              </Button>
+              <Button type="link" onClick={() => navigate('/customer/records')}>
+                View Test Results
+              </Button>
+              <Button type="link" disabled>
+                Message Your Provider
+              </Button>
+            </Space>
+          </Card>
+        </Space>
+      </Card>
     </div>
   );
 };
