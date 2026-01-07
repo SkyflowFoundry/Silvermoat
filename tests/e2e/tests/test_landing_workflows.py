@@ -70,16 +70,19 @@ def test_landing_insurance_link(driver, landing_base_url):
     driver.get(landing_base_url)
     wait_for_app_ready(driver)
 
-    # Find insurance link by text content
-    insurance_links = driver.find_elements(By.XPATH, "//*[contains(text(), 'Insurance')]//ancestor-or-self::a[@href]")
-    if not insurance_links:
-        # Fallback: find any link near "Insurance" text
-        insurance_links = driver.find_elements(By.XPATH, "//a[contains(@href, 'insurance')]")
+    # Find all "Learn More" links/buttons with href
+    learn_more_links = driver.find_elements(By.XPATH, "//a[contains(., 'Learn More')][@href]")
 
-    assert len(insurance_links) > 0, "Should have insurance link"
+    # Get all hrefs
+    all_hrefs = [link.get_attribute('href') for link in learn_more_links]
+
+    # Find insurance link (should contain 'insurance' in URL)
+    insurance_links = [href for href in all_hrefs if href and 'insurance' in href.lower()]
+
+    assert len(insurance_links) > 0, f"Should have insurance link. Found links: {all_hrefs}"
 
     # Verify href is non-empty and valid (deployment-provided URL)
-    href = insurance_links[0].get_attribute('href')
+    href = insurance_links[0]
     assert href and len(href) > 0, "Insurance link should have valid href"
     assert href.startswith('http'), f"Insurance link should be absolute URL, got: {href}"
 
@@ -91,16 +94,19 @@ def test_landing_retail_link(driver, landing_base_url):
     driver.get(landing_base_url)
     wait_for_app_ready(driver)
 
-    # Find retail link by text content
-    retail_links = driver.find_elements(By.XPATH, "//*[contains(text(), 'Retail')]//ancestor-or-self::a[@href]")
-    if not retail_links:
-        # Fallback: find any link near "Retail" text
-        retail_links = driver.find_elements(By.XPATH, "//a[contains(@href, 'retail')]")
+    # Find all "Learn More" links/buttons with href
+    learn_more_links = driver.find_elements(By.XPATH, "//a[contains(., 'Learn More')][@href]")
 
-    assert len(retail_links) > 0, "Should have retail link"
+    # Get all hrefs
+    all_hrefs = [link.get_attribute('href') for link in learn_more_links]
+
+    # Find retail link (should contain 'retail' in URL)
+    retail_links = [href for href in all_hrefs if href and 'retail' in href.lower()]
+
+    assert len(retail_links) > 0, f"Should have retail link. Found links: {all_hrefs}"
 
     # Verify href is non-empty and valid (deployment-provided URL)
-    href = retail_links[0].get_attribute('href')
+    href = retail_links[0]
     assert href and len(href) > 0, "Retail link should have valid href"
     assert href.startswith('http'), f"Retail link should be absolute URL, got: {href}"
 
