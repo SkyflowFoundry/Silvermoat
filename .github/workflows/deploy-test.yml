@@ -481,13 +481,13 @@ jobs:
           aws-region: us-east-1
 
       - name: Deploy Landing UI
-        id: deploy
         env:
           VERTICAL: landing
           STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
         run: ./scripts/deploy-ui.sh
 
       - name: Set output
+        id: deploy
         run: |
           WEB_URL=$(aws cloudformation describe-stacks \
             --stack-name "${{ needs.detect-changes.outputs.base_stack_name }}-landing" \
