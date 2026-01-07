@@ -1,5 +1,12 @@
 """Insurance vertical CDK stack - completely independent"""
-from aws_cdk import Stack, CfnOutput, aws_lambda as lambda_
+from aws_cdk import (
+    Stack,
+    CfnOutput,
+    aws_lambda as lambda_,
+    aws_cloudfront as cloudfront,
+    aws_cloudfront_origins as origins,
+    aws_certificatemanager as acm,
+)
 from constructs import Construct
 from config.base import SilvermoatConfig
 from .vertical_stack import VerticalStack
@@ -13,6 +20,7 @@ class InsuranceStack(Stack):
         scope: Construct,
         id: str,
         config: SilvermoatConfig,
+        certificate_stack=None,  # Optional: shared certificate stack
         **kwargs,
     ):
         super().__init__(scope, id, **kwargs)
@@ -36,6 +44,61 @@ class InsuranceStack(Stack):
             layer=self.layer,
             api_deployment_token=config.api_deployment_token,
         )
+
+        # ========================================
+        # CloudFront Distribution (Production Only)
+        # ========================================
+        self.certificate = None
+        self.distribution = None
+
+        if config.create_cloudfront and config.domain_name and certificate_stack:
+            # Use shared certificate from certificate stack
+            self.certificate = certificate_stack.certificate
+
+            # Determine the domain for this vertical
+            if config.domain_name.startswith("*"):
+                base_domain = config.domain_name.lstrip("*").lstrip(".")
+                cert_domain = f"insurance.{base_domain}"
+            else:
+                cert_domain = config.domain_name
+
+            # CloudFront origin pointing to S3 website endpoint
+            s3_origin = origins.HttpOrigin(
+                self.insurance.ui_bucket.bucket_website_domain_name,
+                protocol_policy=cloudfront.OriginProtocolPolicy.HTTP_ONLY,
+            )
+
+            # CloudFront distribution using shared certificate
+            self.distribution = cloudfront.Distribution(
+                self,
+                "InsuranceDistribution",
+                default_behavior=cloudfront.BehaviorOptions(
+                    origin=s3_origin,
+                    viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                    allowed_methods=cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+                    cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
+                ),
+                domain_names=[cert_domain],
+                certificate=self.certificate,
+                minimum_protocol_version=cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
+                price_class=cloudfront.PriceClass.PRICE_CLASS_100,
+                error_responses=[
+                    cloudfront.ErrorResponse(
+                        http_status=403,
+                        response_http_status=200,
+                        response_page_path="/index.html",
+                    ),
+                    cloudfront.ErrorResponse(
+                        http_status=404,
+                        response_http_status=200,
+                        response_page_path="/index.html",
+                    ),
+                ],
+            )
+
+            # Add explicit dependency on certificate stack
+            if certificate_stack:
+                self.add_dependency(certificate_stack)
 
         # ========================================
         # Outputs
@@ -65,12 +128,50 @@ class InsuranceStack(Stack):
             export_name=f"{self.stack_name}-InsuranceUiBucketWebsiteURL",
         )
 
+        # WebUrl: Use CloudFront if available, otherwise S3
+        web_url = self.insurance.ui_bucket.bucket_website_url
+        if self.distribution:
+            web_url = f"https://{self.distribution.distribution_domain_name}"
+
         CfnOutput(
             self,
             "WebUrl",
-            value=self.insurance.ui_bucket.bucket_website_url,
+            value=web_url,
             description="Insurance Web URL",
         )
+
+        # CloudFront Outputs (if enabled)
+        if self.certificate:
+            CfnOutput(
+                self,
+                "InsuranceCertificateArn",
+                value=self.certificate.certificate_arn,
+                description="Insurance ACM Certificate ARN",
+                export_name=f"{self.stack_name}-CertificateArn",
+            )
+
+        if self.distribution:
+            CfnOutput(
+                self,
+                "InsuranceCloudFrontDomain",
+                value=self.distribution.distribution_domain_name,
+                description="Insurance CloudFront Domain",
+                export_name=f"{self.stack_name}-CloudFrontDomain",
+            )
+            CfnOutput(
+                self,
+                "InsuranceCloudFrontUrl",
+                value=f"https://{self.distribution.distribution_domain_name}",
+                description="Insurance CloudFront URL",
+                export_name=f"{self.stack_name}-CloudFrontUrl",
+            )
+            CfnOutput(
+                self,
+                "InsuranceCloudFrontDistributionId",
+                value=self.distribution.distribution_id,
+                description="Insurance CloudFront Distribution ID",
+                export_name=f"{self.stack_name}-CloudFrontDistributionId",
+            )
 
         # Custom Domain Output (if configured)
         if config.domain_name:

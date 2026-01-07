@@ -9,6 +9,7 @@ on:
       - 'lambda/**'
       - 'ui-insurance/**'
       - 'ui-retail/**'
+      - 'ui-landing/**'
       - 'tests/e2e/**'
       - 'scripts/**'
       - '.github/workflows/**'
@@ -129,7 +130,7 @@ jobs:
             fi
 
             # UI changes
-            if git diff --name-only HEAD^ HEAD | grep -E '^(ui-insurance/|ui-retail/|scripts/generate-architecture-diagram\\.py|scripts/deploy-ui\\.sh)'; then
+            if git diff --name-only HEAD^ HEAD | grep -E '^(ui-insurance/|ui-retail/|ui-landing/|scripts/generate-architecture-diagram\\.py|scripts/deploy-ui\\.sh)'; then
               echo "ui_changed=true" >> $GITHUB_OUTPUT
               echo "✅ UI files changed (requires rebuild)"
             else
@@ -167,12 +168,67 @@ jobs:
   # Insurance Vertical Pipeline
   # ========================================
 
-  deploy-insurance-infra:
-    name: Deploy Insurance Infra
+  deploy-certificate:
+    name: Deploy Shared Certificate
     needs: [detect-changes]
     if: |
       always() &&
       needs.detect-changes.result == 'success' &&
+      needs.detect-changes.outputs.infrastructure_changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      stack_name: ${{ steps.deploy.outputs.stack_name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-deps
+        with:
+          install-ui: 'false'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Setup AWS CDK
+        uses: ./.github/actions/setup-aws-cdk
+
+      - name: Bootstrap CDK
+        uses: ./.github/actions/bootstrap-cdk
+
+      - name: Deploy shared certificate stack
+        id: deploy
+        env:
+          STACK_NAME: silvermoat
+          VERTICAL: certificate
+          STAGE_NAME: prod
+          CREATE_CLOUDFRONT: true
+          DOMAIN_NAME: silvermoat.net
+        run: |
+          echo "Deploying shared certificate stack: silvermoat-certificate"
+          chmod +x scripts/deploy-stack.sh
+          ./scripts/deploy-stack.sh
+          echo "stack_name=silvermoat-certificate" >> $GITHUB_OUTPUT
+
+  deploy-insurance-infra:
+    name: Deploy Insurance Infra
+    needs: [detect-changes, deploy-certificate]
+    if: |
+      always() &&
+      needs.detect-changes.result == 'success' &&
+      (needs.deploy-certificate.result == 'success' || needs.deploy-certificate.result == 'skipped') &&
       (needs.detect-changes.outputs.infrastructure_changed == 'true' ||
        needs.detect-changes.outputs.insurance_stack_exists == 'false')
     runs-on: ubuntu-latest
@@ -224,10 +280,11 @@ jobs:
 
   deploy-retail-infra:
     name: Deploy Retail Infra
-    needs: [detect-changes]
+    needs: [detect-changes, deploy-certificate]
     if: |
       always() &&
       needs.detect-changes.result == 'success' &&
+      (needs.deploy-certificate.result == 'success' || needs.deploy-certificate.result == 'skipped') &&
       (needs.detect-changes.outputs.infrastructure_changed == 'true' ||
        needs.detect-changes.outputs.retail_stack_exists == 'false')
     runs-on: ubuntu-latest
@@ -276,6 +333,61 @@ jobs:
           chmod +x scripts/deploy-stack.sh
           ./scripts/deploy-stack.sh
           echo "stack_name=silvermoat-retail" >> $GITHUB_OUTPUT
+
+  deploy-landing-infra:
+    name: Deploy Landing Infra
+    needs: [detect-changes, deploy-certificate]
+    if: |
+      always() &&
+      needs.detect-changes.result == 'success' &&
+      (needs.deploy-certificate.result == 'success' || needs.deploy-certificate.result == 'skipped') &&
+      needs.detect-changes.outputs.infrastructure_changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      stack_name: ${{ steps.deploy.outputs.stack_name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-deps
+        with:
+          install-ui: 'false'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Setup AWS CDK
+        uses: ./.github/actions/setup-aws-cdk
+
+      - name: Bootstrap CDK
+        uses: ./.github/actions/bootstrap-cdk
+
+      - name: Deploy landing production stack
+        id: deploy
+        env:
+          STACK_NAME: silvermoat
+          VERTICAL: landing
+          STAGE_NAME: prod
+          CREATE_CLOUDFRONT: true
+          DOMAIN_NAME: silvermoat.net
+        run: |
+          echo "Deploying landing production stack: silvermoat-landing"
+          chmod +x scripts/deploy-stack.sh
+          ./scripts/deploy-stack.sh
+          echo "stack_name=silvermoat-landing" >> $GITHUB_OUTPUT
 
   configure-insurance-dns:
     name: Configure Insurance DNS
@@ -350,6 +462,44 @@ jobs:
           DOMAIN_NAME: silvermoat.net
         run: |
           echo "Running smart DNS update for retail..."
+          chmod +x scripts/update-cloudflare-dns.sh
+          ./scripts/update-cloudflare-dns.sh
+
+  configure-landing-dns:
+    name: Configure Landing DNS
+    needs: [deploy-landing-infra]
+    if: always() && needs.deploy-landing-infra.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Setup ACM validation (landing)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          STACK_NAME: silvermoat-landing
+        run: |
+          echo "Setting up ACM certificate DNS validation for landing..."
+          chmod +x scripts/setup-acm-validation.sh
+          ./scripts/setup-acm-validation.sh || echo "⚠️ ACM validation setup failed or not needed"
+
+      - name: Update Cloudflare DNS (landing)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          STACK_NAME: silvermoat-landing
+          DOMAIN_NAME: silvermoat.com
+        run: |
+          echo "Running smart DNS update for landing (apex domain)..."
           chmod +x scripts/update-cloudflare-dns.sh
           ./scripts/update-cloudflare-dns.sh
 
@@ -573,23 +723,119 @@ jobs:
             exit 1
           fi
 
+  deploy-landing-ui:
+    name: Deploy Landing UI
+    needs: [detect-changes, deploy-landing-infra, configure-landing-dns]
+    if: |
+      always() &&
+      (needs.deploy-landing-infra.result == 'success' || needs.deploy-landing-infra.result == 'skipped') &&
+      (needs.configure-landing-dns.result == 'success' || needs.configure-landing-dns.result == 'skipped') &&
+      (needs.deploy-landing-infra.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    outputs:
+      web_url: ${{ steps.stack-outputs.outputs.web_url }}
+      cloudfront_url: ${{ steps.stack-outputs.outputs.cloudfront_url }}
+      cloudfront_id: ${{ steps.cloudfront.outputs.distribution_id }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-deps
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Get CloudFront distribution ID
+        id: cloudfront
+        run: |
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name silvermoat-landing \
+            --query 'Stacks[0].Outputs[?OutputKey==`LandingCloudFrontDistributionId`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$DISTRIBUTION_ID" ] || [ "$DISTRIBUTION_ID" == "None" ]; then
+            echo "Output not found, trying resource query..."
+            DISTRIBUTION_ID=$(aws cloudformation describe-stack-resources \
+              --stack-name silvermoat-landing \
+              --query 'StackResources[?ResourceType==`AWS::CloudFront::Distribution`].PhysicalResourceId | [0]' \
+              --output text 2>/dev/null || echo "")
+          fi
+
+          if [ -n "$DISTRIBUTION_ID" ] && [ "$DISTRIBUTION_ID" != "None" ]; then
+            echo "distribution_id=${DISTRIBUTION_ID}" >> $GITHUB_OUTPUT
+            echo "CloudFront Distribution ID: ${DISTRIBUTION_ID}"
+          else
+            echo "No CloudFront distribution found"
+          fi
+
+      - name: Build and deploy landing UI
+        env:
+          STACK_NAME: silvermoat
+          VERTICAL: landing
+        run: |
+          echo "Building and deploying landing UI..."
+          chmod +x scripts/deploy-ui.sh
+          ./scripts/deploy-ui.sh
+
+      - name: Start CloudFront cache invalidation
+        id: invalidation
+        if: steps.cloudfront.outputs.distribution_id != ''
+        run: |
+          echo "Starting CloudFront cache invalidation..."
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.cloudfront.outputs.distribution_id }} \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)
+          echo "invalidation_id=${INVALIDATION_ID}" >> $GITHUB_OUTPUT
+          echo "Cache invalidation started: ${INVALIDATION_ID}"
+
+      - name: Get stack outputs
+        id: stack-outputs
+        run: |
+          OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name silvermoat-landing \
+            --query 'Stacks[0].Outputs' \
+            --output json)
+
+          CF_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="LandingCloudFrontUrl") | .OutputValue')
+          CUSTOM_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="LandingDomainUrl") | .OutputValue')
+
+          echo "cloudfront_url=${CF_URL}" >> $GITHUB_OUTPUT
+          echo "web_url=${CUSTOM_URL:-$CF_URL}" >> $GITHUB_OUTPUT
+
+          echo "CloudFront URL: ${CF_URL}"
+          echo "Custom Domain URL: ${CUSTOM_URL}"
+
   # ========================================
   # E2E Tests
   # ========================================
 
   tests:
     name: E2E Tests
-    needs: [deploy-insurance-ui, deploy-retail-ui]
+    needs: [deploy-insurance-ui, deploy-retail-ui, deploy-landing-ui]
     if: |
       always() &&
       needs.deploy-insurance-ui.result == 'success' &&
-      needs.deploy-retail-ui.result == 'success'
+      needs.deploy-retail-ui.result == 'success' &&
+      needs.deploy-landing-ui.result == 'success'
     uses: ./.github/workflows/test-suite.yml
     with:
       insurance_api_url: ${{ needs.deploy-insurance-ui.outputs.api_url }}
       insurance_web_url: ${{ needs.deploy-insurance-ui.outputs.web_url }}
       retail_api_url: ${{ needs.deploy-retail-ui.outputs.api_url }}
       retail_web_url: ${{ needs.deploy-retail-ui.outputs.web_url }}
+      landing_web_url: ${{ needs.deploy-landing-ui.outputs.web_url }}
       environment: 'production'
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
@@ -647,6 +893,7 @@ jobs:
     needs: [
       deploy-insurance-ui,
       deploy-retail-ui,
+      deploy-landing-ui,
       tests,
       seed-insurance-data,
       seed-retail-data
@@ -672,6 +919,11 @@ jobs:
           echo "  UI: ${{ needs.deploy-retail-ui.result }}"
           echo "  API: ${{ needs.deploy-retail-ui.outputs.api_url }}"
           echo "  Web: ${{ needs.deploy-retail-ui.outputs.web_url }}"
+          echo ""
+          echo "🏠 Landing Page:"
+          echo "  Infra: ${{ needs.deploy-landing-ui.result }}"
+          echo "  UI: ${{ needs.deploy-landing-ui.result }}"
+          echo "  Web: ${{ needs.deploy-landing-ui.outputs.web_url }}"
           echo ""
           echo "Tests: ${{ needs.tests.result }}"
           echo "Insurance Data: ${{ needs.seed-insurance-data.result }}"
