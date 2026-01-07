@@ -42,7 +42,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        vertical: [insurance, retail, landing]
+        vertical: [insurance, retail, healthcare, landing]
       fail-fast: false
 
     steps:
@@ -107,6 +107,7 @@ jobs:
       ui_changed: ${{ steps.check.outputs.ui_changed }}
       insurance_stack_exists: ${{ steps.check-stacks.outputs.insurance_exists }}
       retail_stack_exists: ${{ steps.check-stacks.outputs.retail_exists }}
+      healthcare_stack_exists: ${{ steps.check-stacks.outputs.healthcare_exists }}
       landing_stack_exists: ${{ steps.check-stacks.outputs.landing_exists }}
 
     steps:
@@ -147,6 +148,15 @@ jobs:
           else
             echo "retail_exists=false" >> $GITHUB_OUTPUT
             echo "Retail stack does not exist: silvermoat-retail"
+          fi
+
+          # Check healthcare stack
+          if aws cloudformation describe-stacks --stack-name "silvermoat-healthcare" >/dev/null 2>&1; then
+            echo "healthcare_exists=true" >> $GITHUB_OUTPUT
+            echo "Healthcare stack exists: silvermoat-healthcare"
+          else
+            echo "healthcare_exists=false" >> $GITHUB_OUTPUT
+            echo "Healthcare stack does not exist: silvermoat-healthcare"
           fi
 
           # Check landing stack
@@ -233,6 +243,42 @@ jobs:
           chmod +x scripts/deploy-stack.sh
           ./scripts/deploy-stack.sh
           echo "stack_name=silvermoat-retail" >> $GITHUB_OUTPUT
+
+  deploy-healthcare-infra:
+    name: Deploy Healthcare Infra
+    needs: [detect-changes]
+    if: |
+      always() &&
+      needs.detect-changes.result == 'success' &&
+      (needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+       needs.detect-changes.outputs.healthcare_stack_exists == 'false')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      stack_name: ${{ steps.deploy.outputs.stack_name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup infrastructure deployment
+        uses: ./.github/actions/setup-infra-deploy
+        with:
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
+      - name: Deploy healthcare production stack
+        id: deploy
+        env:
+          STACK_NAME: silvermoat
+          VERTICAL: healthcare
+          STAGE_NAME: prod
+          CREATE_CLOUDFRONT: true
+          DOMAIN_NAME: silvermoat.net
+        run: |
+          echo "Deploying healthcare production stack: silvermoat-healthcare"
+          chmod +x scripts/deploy-stack.sh
+          ./scripts/deploy-stack.sh
+          echo "stack_name=silvermoat-healthcare" >> $GITHUB_OUTPUT
 
   deploy-landing-infra:
     name: Deploy Landing Infra
@@ -343,6 +389,44 @@ jobs:
           DOMAIN_NAME: silvermoat.net
         run: |
           echo "Running smart DNS update for retail..."
+          chmod +x scripts/update-cloudflare-dns.sh
+          ./scripts/update-cloudflare-dns.sh
+
+  configure-healthcare-dns:
+    name: Configure Healthcare DNS
+    needs: [deploy-healthcare-infra]
+    if: always() && needs.deploy-healthcare-infra.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Setup ACM validation (healthcare)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          STACK_NAME: silvermoat-healthcare
+        run: |
+          echo "Setting up ACM certificate DNS validation for healthcare..."
+          chmod +x scripts/setup-acm-validation.sh
+          ./scripts/setup-acm-validation.sh || echo "⚠️ ACM validation setup failed or not needed"
+
+      - name: Update Cloudflare DNS (healthcare)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          STACK_NAME: silvermoat-healthcare
+          DOMAIN_NAME: silvermoat.net
+        run: |
+          echo "Running smart DNS update for healthcare..."
           chmod +x scripts/update-cloudflare-dns.sh
           ./scripts/update-cloudflare-dns.sh
 
@@ -723,7 +807,8 @@ jobs:
       (needs.configure-landing-dns.result == 'success' || needs.configure-landing-dns.result == 'skipped') &&
       (needs.deploy-landing-infra.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true') &&
       (needs.deploy-insurance-ui.result == 'success' || needs.deploy-insurance-ui.result == 'skipped') &&
-      (needs.deploy-retail-ui.result == 'success' || needs.deploy-retail-ui.result == 'skipped')
+      (needs.deploy-retail-ui.result == 'success' || needs.deploy-retail-ui.result == 'skipped') &&
+      (needs.deploy-healthcare-ui.result == 'success' || needs.deploy-healthcare-ui.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
