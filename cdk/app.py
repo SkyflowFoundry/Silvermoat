@@ -4,6 +4,7 @@ import os
 from aws_cdk import App, Environment
 from stacks.insurance_stack import InsuranceStack
 from stacks.retail_stack import RetailStack
+from stacks.healthcare_stack import HealthcareStack
 from stacks.landing_stack import LandingStack
 from config.environments import get_config
 
@@ -23,6 +24,7 @@ env = Environment(
 # Determine which stacks to deploy
 deploy_insurance = vertical is None or vertical == "insurance"
 deploy_retail = vertical is None or vertical == "retail"
+deploy_healthcare = vertical is None or vertical == "healthcare"
 deploy_landing = vertical is None or vertical == "landing"
 
 # ========================================
@@ -44,6 +46,15 @@ if deploy_retail:
         app,
         f"{stack_name}-retail",
         config=retail_config,
+        env=env,
+    )
+
+if deploy_healthcare:
+    healthcare_config = get_config(f"{stack_name}-healthcare", stage_name)
+    HealthcareStack(
+        app,
+        f"{stack_name}-healthcare",
+        config=healthcare_config,
         env=env,
     )
 

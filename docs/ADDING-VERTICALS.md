@@ -259,7 +259,215 @@ if: |
   (needs.deploy-{vertical}-ui.result == 'success' || needs.deploy-{vertical}-ui.result == 'skipped')
 ```
 
-## 6. E2E Tests
+## 6. CDK Infrastructure Stack
+
+**CRITICAL: Must be done before UI can deploy to AWS**
+
+### 6.1 Create vertical stack file
+
+Create `cdk/stacks/{vertical}_stack.py` following the pattern from `retail_stack.py`:
+
+```python
+"""Healthcare vertical CDK stack - completely independent"""
+from aws_cdk import (
+    Stack,
+    CfnOutput,
+    aws_lambda as lambda_,
+    aws_cloudfront as cloudfront,
+    aws_cloudfront_origins as origins,
+    aws_certificatemanager as acm,
+)
+from constructs import Construct
+from config.base import SilvermoatConfig
+from .vertical_stack import VerticalStack
+
+
+class HealthcareStack(Stack):
+    """Healthcare vertical stack - completely self-contained"""
+
+    def __init__(
+        self,
+        scope: Construct,
+        id: str,
+        config: SilvermoatConfig,
+        **kwargs,
+    ):
+        super().__init__(scope, id, **kwargs)
+
+        # Healthcare-specific Lambda Layer
+        self.layer = lambda_.LayerVersion(
+            self,
+            "HealthcareLayer",
+            code=lambda_.Code.from_asset("../lambda/layer"),
+            compatible_runtimes=[lambda_.Runtime.PYTHON_3_12],
+            description="Shared utilities for Healthcare Lambda functions",
+        )
+
+        # Healthcare Vertical Stack
+        self.healthcare = VerticalStack(
+            self,
+            "HealthcareVertical",
+            vertical_name="healthcare",
+            app_name=config.app_name,
+            stage_name=config.stage_name,
+            layer=self.layer,
+            api_deployment_token=config.api_deployment_token,
+        )
+
+        # CloudFront Distribution (Production Only)
+        self.certificate = None
+        self.distribution = None
+
+        if config.create_cloudfront and config.domain_name:
+            # Determine the domain for this vertical
+            if config.domain_name.startswith("*"):
+                base_domain = config.domain_name.lstrip("*").lstrip(".")
+                cert_domain = f"healthcare.{base_domain}"
+            else:
+                cert_domain = config.domain_name
+
+            # Create certificate for this vertical
+            self.certificate = acm.Certificate(
+                self,
+                "HealthcareCertificate",
+                domain_name=cert_domain,
+                validation=acm.CertificateValidation.from_dns(),
+            )
+
+            # CloudFront origin pointing to S3 website endpoint
+            s3_origin = origins.HttpOrigin(
+                self.healthcare.ui_bucket.bucket_website_domain_name,
+                protocol_policy=cloudfront.OriginProtocolPolicy.HTTP_ONLY,
+            )
+
+            # CloudFront distribution
+            self.distribution = cloudfront.Distribution(
+                self,
+                "HealthcareDistribution",
+                default_behavior=cloudfront.BehaviorOptions(
+                    origin=s3_origin,
+                    viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                    allowed_methods=cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+                    cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
+                ),
+                domain_names=[cert_domain],
+                certificate=self.certificate,
+                minimum_protocol_version=cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
+                price_class=cloudfront.PriceClass.PRICE_CLASS_100,
+                error_responses=[
+                    cloudfront.ErrorResponse(
+                        http_status=403,
+                        response_http_status=200,
+                        response_page_path="/index.html",
+                    ),
+                    cloudfront.ErrorResponse(
+                        http_status=404,
+                        response_http_status=200,
+                        response_page_path="/index.html",
+                    ),
+                ],
+            )
+
+        # Outputs
+        CfnOutput(
+            self,
+            "HealthcareApiUrl",
+            value=self.healthcare.api_url,
+            description="Healthcare API Base URL",
+            export_name=f"{self.stack_name}-HealthcareApiUrl",
+        )
+
+        CfnOutput(
+            self,
+            "HealthcareUiBucketName",
+            value=self.healthcare.ui_bucket.bucket_name,
+            description="Healthcare UI S3 Bucket",
+            export_name=f"{self.stack_name}-HealthcareUiBucketName",
+        )
+
+        CfnOutput(
+            self,
+            "HealthcareUiBucketWebsiteURL",
+            value=self.healthcare.ui_bucket.bucket_website_url,
+            description="Healthcare UI S3 Website URL",
+            export_name=f"{self.stack_name}-HealthcareUiBucketWebsiteURL",
+        )
+
+        # WebUrl: Use CloudFront if available, otherwise S3
+        web_url = self.healthcare.ui_bucket.bucket_website_url
+        if self.distribution:
+            web_url = f"https://{self.distribution.distribution_domain_name}"
+
+        CfnOutput(
+            self,
+            "WebUrl",
+            value=web_url,
+            description="Healthcare Web URL",
+        )
+
+        # CloudFront Outputs (if enabled)
+        if self.certificate:
+            CfnOutput(
+                self,
+                "HealthcareCertificateArn",
+                value=self.certificate.certificate_arn,
+                description="Healthcare ACM Certificate ARN",
+                export_name=f"{self.stack_name}-CertificateArn",
+            )
+
+        if self.distribution:
+            CfnOutput(
+                self,
+                "HealthcareCloudFrontDistributionId",
+                value=self.distribution.distribution_id,
+                description="Healthcare CloudFront Distribution ID",
+                export_name=f"{self.stack_name}-CloudFrontDistributionId",
+            )
+
+        # Custom Domain Output (if configured)
+        if config.domain_name:
+            if config.domain_name.startswith("*"):
+                base_domain = config.domain_name.lstrip("*").lstrip(".")
+                CfnOutput(
+                    self,
+                    "CustomDomainUrl",
+                    value=f"https://healthcare.{base_domain}",
+                    description="Healthcare vertical custom domain URL",
+                )
+```
+
+### 6.2 Update CDK app.py
+
+Add healthcare to `cdk/app.py`:
+
+```python
+# Add import
+from stacks.healthcare_stack import HealthcareStack
+
+# Add deploy variable
+deploy_healthcare = vertical is None or vertical == "healthcare"
+
+# Add stack instantiation (after retail, before landing)
+if deploy_healthcare:
+    healthcare_config = get_config(f"{stack_name}-healthcare", stage_name)
+    HealthcareStack(
+        app,
+        f"{stack_name}-healthcare",
+        config=healthcare_config,
+        env=env,
+    )
+```
+
+### 6.3 Key components in vertical stack
+
+The `VerticalStack` (inherited) automatically creates:
+- **7 DynamoDB tables**: Patients, Appointments, Prescriptions, Providers, Cases, Conversations, Documents
+- **4 Lambda functions**: patient-handler, appointment-handler, documents-handler, ai-handler
+- **API Gateway**: REST API with resource-based routes
+- **S3 buckets**: UI bucket (website hosting) + documents bucket
+- **IAM roles**: Lambda execution roles with least-privilege access
+
+## 7. E2E Tests
 
 **Update Landing Page Tests** (`tests/e2e/tests/test_landing_workflows.py`)
 
@@ -291,7 +499,7 @@ def test_landing_{vertical}_link(driver, landing_base_url):
     assert href.startswith('http'), f"{Vertical} link should be absolute URL, got: {href}"
 ```
 
-## 7. File Checklist
+## 8. File Checklist
 
 **Required files:**
 - [ ] `ui-{vertical}/package.json` (with dependencies)
@@ -306,15 +514,17 @@ def test_landing_{vertical}_link(driver, landing_base_url):
 - [ ] Update `.github/workflows/deploy-test.yml` (5 changes: detect-changes, deploy-infra, deploy-ui, cleanup-test, landing-ui)
 - [ ] Update `.github/workflows/deploy-production.yml` (6 changes: detect-changes, deploy-infra, configure-dns, deploy-ui, cleanup-test, landing-ui)
 - [ ] Update `tests/e2e/tests/test_landing_workflows.py`
+- [ ] Create `cdk/stacks/{vertical}_stack.py`
+- [ ] Update `cdk/app.py` (add import, deploy variable, stack instantiation)
 
-## 8. Color Scheme Conventions
+## 9. Color Scheme Conventions
 
 - **Insurance**: Blue (`#003d82`, `#667eea → #764ba2` gradient)
 - **Retail**: Purple (`#722ed1`, `#722ed1 → #531dab` gradient)
 - **Healthcare**: Green (`#52c41a`, `#52c41a → #389e0d` gradient)
 - **Pattern**: Choose distinct brand color, create gradient variants for consistency
 
-## 9. Infrastructure Requirements
+## 10. Infrastructure Requirements
 
 Each vertical needs:
 - CDK stack: `{vertical}_stack.py`
@@ -328,7 +538,7 @@ Each vertical needs:
 
 See existing insurance/retail stacks for patterns.
 
-## 10. Example: Adding "Healthcare" Vertical
+## 11. Example: Adding "Healthcare" Vertical
 
 ### Step-by-step implementation:
 
@@ -338,17 +548,19 @@ See existing insurance/retail stacks for patterns.
 4. **Update deployment**: Add healthcare block to `deploy-ui.sh` with bucket/API retrieval
 5. **Update main landing**: Add Healthcare card to grid with green theme
 6. **Update landing viewer**: Add 7 healthcare features, update database count (21 tables)
-7. **Update test workflow**: Add detect-changes output, deploy-healthcare-infra, deploy-healthcare-ui, update cleanup-test matrix, update landing-ui dependencies
-8. **Update production workflow**: Same as test + add configure-healthcare-dns job
-9. **Update E2E tests**: Add healthcare to `test_landing_vertical_cards_visible()` and add `test_landing_healthcare_link()`
-10. **Deploy infrastructure**: Create CDK stack and deploy via `VERTICAL=healthcare ./scripts/deploy-stack.sh`
-11. **Deploy UI**: Run `VERTICAL=healthcare ./scripts/deploy-ui.sh`
+7. **Create CDK stack**: Create `cdk/stacks/healthcare_stack.py` following retail pattern
+8. **Update CDK app**: Add healthcare import, deploy variable, and stack instantiation to `cdk/app.py`
+9. **Update test workflow**: Add detect-changes output, deploy-healthcare-infra, deploy-healthcare-ui, update cleanup-test matrix, update landing-ui dependencies
+10. **Update production workflow**: Same as test + add configure-healthcare-dns job
+11. **Update E2E tests**: Add healthcare to `test_landing_vertical_cards_visible()` and add `test_landing_healthcare_link()`
+12. **Deploy infrastructure**: Run `VERTICAL=healthcare ./scripts/deploy-stack.sh` to create AWS resources
+13. **Deploy UI**: Run `VERTICAL=healthcare ./scripts/deploy-ui.sh` to build and upload UI
 
-**Complete checklist reference**: See section 7 above.
+**Complete checklist reference**: See section 8 above.
 
-**Estimated effort:** 4-6 hours for UI and workflows (following this template). Infrastructure (CDK) adds 2-4 hours.
+**Estimated effort:** 4-6 hours for UI and workflows (following this template). Infrastructure (CDK) adds 30-60 minutes.
 
-## 11. Common Pitfalls
+## 12. Common Pitfalls
 
 ### Workflow dependency errors
 - **Problem**: `Job 'deploy-{vertical}-ui' depends on unknown job 'deploy-{vertical}-infra'`
