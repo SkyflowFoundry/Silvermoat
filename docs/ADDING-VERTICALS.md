@@ -259,11 +259,227 @@ if: |
   (needs.deploy-{vertical}-ui.result == 'success' || needs.deploy-{vertical}-ui.result == 'skipped')
 ```
 
-## 6. CDK Infrastructure Stack
+## 6. Lambda Handlers
 
-**CRITICAL: Must be done before UI can deploy to AWS**
+**CRITICAL: Must be created BEFORE CDK stack, or CDK deployment will fail**
 
-### 6.1 Create vertical stack file
+CDK expects Lambda code at `lambda/{vertical}/` when creating the infrastructure. If this directory doesn't exist, CDK synth/deploy will fail with "Cannot find asset" error.
+
+### 6.1 Create Lambda handler directory
+
+Create `lambda/{vertical}/` with these files:
+
+**__init__.py** - Module initialization:
+```python
+"""Healthcare vertical Lambda handlers"""
+```
+
+**entities.py** - Business logic for domain operations:
+```python
+"""Shared business logic for healthcare domain operations"""
+
+def upsert_patient_for_appointment(storage, body):
+    """Extract patient data and upsert patient record"""
+    patient_email = body.get("patientEmail")
+    if patient_email:
+        patient = storage.upsert_customer(patient_email, {
+            "name": body.get("patientName"),
+            "email": patient_email
+        })
+        body.pop("patientName", None)
+        body.pop("patientEmail", None)
+        return patient["id"]
+    return None
+
+# Add similar functions for other domain objects
+```
+
+**handler.py** - Main Lambda API handler:
+```python
+"""Healthcare vertical API handler"""
+import json
+from shared.responses import _resp
+from shared.events import _emit
+from shared.storage import DynamoDBBackend
+from entities import upsert_patient_for_appointment
+from chatbot import handle_chat as handle_healthcare_chat
+from customer_chatbot import handle_customer_chat as handle_patient_chat
+
+# Domain mapping: healthcare names -> DynamoDB table env vars
+HEALTHCARE_DOMAIN_MAPPING = {
+    "patient": "CUSTOMERS_TABLE",
+    "appointment": "QUOTES_TABLE",       # Reuse quotes table
+    "medical_record": "POLICIES_TABLE",  # Reuse policies table
+    "prescription": "CLAIMS_TABLE",      # Reuse claims table
+    "billing": "PAYMENTS_TABLE",
+    "case": "CASES_TABLE"
+}
+
+storage = DynamoDBBackend(domain_mapping=HEALTHCARE_DOMAIN_MAPPING)
+HEALTHCARE_ENTITIES = ["patient", "appointment", "medical_record", "prescription", "billing", "case"]
+
+def handler(event, context):
+    """Main Lambda handler for Healthcare vertical API"""
+    path = (event.get("path") or "/").strip("/")
+    method = (event.get("httpMethod") or "GET").upper()
+
+    # Handle CORS preflight
+    if method == "OPTIONS":
+        return _resp(200, {"message": "CORS preflight"})
+
+    # POST /chat -> staff chatbot
+    if path == "chat" and method == "POST":
+        return handle_healthcare_chat(event, storage)
+
+    # POST /customer-chat -> patient chatbot
+    if path == "customer-chat" and method == "POST":
+        return handle_patient_chat(event, storage)
+
+    # Parse body
+    body = {}
+    if event.get("body"):
+        try:
+            body = json.loads(event["body"])
+        except Exception:
+            body = {"raw": event["body"]}
+
+    parts = [p for p in path.split("/") if p]
+
+    # Root endpoint
+    if not parts:
+        return _resp(200, {
+            "name": "Silvermoat Healthcare",
+            "vertical": "healthcare",
+            "endpoints": [f"/{e}" for e in HEALTHCARE_ENTITIES] + ["/chat", "/customer-chat"]
+        })
+
+    domain = parts[0]
+
+    # Validate domain
+    if domain not in HEALTHCARE_ENTITIES:
+        return _resp(404, {"error": "unknown_domain", "domain": domain})
+
+    # GET /{domain} -> list all
+    if method == "GET" and len(parts) == 1:
+        items = storage.list(domain)
+        return _resp(200, {"items": items, "count": len(items)})
+
+    # POST /{domain} -> create
+    if method == "POST" and len(parts) == 1:
+        default_status = {"patient": "ACTIVE", "appointment": "SCHEDULED"}.get(domain, "PENDING")
+
+        if domain == "patient":
+            patient_email = body.get("email")
+            if patient_email:
+                item = storage.upsert_customer(patient_email, body)
+            else:
+                item = storage.create(domain, body, default_status)
+        else:
+            item = storage.create(domain, body, default_status)
+
+        _emit(f"{domain}.created", {"id": item["id"]})
+        return _resp(201, {"id": item["id"], "item": item})
+
+    # GET /{domain}/{id} -> read
+    if method == "GET" and len(parts) == 2:
+        item = storage.get(domain, parts[1])
+        if not item:
+            return _resp(404, {"error": "not_found"})
+        return _resp(200, item)
+
+    # DELETE /{domain}/{id} -> delete
+    if method == "DELETE" and len(parts) == 2:
+        storage.delete(domain, parts[1])
+        return _resp(200, {"deleted": True})
+
+    return _resp(400, {"error": "unsupported_operation"})
+```
+
+**chatbot.py** - Staff chatbot using Bedrock:
+```python
+"""Healthcare staff chatbot using AWS Bedrock"""
+import boto3
+from shared.responses import _resp
+
+bedrock = boto3.client("bedrock-runtime")
+BEDROCK_MODEL_ID = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+
+TOOLS = [
+    {
+        "name": "search_appointments",
+        "description": "Search appointments by patient name or date",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "patient_name": {"type": "string"},
+                "date": {"type": "string"}
+            }
+        }
+    },
+    # Add more tools as needed
+]
+
+def execute_tool(tool_name, tool_input, storage):
+    """Execute tool and return results"""
+    if tool_name == "search_appointments":
+        items = storage.scan("appointment")
+        # Filter logic here
+        return {"results": items[:10]}
+    return {"error": "Unknown tool"}
+
+def handle_chat(event, storage):
+    """Handle staff chatbot requests"""
+    body = json.loads(event.get("body", "{}"))
+    user_message = body.get("message", "")
+
+    # Use Bedrock converse API with tools
+    response = bedrock.converse(
+        modelId=BEDROCK_MODEL_ID,
+        messages=[{"role": "user", "content": user_message}],
+        system=[{"text": "You are a healthcare staff assistant..."}],
+        toolConfig={"tools": [{"toolSpec": tool} for tool in TOOLS]}
+    )
+
+    # Process response and tool calls
+    # Return final response
+```
+
+**customer_chatbot.py** - Patient chatbot:
+```python
+"""Healthcare patient chatbot using AWS Bedrock"""
+# Similar to chatbot.py but with patient-scoped tools
+# - search_my_appointments
+# - search_my_prescriptions
+# - view_billing
+# All tools filtered by patient email for privacy
+```
+
+### 6.2 Domain entity mapping
+
+Each vertical reuses the same DynamoDB tables with different semantics:
+
+| Healthcare Entity | DynamoDB Table | Insurance Equivalent | Retail Equivalent |
+|-------------------|----------------|---------------------|-------------------|
+| patient | CUSTOMERS_TABLE | customer | customer |
+| appointment | QUOTES_TABLE | quote | product |
+| medical_record | POLICIES_TABLE | policy | order |
+| prescription | CLAIMS_TABLE | claim | inventory |
+| billing | PAYMENTS_TABLE | payment | payment |
+| case | CASES_TABLE | case | case |
+
+### 6.3 Testing Lambda handlers locally
+
+Before deploying, test handler locally:
+```bash
+cd lambda/{vertical}
+python3 -c "import handler; print(handler.handler({'path': '/', 'httpMethod': 'GET'}, {}))"
+```
+
+## 7. CDK Infrastructure Stack
+
+**CRITICAL: Lambda handlers must exist (section 6) before CDK can deploy**
+
+### 7.1 Create vertical stack file
 
 Create `cdk/stacks/{vertical}_stack.py` following the pattern from `retail_stack.py`:
 
@@ -436,7 +652,7 @@ class HealthcareStack(Stack):
                 )
 ```
 
-### 6.2 Update CDK app.py
+### 7.2 Update CDK app.py
 
 Add healthcare to `cdk/app.py`:
 
@@ -458,7 +674,7 @@ if deploy_healthcare:
     )
 ```
 
-### 6.3 Key components in vertical stack
+### 7.3 Key components in vertical stack
 
 The `VerticalStack` (inherited) automatically creates:
 - **7 DynamoDB tables**: Patients, Appointments, Prescriptions, Providers, Cases, Conversations, Documents
@@ -467,7 +683,20 @@ The `VerticalStack` (inherited) automatically creates:
 - **S3 buckets**: UI bucket (website hosting) + documents bucket
 - **IAM roles**: Lambda execution roles with least-privilege access
 
-## 7. E2E Tests
+### 7.4 Update deploy-stack.sh
+
+Add vertical deployment block to `scripts/deploy-stack.sh`:
+
+```bash
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "healthcare" ]; then
+  echo "→ Deploying Healthcare Stack..."
+  cdk deploy "${BASE_STACK_NAME}-healthcare" --require-approval never
+  echo "✓ Healthcare stack deployed"
+  echo ""
+fi
+```
+
+## 8. E2E Tests
 
 **Update Landing Page Tests** (`tests/e2e/tests/test_landing_workflows.py`)
 
@@ -502,20 +731,40 @@ def test_landing_{vertical}_link(driver, landing_base_url):
 ## 8. File Checklist
 
 **Required files:**
+
+### UI Files
 - [ ] `ui-{vertical}/package.json` (with dependencies)
 - [ ] `ui-{vertical}/src/App.jsx`
 - [ ] `ui-{vertical}/src/pages/Landing/Landing.jsx`
 - [ ] `ui-{vertical}/src/components/common/ArchitectureViewer.jsx`
 - [ ] `ui-{vertical}/public/silvermoat-logo.png`
-- [ ] Update `scripts/generate-architecture-diagram.py`
-- [ ] Update `scripts/deploy-ui.sh`
-- [ ] Update `ui-landing/src/pages/Landing/Landing.jsx`
-- [ ] Update `ui-landing/src/components/common/ArchitectureViewer.jsx`
-- [ ] Update `.github/workflows/deploy-test.yml` (5 changes: detect-changes, deploy-infra, deploy-ui, cleanup-test, landing-ui)
-- [ ] Update `.github/workflows/deploy-production.yml` (6 changes: detect-changes, deploy-infra, configure-dns, deploy-ui, cleanup-test, landing-ui)
-- [ ] Update `tests/e2e/tests/test_landing_workflows.py`
+
+### Lambda Handler Files (CRITICAL - must exist before CDK)
+- [ ] `lambda/{vertical}/__init__.py`
+- [ ] `lambda/{vertical}/handler.py`
+- [ ] `lambda/{vertical}/entities.py`
+- [ ] `lambda/{vertical}/chatbot.py`
+- [ ] `lambda/{vertical}/customer_chatbot.py`
+
+### CDK Files
 - [ ] Create `cdk/stacks/{vertical}_stack.py`
 - [ ] Update `cdk/app.py` (add import, deploy variable, stack instantiation)
+
+### Scripts
+- [ ] Update `scripts/generate-architecture-diagram.py`
+- [ ] Update `scripts/deploy-ui.sh`
+- [ ] Update `scripts/deploy-stack.sh` (add vertical deployment block)
+
+### Main Landing
+- [ ] Update `ui-landing/src/pages/Landing/Landing.jsx`
+- [ ] Update `ui-landing/src/components/common/ArchitectureViewer.jsx`
+
+### Workflows
+- [ ] Update `.github/workflows/deploy-test.yml` (5 changes: detect-changes, deploy-infra, deploy-ui, cleanup-test, landing-ui)
+- [ ] Update `.github/workflows/deploy-production.yml` (6 changes: detect-changes, deploy-infra, configure-dns, deploy-ui, cleanup-test, landing-ui)
+
+### Tests
+- [ ] Update `tests/e2e/tests/test_landing_workflows.py`
 
 ## 9. Color Scheme Conventions
 
@@ -548,19 +797,41 @@ See existing insurance/retail stacks for patterns.
 4. **Update deployment**: Add healthcare block to `deploy-ui.sh` with bucket/API retrieval
 5. **Update main landing**: Add Healthcare card to grid with green theme
 6. **Update landing viewer**: Add 7 healthcare features, update database count (21 tables)
-7. **Create CDK stack**: Create `cdk/stacks/healthcare_stack.py` following retail pattern
-8. **Update CDK app**: Add healthcare import, deploy variable, and stack instantiation to `cdk/app.py`
-9. **Update test workflow**: Add detect-changes output, deploy-healthcare-infra, deploy-healthcare-ui, update cleanup-test matrix, update landing-ui dependencies
-10. **Update production workflow**: Same as test + add configure-healthcare-dns job
-11. **Update E2E tests**: Add healthcare to `test_landing_vertical_cards_visible()` and add `test_landing_healthcare_link()`
-12. **Deploy infrastructure**: Run `VERTICAL=healthcare ./scripts/deploy-stack.sh` to create AWS resources
-13. **Deploy UI**: Run `VERTICAL=healthcare ./scripts/deploy-ui.sh` to build and upload UI
+7. **Create Lambda handlers** (CRITICAL - before CDK):
+   - Create `lambda/healthcare/` directory
+   - Add `__init__.py`, `handler.py`, `entities.py`, `chatbot.py`, `customer_chatbot.py`
+   - Define healthcare entities (patient, appointment, medical_record, prescription, billing, case)
+   - Implement domain mapping to reuse DynamoDB tables
+8. **Create CDK stack**: Create `cdk/stacks/healthcare_stack.py` following retail pattern
+9. **Update CDK app**: Add healthcare import, deploy variable, and stack instantiation to `cdk/app.py`
+10. **Update deploy-stack.sh**: Add healthcare deployment block with `cdk deploy` command
+11. **Update test workflow**: Add detect-changes output, deploy-healthcare-infra, deploy-healthcare-ui, update cleanup-test matrix, update landing-ui dependencies
+12. **Update production workflow**: Same as test + add configure-healthcare-dns job
+13. **Update E2E tests**: Add healthcare to `test_landing_vertical_cards_visible()` and add `test_landing_healthcare_link()`
+14. **Deploy infrastructure**: Run `VERTICAL=healthcare ./scripts/deploy-stack.sh` to create AWS resources
+15. **Deploy UI**: Run `VERTICAL=healthcare ./scripts/deploy-ui.sh` to build and upload UI
 
 **Complete checklist reference**: See section 8 above.
 
-**Estimated effort:** 4-6 hours for UI and workflows (following this template). Infrastructure (CDK) adds 30-60 minutes.
+**Estimated effort:**
+- UI: 2-3 hours
+- Lambda handlers: 1-2 hours
+- CDK stack: 30-60 minutes
+- Workflows: 1-2 hours
+- **Total: 5-8 hours** (following this template)
 
 ## 12. Common Pitfalls
+
+### Missing Lambda handlers (CRITICAL)
+- **Problem**: `Cannot find asset at /path/to/lambda/{vertical}` during CDK deployment
+- **Root cause**: Lambda handler directory doesn't exist when CDK tries to package Lambda code
+- **Solution**: **ALWAYS create Lambda handlers BEFORE creating CDK stack** (Section 6 before Section 7)
+- **Files required**: `__init__.py`, `handler.py`, `entities.py`, `chatbot.py`, `customer_chatbot.py`
+
+### Missing deploy-stack.sh block
+- **Problem**: CDK stack exists but infrastructure never deploys in CI/CD
+- **Root cause**: `scripts/deploy-stack.sh` doesn't have deployment block for new vertical
+- **Solution**: Add `if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "{vertical}" ]; then cdk deploy ... fi` block
 
 ### Workflow dependency errors
 - **Problem**: `Job 'deploy-{vertical}-ui' depends on unknown job 'deploy-{vertical}-infra'`
