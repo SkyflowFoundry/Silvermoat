@@ -120,7 +120,7 @@ jobs:
         id: check
         uses: ./.github/actions/detect-changes
         with:
-          force_deploy: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.force_deploy == true) && 'true' || 'false' }}
+          force_deploy: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.force_deploy == 'true') && 'true' || 'false' }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
