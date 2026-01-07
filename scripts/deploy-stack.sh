@@ -24,7 +24,7 @@ export DOMAIN_NAME="${DOMAIN_NAME:-silvermoat.net}"
 export STACK_NAME="$BASE_STACK_NAME"
 
 # Determine which verticals to deploy
-VERTICAL="${VERTICAL:-all}"  # Can be: all, insurance, retail, landing
+VERTICAL="${VERTICAL:-all}"  # Can be: all, insurance, retail, healthcare, landing
 
 echo "Deploying Multi-Vertical CDK Stacks"
 echo "Parameters:"
@@ -69,6 +69,13 @@ if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "retail" ]; then
   echo "→ Deploying Retail Stack..."
   cdk deploy "${BASE_STACK_NAME}-retail" --require-approval never
   echo "✓ Retail stack deployed"
+  echo ""
+fi
+
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "healthcare" ]; then
+  echo "→ Deploying Healthcare Stack..."
+  cdk deploy "${BASE_STACK_NAME}-healthcare" --require-approval never
+  echo "✓ Healthcare stack deployed"
   echo ""
 fi
 
