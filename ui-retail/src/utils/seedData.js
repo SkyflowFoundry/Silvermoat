@@ -3,7 +3,7 @@
  * Creates realistic retail demo data (products, orders, inventory, etc.)
  */
 
-import { getApiBase } from '../services/api';
+import { getApiBaseUrl } from '../services/api';
 
 // Helper data for realistic retail demo generation
 const FIRST_NAMES = ['John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily', 'Robert', 'Jessica', 'William', 'Jennifer'];
@@ -42,7 +42,7 @@ const randomDateWithinDays = (days) => {
 
 // API helper functions
 const apiCall = async (endpoint, method = 'GET', body = null) => {
-  const apiBase = getApiBase();
+  const apiBase = getApiBaseUrl();
   const url = `${apiBase}${endpoint}`;
   const options = {
     method,
@@ -65,6 +65,23 @@ const createPayment = (data) => apiCall('/payment', 'POST', data);
 const createCase = (data) => apiCall('/case', 'POST', data);
 const deleteAllEntities = (entity) => apiCall(`/${entity}`, 'DELETE');
 
+// Parallel execution helper - batch API calls for performance
+const BATCH_SIZE = 10; // Number of concurrent requests (matches insurance Python script)
+const executeBatch = async (items, executor, onProgress, progressMessage, startStep, totalSteps) => {
+  const results = [];
+  let currentStep = startStep;
+
+  for (let i = 0; i < items.length; i += BATCH_SIZE) {
+    const batch = items.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(batch.map(item => executor(item)));
+    results.push(...batchResults);
+    currentStep += batch.length;
+    onProgress?.(progressMessage, currentStep, totalSteps);
+  }
+
+  return results;
+};
+
 /**
  * Seeds retail demo data
  * @param {Function} onProgress - Callback for progress updates (message, current, total)
@@ -84,14 +101,15 @@ export const seedRetailData = async (onProgress, count = 50) => {
   const totalSteps = count * 2.5; // Approximate steps
 
   try {
-    // Step 1: Create Products
+    // Step 1: Create Products (PARALLEL)
     onProgress?.('Creating demo products...', step, totalSteps);
+    const productDataList = [];
     for (let i = 0; i < count; i++) {
       const category = randomItem(PRODUCT_CATEGORIES);
       const productName = `${randomItem(PRODUCT_ADJECTIVES)} ${randomItem(PRODUCT_NOUNS)}`;
       const price = randomNumber(10, 500);
 
-      const productData = {
+      productDataList.push({
         sku: randomSKU(),
         name: productName,
         description: `High-quality ${productName.toLowerCase()} for ${category.toLowerCase()}`,
@@ -100,17 +118,24 @@ export const seedRetailData = async (onProgress, count = 50) => {
         stockQuantity: randomNumber(0, 500),
         manufacturer: randomItem(['BrandCo', 'TechCorp', 'QualityGoods', 'PremiumMfg']),
         weight: randomNumber(1, 50),
-      };
-
-      const product = await createProduct(productData);
-      results.products.push(product);
-      step++;
-      onProgress?.('Creating demo products...', step, totalSteps);
+      });
     }
 
-    // Step 2: Create Orders (with 30 orders for variety)
+    results.products = await executeBatch(
+      productDataList,
+      createProduct,
+      onProgress,
+      'Creating demo products...',
+      step,
+      totalSteps
+    );
+    step += count;
+
+    // Step 2: Create Orders (PARALLEL)
     onProgress?.('Creating demo orders...', step, totalSteps);
     const orderCount = Math.min(30, count);
+    const orderDataList = [];
+
     for (let i = 0; i < orderCount; i++) {
       const customerName = randomName();
       const numItems = randomNumber(1, 5);
@@ -133,7 +158,7 @@ export const seedRetailData = async (onProgress, count = 50) => {
         });
       }
 
-      const orderData = {
+      orderDataList.push({
         orderNumber: `ORD-${randomNumber(100000, 999999)}`,
         customerName,
         customerEmail: randomEmail(customerName),
@@ -143,21 +168,29 @@ export const seedRetailData = async (onProgress, count = 50) => {
         totalAmount,
         orderDate: randomDateWithinDays(90),
         status: randomItem(ORDER_STATUSES),
-      };
-
-      const order = await createOrder(orderData);
-      results.orders.push(order);
-      step++;
-      onProgress?.('Creating demo orders...', step, totalSteps);
+      });
     }
 
-    // Step 3: Create Inventory records for products
+    results.orders = await executeBatch(
+      orderDataList,
+      createOrder,
+      onProgress,
+      'Creating demo orders...',
+      step,
+      totalSteps
+    );
+    step += orderCount;
+
+    // Step 3: Create Inventory records (PARALLEL)
     onProgress?.('Creating inventory records...', step, totalSteps);
-    for (let i = 0; i < Math.min(count, results.products.length); i++) {
+    const inventoryCount = Math.min(count, results.products.length);
+    const inventoryDataList = [];
+
+    for (let i = 0; i < inventoryCount; i++) {
       const product = results.products[i];
       const quantity = product?.item?.data?.stockQuantity || randomNumber(0, 500);
 
-      const inventoryData = {
+      inventoryDataList.push({
         productId: product?.item?.id,
         productName: product?.item?.data?.name,
         sku: product?.item?.data?.sku,
@@ -165,45 +198,52 @@ export const seedRetailData = async (onProgress, count = 50) => {
         quantity,
         reorderPoint: randomNumber(10, 50),
         lastRestocked: randomDateWithinDays(30),
-      };
-
-      const inventory = await createInventory(inventoryData);
-      results.inventory.push(inventory);
-      step++;
-      onProgress?.('Creating inventory records...', step, totalSteps);
+      });
     }
 
-    // Step 4: Create Payments for orders
+    results.inventory = await executeBatch(
+      inventoryDataList,
+      createInventory,
+      onProgress,
+      'Creating inventory records...',
+      step,
+      totalSteps
+    );
+    step += inventoryCount;
+
+    // Step 4: Create Payments (PARALLEL)
     onProgress?.('Creating demo payments...', step, totalSteps);
-    for (let i = 0; i < results.orders.length; i++) {
-      const order = results.orders[i];
+    const paymentDataList = results.orders.map(order => ({
+      orderId: order?.item?.id,
+      orderNumber: order?.item?.data?.orderNumber,
+      amount: order?.item?.data?.totalAmount,
+      paymentMethod: randomItem(PAYMENT_METHODS),
+      transactionId: `TXN-${randomNumber(1000000, 9999999)}`,
+      paymentDate: order?.item?.data?.orderDate,
+    }));
 
-      const paymentData = {
-        orderId: order?.item?.id,
-        orderNumber: order?.item?.data?.orderNumber,
-        amount: order?.item?.data?.totalAmount,
-        paymentMethod: randomItem(PAYMENT_METHODS),
-        transactionId: `TXN-${randomNumber(1000000, 9999999)}`,
-        paymentDate: order?.item?.data?.orderDate,
-      };
+    results.payments = await executeBatch(
+      paymentDataList,
+      createPayment,
+      onProgress,
+      'Creating demo payments...',
+      step,
+      totalSteps
+    );
+    step += paymentDataList.length;
 
-      const payment = await createPayment(paymentData);
-      results.payments.push(payment);
-      step++;
-      onProgress?.('Creating demo payments...', step, totalSteps);
-    }
-
-    // Step 5: Create Support Cases
+    // Step 5: Create Support Cases (PARALLEL)
     onProgress?.('Creating support cases...', step, totalSteps);
     const caseTopics = ['ORDER_INQUIRY', 'PRODUCT_DEFECT', 'SHIPPING_DELAY', 'REFUND_REQUEST', 'PRODUCT_QUESTION'];
     const casePriorities = ['LOW', 'MEDIUM', 'HIGH'];
     const caseCount = Math.min(15, count);
+    const caseDataList = [];
 
     for (let i = 0; i < caseCount; i++) {
       const customerName = randomName();
       const topic = randomItem(caseTopics);
 
-      const caseData = {
+      caseDataList.push({
         title: `${topic.replace('_', ' ')} - ${customerName}`,
         description: `Customer ${customerName} has reported an issue regarding ${topic.toLowerCase().replace('_', ' ')}.`,
         customerName,
@@ -212,13 +252,18 @@ export const seedRetailData = async (onProgress, count = 50) => {
         priority: randomItem(casePriorities),
         assignee: randomItem(['Support Team', 'Sales Team', 'Fulfillment']),
         createdDate: randomDateWithinDays(60),
-      };
-
-      const supportCase = await createCase(caseData);
-      results.cases.push(supportCase);
-      step++;
-      onProgress?.('Creating support cases...', step, totalSteps);
+      });
     }
+
+    results.cases = await executeBatch(
+      caseDataList,
+      createCase,
+      onProgress,
+      'Creating support cases...',
+      step,
+      totalSteps
+    );
+    step += caseCount;
 
     onProgress?.('Seeding complete!', totalSteps, totalSteps);
     return results;

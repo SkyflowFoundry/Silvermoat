@@ -39,6 +39,9 @@ jobs:
       ui_changed: ${{ steps.filter.outputs.ui }}
       tests_changed: ${{ steps.filter.outputs.tests }}
       base_stack_name: ${{ steps.stack-name.outputs.base_stack_name }}
+      insurance_stack_exists: ${{ steps.check-stacks.outputs.insurance_exists }}
+      retail_stack_exists: ${{ steps.check-stacks.outputs.retail_exists }}
+      landing_stack_exists: ${{ steps.check-stacks.outputs.landing_exists }}
     steps:
       - name: Post workflow start comment
         if: github.event.pull_request.number
@@ -87,6 +90,44 @@ jobs:
           echo "base_stack_name=${BASE_STACK_NAME}" >> $GITHUB_OUTPUT
           echo "Base stack name: ${BASE_STACK_NAME}"
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Check if stacks exist
+        id: check-stacks
+        run: |
+          BASE_STACK_NAME="${{ steps.stack-name.outputs.base_stack_name }}"
+
+          # Check insurance stack
+          if aws cloudformation describe-stacks --stack-name "${BASE_STACK_NAME}-insurance" >/dev/null 2>&1; then
+            echo "insurance_exists=true" >> $GITHUB_OUTPUT
+            echo "Insurance stack exists: ${BASE_STACK_NAME}-insurance"
+          else
+            echo "insurance_exists=false" >> $GITHUB_OUTPUT
+            echo "Insurance stack does not exist: ${BASE_STACK_NAME}-insurance"
+          fi
+
+          # Check retail stack
+          if aws cloudformation describe-stacks --stack-name "${BASE_STACK_NAME}-retail" >/dev/null 2>&1; then
+            echo "retail_exists=true" >> $GITHUB_OUTPUT
+            echo "Retail stack exists: ${BASE_STACK_NAME}-retail"
+          else
+            echo "retail_exists=false" >> $GITHUB_OUTPUT
+            echo "Retail stack does not exist: ${BASE_STACK_NAME}-retail"
+          fi
+
+          # Check landing stack
+          if aws cloudformation describe-stacks --stack-name "${BASE_STACK_NAME}-landing" >/dev/null 2>&1; then
+            echo "landing_exists=true" >> $GITHUB_OUTPUT
+            echo "Landing stack exists: ${BASE_STACK_NAME}-landing"
+          else
+            echo "landing_exists=false" >> $GITHUB_OUTPUT
+            echo "Landing stack does not exist: ${BASE_STACK_NAME}-landing"
+          fi
+
   # ========================================
   # Insurance Vertical Pipeline
   # ========================================
@@ -96,6 +137,7 @@ jobs:
     needs: [detect-changes]
     if: |
       needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+      needs.detect-changes.outputs.landing_stack_exists == 'false' ||
       inputs.force_deploy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -207,6 +249,7 @@ jobs:
     needs: [detect-changes]
     if: |
       needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+      needs.detect-changes.outputs.insurance_stack_exists == 'false' ||
       inputs.force_deploy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -349,6 +392,7 @@ jobs:
     needs: [detect-changes]
     if: |
       needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+      needs.detect-changes.outputs.retail_stack_exists == 'false' ||
       inputs.force_deploy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15

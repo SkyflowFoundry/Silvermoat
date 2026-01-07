@@ -14,12 +14,6 @@ if not API_BASE_URL:
     print("Error: API_BASE_URL environment variable not set", file=sys.stderr)
     sys.exit(1)
 
-# Retail vertical uses UI-based seeding (JavaScript in ui-retail/src/utils/seedData.js)
-if VERTICAL == 'retail':
-    print(f"✓ Retail seeding skipped - use Dashboard UI for retail demo data")
-    print(f"  (UI-based seeding provides retail-specific entities: products, orders, inventory)")
-    sys.exit(0)
-
 fake = Faker()
 
 # Parallel execution configuration
@@ -29,6 +23,8 @@ MAX_WORKERS = 10  # Number of concurrent API requests
 customers = []
 quotes = []
 policies = []
+products = []
+orders = []
 
 def create_customer(index):
     """Create a single customer and return data."""
@@ -369,30 +365,278 @@ def seed_cases(count=50):
 
     print(f"✓ Created {count} cases")
 
+# ========================================
+# Retail Vertical Seeding Functions
+# ========================================
+
+def create_product(index):
+    """Create a single product."""
+    categories = ['Electronics', 'Apparel', 'Home & Garden', 'Sports & Outdoors',
+                  'Books', 'Toys & Games', 'Health & Beauty', 'Automotive']
+    adjectives = ['Premium', 'Deluxe', 'Classic', 'Modern', 'Eco-Friendly', 'Smart', 'Pro', 'Essential']
+    nouns = ['Widget', 'Gadget', 'Tool', 'Device', 'Kit', 'Set', 'System', 'Solution']
+
+    category = fake.random_element(categories)
+    product_name = f"{fake.random_element(adjectives)} {fake.random_element(nouns)}"
+
+    data = {
+        "sku": f"SKU-{fake.random_int(10000, 99999)}",
+        "name": product_name,
+        "description": f"High-quality {product_name.lower()} for {category.lower()}",
+        "price": fake.random_int(10, 500),
+        "category": category,
+        "stockQuantity": fake.random_int(0, 500),
+        "manufacturer": fake.random_element(['BrandCo', 'TechCorp', 'QualityGoods', 'PremiumMfg']),
+        "weight": fake.random_int(1, 50)
+    }
+
+    response = requests.post(f"{API_BASE_URL}/product", json=data, timeout=30)
+    response.raise_for_status()
+
+    product_id = response.json()['id']
+    return {
+        "id": product_id,
+        "name": data["name"],
+        "sku": data["sku"],
+        "price": data["price"]
+    }
+
+def seed_products(count=50):
+    """Seed product records in parallel."""
+    print(f"Seeding {count} products...")
+
+    completed = 0
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(create_product, i) for i in range(count)]
+
+        for future in as_completed(futures):
+            product = future.result()
+            products.append(product)
+            completed += 1
+
+            if completed % 25 == 0:
+                print(f"  Created {completed}/{count} products")
+
+    print(f"✓ Created {count} products")
+
+def create_order(product_list):
+    """Create a single order with items."""
+    customer_name = fake.name()
+    num_items = fake.random_int(1, 5)
+    order_items = []
+    total_amount = 0
+
+    for _ in range(num_items):
+        product = fake.random_element(product_list)
+        quantity = fake.random_int(1, 3)
+        item_total = product["price"] * quantity
+        total_amount += item_total
+
+        order_items.append({
+            "productId": product["id"],
+            "productName": product["name"],
+            "quantity": quantity,
+            "price": product["price"],
+            "total": item_total
+        })
+
+    data = {
+        "orderNumber": f"ORD-{fake.random_int(100000, 999999)}",
+        "customerName": customer_name,
+        "customerEmail": fake.email(),
+        "customerPhone": fake.phone_number(),
+        "shippingAddress": fake.address().replace('\n', ', '),
+        "items": order_items,
+        "totalAmount": total_amount,
+        "orderDate": fake.date_between(start_date='-90d', end_date='today').isoformat(),
+        "status": fake.random_element(['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED'])
+    }
+
+    response = requests.post(f"{API_BASE_URL}/order", json=data, timeout=30)
+    response.raise_for_status()
+
+    order_id = response.json()['id']
+    return {
+        "id": order_id,
+        "orderNumber": data["orderNumber"],
+        "totalAmount": total_amount,
+        "orderDate": data["orderDate"]
+    }
+
+def seed_orders(count=30):
+    """Seed order records in parallel."""
+    print(f"Seeding {count} orders...")
+
+    completed = 0
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(create_order, products) for _ in range(count)]
+
+        for future in as_completed(futures):
+            order = future.result()
+            orders.append(order)
+            completed += 1
+
+            if completed % 25 == 0:
+                print(f"  Created {completed}/{count} orders")
+
+    print(f"✓ Created {count} orders")
+
+def create_inventory(product):
+    """Create a single inventory record for a product."""
+    warehouses = ['NYC-01', 'LA-02', 'CHI-03', 'DAL-04', 'ATL-05']
+
+    data = {
+        "productId": product["id"],
+        "productName": product["name"],
+        "sku": product["sku"],
+        "location": fake.random_element(warehouses),
+        "quantity": fake.random_int(0, 500),
+        "reorderPoint": fake.random_int(10, 50),
+        "lastRestocked": fake.date_between(start_date='-30d', end_date='today').isoformat()
+    }
+
+    response = requests.post(f"{API_BASE_URL}/inventory", json=data, timeout=30)
+    response.raise_for_status()
+    return response.json()['id']
+
+def seed_inventory(count=50):
+    """Seed inventory records in parallel."""
+    print(f"Seeding {count} inventory records...")
+
+    product_list = products[:count]
+    completed = 0
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(create_inventory, product) for product in product_list]
+
+        for future in as_completed(futures):
+            future.result()
+            completed += 1
+
+            if completed % 25 == 0:
+                print(f"  Created {completed}/{count} inventory records")
+
+    print(f"✓ Created {count} inventory records")
+
+def create_retail_payment(order):
+    """Create a single payment for an order."""
+    payment_methods = ['CREDIT_CARD', 'DEBIT_CARD', 'PAYPAL', 'GIFT_CARD']
+
+    data = {
+        "orderId": order["id"],
+        "orderNumber": order["orderNumber"],
+        "amount": order["totalAmount"],
+        "paymentMethod": fake.random_element(payment_methods),
+        "transactionId": f"TXN-{fake.random_int(1000000, 9999999)}",
+        "paymentDate": order["orderDate"]
+    }
+
+    response = requests.post(f"{API_BASE_URL}/payment", json=data, timeout=30)
+    response.raise_for_status()
+    return response.json()['id']
+
+def seed_retail_payments(count):
+    """Seed payment records for orders in parallel."""
+    print(f"Seeding {count} payments...")
+
+    order_list = orders[:count]
+    completed = 0
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(create_retail_payment, order) for order in order_list]
+
+        for future in as_completed(futures):
+            future.result()
+            completed += 1
+
+            if completed % 25 == 0:
+                print(f"  Created {completed}/{count} payments")
+
+    print(f"✓ Created {count} payments")
+
+def create_retail_case(index):
+    """Create a single support case."""
+    topics = ['ORDER_INQUIRY', 'PRODUCT_DEFECT', 'SHIPPING_DELAY', 'REFUND_REQUEST', 'PRODUCT_QUESTION']
+    priorities = ['LOW', 'MEDIUM', 'HIGH']
+    assignees = ['Support Team', 'Sales Team', 'Fulfillment']
+
+    customer_name = fake.name()
+    topic = fake.random_element(topics)
+
+    data = {
+        "title": f"{topic.replace('_', ' ')} - {customer_name}",
+        "description": f"Customer {customer_name} has reported an issue regarding {topic.lower().replace('_', ' ')}.",
+        "customerName": customer_name,
+        "customerEmail": fake.email(),
+        "topic": topic,
+        "priority": fake.random_element(priorities),
+        "assignee": fake.random_element(assignees),
+        "createdDate": fake.date_between(start_date='-60d', end_date='today').isoformat()
+    }
+
+    response = requests.post(f"{API_BASE_URL}/case", json=data, timeout=30)
+    response.raise_for_status()
+    return response.json()['id']
+
+def seed_retail_cases(count=15):
+    """Seed support case records in parallel."""
+    print(f"Seeding {count} support cases...")
+
+    completed = 0
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(create_retail_case, i) for i in range(count)]
+
+        for future in as_completed(futures):
+            future.result()
+            completed += 1
+
+            if completed % 25 == 0:
+                print(f"  Created {completed}/{count} cases")
+
+    print(f"✓ Created {count} cases")
+
 if __name__ == "__main__":
     try:
-        print(f"Seeding demo data to {API_BASE_URL}\n")
+        print(f"Seeding {VERTICAL} demo data to {API_BASE_URL}\n")
 
-        # Seed customers first
-        seed_customers(50)
-        print()
+        if VERTICAL == 'retail':
+            # Retail seeding
+            seed_products(50)
+            print()
+            seed_orders(30)
+            seed_inventory(50)
+            seed_retail_payments(30)
+            seed_retail_cases(15)
 
-        # Seed resources with realistic relationships
-        # Note: Each customer guaranteed at least 1 of each resource type
-        seed_quotes(150)
-        seed_policies(90)
-        seed_claims(50)
-        seed_payments(270)
-        seed_cases(50)
+            total = 50 + 30 + 50 + 30 + 15
+            print(f"\n✓ Retail seeding complete: {total} items created")
+            print(f"  - 50 products")
+            print(f"  - 30 orders")
+            print(f"  - 50 inventory records")
+            print(f"  - 30 payments")
+            print(f"  - 15 support cases")
 
-        total = 50 + 150 + 90 + 50 + 270 + 50
-        print(f"\n✓ Seeding complete: {total} items created")
-        print(f"  - 50 customers")
-        print(f"  - 150 quotes (each customer has 1-5)")
-        print(f"  - 90 policies (each customer has 1-3)")
-        print(f"  - 50 claims (each customer has 1+)")
-        print(f"  - 270 payments (each customer has 1+)")
-        print(f"  - 50 cases (each customer has 1+)")
+        else:
+            # Insurance seeding
+            seed_customers(50)
+            print()
+
+            # Seed resources with realistic relationships
+            # Note: Each customer guaranteed at least 1 of each resource type
+            seed_quotes(150)
+            seed_policies(90)
+            seed_claims(50)
+            seed_payments(270)
+            seed_cases(50)
+
+            total = 50 + 150 + 90 + 50 + 270 + 50
+            print(f"\n✓ Insurance seeding complete: {total} items created")
+            print(f"  - 50 customers")
+            print(f"  - 150 quotes (each customer has 1-5)")
+            print(f"  - 90 policies (each customer has 1-3)")
+            print(f"  - 50 claims (each customer has 1+)")
+            print(f"  - 270 payments (each customer has 1+)")
+            print(f"  - 50 cases (each customer has 1+)")
 
     except requests.exceptions.RequestException as e:
         print(f"\n✗ Seeding failed: {e}", file=sys.stderr)

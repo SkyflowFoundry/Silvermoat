@@ -4,21 +4,29 @@
  */
 
 import { useState } from 'react';
-import { Typography, Card, Space, Button, Modal, Progress, message, InputNumber, Result } from 'antd';
+import { Typography, Card, Space, Button, Modal, Progress, message, InputNumber, Result, Row, Col, Statistic, Spin } from 'antd';
 import {
   ThunderboltOutlined,
   DeleteOutlined,
   ShoppingOutlined,
-  ShopOutlined,
+  ShoppingCartOutlined,
   InboxOutlined,
   DollarOutlined,
   CustomerServiceOutlined,
+  ArrowRightOutlined,
 } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { seedRetailData, clearRetailData } from '../utils/seedData';
+import { useProducts } from '../hooks/queries/useProducts';
+import { useOrders } from '../hooks/queries/useOrders';
+import { useInventory } from '../hooks/queries/useInventory';
+import { usePayments } from '../hooks/queries/usePayments';
+import { useCases } from '../hooks/queries/useCases';
 
 const { Title, Paragraph, Text } = Typography;
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const [seedModalVisible, setSeedModalVisible] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [seedProgress, setSeedProgress] = useState({ message: '', current: 0, total: 0 });
@@ -26,6 +34,15 @@ const Dashboard = () => {
   const [clearModalVisible, setClearModalVisible] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [clearProgress, setClearProgress] = useState({ message: '', current: 0, total: 0 });
+
+  // Fetch entity data for stats
+  const { data: productsData, isLoading: productsLoading } = useProducts();
+  const { data: ordersData, isLoading: ordersLoading } = useOrders();
+  const { data: inventoryData, isLoading: inventoryLoading } = useInventory();
+  const { data: paymentsData, isLoading: paymentsLoading } = usePayments();
+  const { data: casesData, isLoading: casesLoading } = useCases();
+
+  const isLoadingStats = productsLoading || ordersLoading || inventoryLoading || paymentsLoading || casesLoading;
 
   const handleSeedData = async () => {
     setSeeding(true);
@@ -79,31 +96,51 @@ const Dashboard = () => {
     }
   };
 
-  const quickStats = [
+  const entityCards = [
     {
-      label: 'Products',
-      icon: <ShoppingOutlined style={{ fontSize: 32, color: '#722ed1' }} />,
-      description: 'Product catalog',
+      title: 'Products',
+      path: '/products',
+      icon: ShoppingOutlined,
+      color: '#531dab',
+      background: '#f0f5ff',
+      count: productsData?.items?.length || 0,
+      description: 'Manage product catalog',
     },
     {
-      label: 'Orders',
-      icon: <ShopOutlined style={{ fontSize: 32, color: '#52c41a' }} />,
-      description: 'Customer orders',
+      title: 'Orders',
+      path: '/orders',
+      icon: ShoppingCartOutlined,
+      color: '#52c41a',
+      background: '#f6ffed',
+      count: ordersData?.items?.length || 0,
+      description: 'Track customer orders',
     },
     {
-      label: 'Inventory',
-      icon: <InboxOutlined style={{ fontSize: 32, color: '#1890ff' }} />,
-      description: 'Stock levels',
+      title: 'Inventory',
+      path: '/inventory',
+      icon: InboxOutlined,
+      color: '#1890ff',
+      background: '#e6f7ff',
+      count: inventoryData?.items?.length || 0,
+      description: 'Monitor stock levels',
     },
     {
-      label: 'Payments',
-      icon: <DollarOutlined style={{ fontSize: 32, color: '#faad14' }} />,
-      description: 'Payment records',
+      title: 'Payments',
+      path: '/payments',
+      icon: DollarOutlined,
+      color: '#faad14',
+      background: '#fffbe6',
+      count: paymentsData?.items?.length || 0,
+      description: 'View payment records',
     },
     {
-      label: 'Cases',
-      icon: <CustomerServiceOutlined style={{ fontSize: 32, color: '#f5222d' }} />,
-      description: 'Support cases',
+      title: 'Cases',
+      path: '/cases',
+      icon: CustomerServiceOutlined,
+      color: '#ff4d4f',
+      background: '#fff1f0',
+      count: casesData?.items?.length || 0,
+      description: 'Manage support cases',
     },
   ];
 
@@ -153,26 +190,43 @@ const Dashboard = () => {
         </Paragraph>
       </Card>
 
-      {/* Retail Entity Overview */}
-      <Card title="Retail Entities">
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          {quickStats.map((stat) => (
-            <Card
-              key={stat.label}
-              size="small"
-              style={{ background: '#fafafa' }}
-            >
-              <Space>
-                {stat.icon}
-                <div>
-                  <Text strong>{stat.label}</Text>
-                  <br />
-                  <Text type="secondary">{stat.description}</Text>
-                </div>
-              </Space>
-            </Card>
-          ))}
-        </Space>
+      {/* Entity Quick Navigation */}
+      <Card title="Quick Navigation">
+        {isLoadingStats ? (
+          <div style={{ textAlign: 'center', padding: '48px' }}>
+            <Spin size="large" tip="Loading stats..." />
+          </div>
+        ) : (
+          <Row gutter={[16, 16]}>
+            {entityCards.map((entity) => {
+              const IconComponent = entity.icon;
+              return (
+                <Col xs={24} sm={12} md={8} lg={8} xl={8} key={entity.title}>
+                  <Card
+                    hoverable
+                    style={{ background: entity.background, cursor: 'pointer' }}
+                    onClick={() => navigate(entity.path)}
+                  >
+                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                      <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                        <IconComponent style={{ fontSize: 32, color: entity.color }} />
+                        <ArrowRightOutlined style={{ color: entity.color }} />
+                      </Space>
+                      <Statistic
+                        title={entity.title}
+                        value={entity.count}
+                        valueStyle={{ color: entity.color, fontSize: 24 }}
+                      />
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {entity.description}
+                      </Text>
+                    </Space>
+                  </Card>
+                </Col>
+              );
+            })}
+          </Row>
+        )}
       </Card>
 
       {/* Seed Data Modal */}
