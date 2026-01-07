@@ -1,0 +1,48 @@
+name: Run E2E Tests
+description: Run E2E tests for a specific vertical with Selenium/Chrome
+
+inputs:
+  vertical:
+    description: 'Vertical name (insurance/retail/landing)'
+    required: true
+  web-url:
+    description: 'Web URL for the vertical'
+    required: true
+  api-url:
+    description: 'API URL for the vertical (not required for landing)'
+    required: false
+  aws-role-arn:
+    description: 'AWS IAM role ARN for authentication'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup environment
+      uses: ./.github/actions/setup-env
+
+    - name: Install Python dependencies
+      shell: bash
+      run: pip install -r requirements-test.txt
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.aws-role-arn }}
+        aws-region: us-east-1
+
+    - name: Install Chrome and ChromeDriver
+      uses: browser-actions/setup-chrome@v1
+
+    - name: Run E2E tests
+      shell: bash
+      env:
+        INSURANCE_URL: ${{ inputs.vertical == 'insurance' && inputs.web-url || '' }}
+        INSURANCE_API_URL: ${{ inputs.vertical == 'insurance' && inputs.api-url || '' }}
+        RETAIL_URL: ${{ inputs.vertical == 'retail' && inputs.web-url || '' }}
+        RETAIL_API_URL: ${{ inputs.vertical == 'retail' && inputs.api-url || '' }}
+        LANDING_URL: ${{ inputs.vertical == 'landing' && inputs.web-url || '' }}
+        HEADLESS: 'true'
+      run: |
+        cd tests/e2e
+        pytest -v --tb=short -m "${{ inputs.vertical }}"

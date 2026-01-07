@@ -47,7 +47,9 @@ class VerticalStack(Construct):
         table_config = {
             "billing_mode": dynamodb.BillingMode.PAY_PER_REQUEST,
             "removal_policy": RemovalPolicy.DESTROY,  # For demo - use RETAIN in prod
-            "point_in_time_recovery": False,  # Enable in prod
+            "point_in_time_recovery_specification": dynamodb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=False  # Enable in prod
+            ),
         }
 
         # Customer table (shared schema across verticals)

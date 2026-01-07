@@ -168,67 +168,12 @@ jobs:
   # Insurance Vertical Pipeline
   # ========================================
 
-  deploy-certificate:
-    name: Deploy Shared Certificate
+  deploy-insurance-infra:
+    name: Deploy Insurance Infra
     needs: [detect-changes]
     if: |
       always() &&
       needs.detect-changes.result == 'success' &&
-      needs.detect-changes.outputs.infrastructure_changed == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    outputs:
-      stack_name: ${{ steps.deploy.outputs.stack_name }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: requirements-test.txt
-
-      - name: Install dependencies
-        uses: ./.github/actions/install-deps
-        with:
-          install-ui: 'false'
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Setup AWS CDK
-        uses: ./.github/actions/setup-aws-cdk
-
-      - name: Bootstrap CDK
-        uses: ./.github/actions/bootstrap-cdk
-
-      - name: Deploy shared certificate stack
-        id: deploy
-        env:
-          STACK_NAME: silvermoat
-          VERTICAL: certificate
-          STAGE_NAME: prod
-          CREATE_CLOUDFRONT: true
-          DOMAIN_NAME: silvermoat.net
-        run: |
-          echo "Deploying shared certificate stack: silvermoat-certificate"
-          chmod +x scripts/deploy-stack.sh
-          ./scripts/deploy-stack.sh
-          echo "stack_name=silvermoat-certificate" >> $GITHUB_OUTPUT
-
-  deploy-insurance-infra:
-    name: Deploy Insurance Infra
-    needs: [detect-changes, deploy-certificate]
-    if: |
-      always() &&
-      needs.detect-changes.result == 'success' &&
-      (needs.deploy-certificate.result == 'success' || needs.deploy-certificate.result == 'skipped') &&
       (needs.detect-changes.outputs.infrastructure_changed == 'true' ||
        needs.detect-changes.outputs.insurance_stack_exists == 'false')
     runs-on: ubuntu-latest
@@ -280,11 +225,10 @@ jobs:
 
   deploy-retail-infra:
     name: Deploy Retail Infra
-    needs: [detect-changes, deploy-certificate]
+    needs: [detect-changes]
     if: |
       always() &&
       needs.detect-changes.result == 'success' &&
-      (needs.deploy-certificate.result == 'success' || needs.deploy-certificate.result == 'skipped') &&
       (needs.detect-changes.outputs.infrastructure_changed == 'true' ||
        needs.detect-changes.outputs.retail_stack_exists == 'false')
     runs-on: ubuntu-latest
@@ -336,11 +280,10 @@ jobs:
 
   deploy-landing-infra:
     name: Deploy Landing Infra
-    needs: [detect-changes, deploy-certificate]
+    needs: [detect-changes]
     if: |
       always() &&
       needs.detect-changes.result == 'success' &&
-      (needs.deploy-certificate.result == 'success' || needs.deploy-certificate.result == 'skipped') &&
       needs.detect-changes.outputs.infrastructure_changed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -818,27 +761,61 @@ jobs:
           echo "Custom Domain URL: ${CUSTOM_URL}"
 
   # ========================================
-  # E2E Tests
+  # E2E Tests (Verticalized)
   # ========================================
 
-  tests:
-    name: E2E Tests
-    needs: [deploy-insurance-ui, deploy-retail-ui, deploy-landing-ui]
-    if: |
-      always() &&
-      needs.deploy-insurance-ui.result == 'success' &&
-      needs.deploy-retail-ui.result == 'success' &&
-      needs.deploy-landing-ui.result == 'success'
-    uses: ./.github/workflows/test-suite.yml
-    with:
-      insurance_api_url: ${{ needs.deploy-insurance-ui.outputs.api_url }}
-      insurance_web_url: ${{ needs.deploy-insurance-ui.outputs.web_url }}
-      retail_api_url: ${{ needs.deploy-retail-ui.outputs.api_url }}
-      retail_web_url: ${{ needs.deploy-retail-ui.outputs.web_url }}
-      landing_web_url: ${{ needs.deploy-landing-ui.outputs.web_url }}
-      environment: 'production'
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+  insurance-tests:
+    name: Insurance E2E Tests
+    needs: [deploy-insurance-ui]
+    if: always() && needs.deploy-insurance-ui.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run insurance E2E tests
+        uses: ./.github/actions/run-e2e-tests
+        with:
+          vertical: insurance
+          web-url: ${{ needs.deploy-insurance-ui.outputs.web_url }}
+          api-url: ${{ needs.deploy-insurance-ui.outputs.api_url }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
+  retail-tests:
+    name: Retail E2E Tests
+    needs: [deploy-retail-ui]
+    if: always() && needs.deploy-retail-ui.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run retail E2E tests
+        uses: ./.github/actions/run-e2e-tests
+        with:
+          vertical: retail
+          web-url: ${{ needs.deploy-retail-ui.outputs.web_url }}
+          api-url: ${{ needs.deploy-retail-ui.outputs.api_url }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
+  landing-tests:
+    name: Landing E2E Tests
+    needs: [deploy-landing-ui]
+    if: always() && needs.deploy-landing-ui.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run landing E2E tests
+        uses: ./.github/actions/run-e2e-tests
+        with:
+          vertical: landing
+          web-url: ${{ needs.deploy-landing-ui.outputs.web_url }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
 
   # ========================================
   # Demo Data Seeding
@@ -846,11 +823,11 @@ jobs:
 
   seed-insurance-data:
     name: Seed Insurance Data
-    needs: [deploy-insurance-ui, tests]
+    needs: [deploy-insurance-ui, insurance-tests]
     if: |
       always() &&
       needs.deploy-insurance-ui.result == 'success' &&
-      (needs.tests.result == 'success' || needs.tests.result == 'skipped')
+      (needs.insurance-tests.result == 'success' || needs.insurance-tests.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -866,11 +843,11 @@ jobs:
 
   seed-retail-data:
     name: Seed Retail Data
-    needs: [deploy-retail-ui, tests]
+    needs: [deploy-retail-ui, retail-tests]
     if: |
       always() &&
       needs.deploy-retail-ui.result == 'success' &&
-      (needs.tests.result == 'success' || needs.tests.result == 'skipped')
+      (needs.retail-tests.result == 'success' || needs.retail-tests.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -894,7 +871,9 @@ jobs:
       deploy-insurance-ui,
       deploy-retail-ui,
       deploy-landing-ui,
-      tests,
+      insurance-tests,
+      retail-tests,
+      landing-tests,
       seed-insurance-data,
       seed-retail-data
     ]
@@ -925,7 +904,12 @@ jobs:
           echo "  UI: ${{ needs.deploy-landing-ui.result }}"
           echo "  Web: ${{ needs.deploy-landing-ui.outputs.web_url }}"
           echo ""
-          echo "Tests: ${{ needs.tests.result }}"
-          echo "Insurance Data: ${{ needs.seed-insurance-data.result }}"
-          echo "Retail Data: ${{ needs.seed-retail-data.result }}"
+          echo "🧪 E2E Tests:"
+          echo "  Insurance: ${{ needs.insurance-tests.result }}"
+          echo "  Retail: ${{ needs.retail-tests.result }}"
+          echo "  Landing: ${{ needs.landing-tests.result }}"
+          echo ""
+          echo "🌱 Data Seeding:"
+          echo "  Insurance: ${{ needs.seed-insurance-data.result }}"
+          echo "  Retail: ${{ needs.seed-retail-data.result }}"
           echo "========================================="
