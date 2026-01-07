@@ -27,10 +27,11 @@ const getVerticalUrls = () => {
   const retailUrl = import.meta.env.VITE_RETAIL_URL;
   const healthcareUrl = import.meta.env.VITE_HEALTHCARE_URL;
 
-  // In production builds, URLs must be explicitly provided
-  if (import.meta.env.PROD && (!insuranceUrl || !retailUrl || !healthcareUrl)) {
+  // In production builds, insurance and retail URLs must be explicitly provided
+  // Healthcare is optional (may not have infrastructure deployed yet)
+  if (import.meta.env.PROD && (!insuranceUrl || !retailUrl)) {
     throw new Error(
-      'VITE_INSURANCE_URL, VITE_RETAIL_URL, and VITE_HEALTHCARE_URL must be set for production builds. ' +
+      'VITE_INSURANCE_URL and VITE_RETAIL_URL must be set for production builds. ' +
       'These should be passed during build via deploy-ui.sh script.'
     );
   }

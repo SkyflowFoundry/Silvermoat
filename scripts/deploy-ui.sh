@@ -238,9 +238,10 @@ fi
 
 # Deploy Landing UI
 if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "landing" ]; then
-  # Get insurance and retail WebUrls for landing page links
+  # Get insurance, retail, and healthcare WebUrls for landing page links
   INSURANCE_WEB_URL=""
   RETAIL_WEB_URL=""
+  HEALTHCARE_WEB_URL=""
 
   # Fetch insurance URL if stack exists (prefer CustomDomainUrl over WebUrl)
   if aws cloudformation describe-stacks --stack-name "${BASE_STACK_NAME}-insurance" &>/dev/null; then
@@ -276,9 +277,27 @@ if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "landing" ]; then
     fi
   fi
 
+  # Fetch healthcare URL if stack exists (prefer CustomDomainUrl over WebUrl)
+  if aws cloudformation describe-stacks --stack-name "${BASE_STACK_NAME}-healthcare" &>/dev/null; then
+    # Try CustomDomainUrl first (DNS name like healthcare.silvermoat.net)
+    HEALTHCARE_WEB_URL=$(aws cloudformation describe-stacks \
+      --stack-name "${BASE_STACK_NAME}-healthcare" \
+      --query 'Stacks[0].Outputs[?OutputKey==`CustomDomainUrl`].OutputValue' \
+      --output text 2>/dev/null || echo "")
+
+    # Fallback to WebUrl if CustomDomainUrl not available (CloudFront or S3 URL)
+    if [ -z "$HEALTHCARE_WEB_URL" ]; then
+      HEALTHCARE_WEB_URL=$(aws cloudformation describe-stacks \
+        --stack-name "${BASE_STACK_NAME}-healthcare" \
+        --query 'Stacks[0].Outputs[?OutputKey==`WebUrl`].OutputValue' \
+        --output text 2>/dev/null || echo "")
+    fi
+  fi
+
   # Export as environment variables for Vite build
   export VITE_INSURANCE_URL="$INSURANCE_WEB_URL"
   export VITE_RETAIL_URL="$RETAIL_WEB_URL"
+  export VITE_HEALTHCARE_URL="$HEALTHCARE_WEB_URL"
 
   deploy_vertical_ui "Landing" "$PROJECT_ROOT/ui-landing" "$LANDING_BUCKET" ""
 
