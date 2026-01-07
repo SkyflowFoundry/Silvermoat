@@ -497,11 +497,138 @@ def generate_retail_only_data_flow_diagram():
         ret_ai_fn >> bedrock
 
 
+def generate_healthcare_only_architecture_diagram():
+    """Generate healthcare-only AWS architecture diagram."""
+
+    graph_attr = {
+        "fontsize": "14",
+        "bgcolor": "white",
+        "pad": "1.0",
+        "ranksep": "1.5",
+        "nodesep": "1.0",
+        "splines": "ortho",
+    }
+
+    with Diagram(
+        "Silvermoat Healthcare AWS Architecture",
+        filename="docs/architecture-healthcare",
+        show=False,
+        direction="TB",
+        graph_attr=graph_attr,
+        outformat="png"
+    ):
+        # DNS Layer
+        with Cluster("DNS Management"):
+            cloudflare = Cloudflare("Cloudflare\nhealthcare.silvermoat.net")
+
+        # Healthcare Vertical
+        with Cluster("Healthcare Vertical"):
+            with Cluster("Frontend Distribution"):
+                hc_cloudfront = CloudFront("CloudFront\nhealthcare.silvermoat.net")
+                hc_acm = CertificateManager("ACM Cert")
+                hc_ui_bucket = S3("UI Bucket")
+
+                hc_cloudfront >> hc_acm
+                hc_cloudfront >> hc_ui_bucket
+
+            with Cluster("API Layer"):
+                hc_apigw = APIGateway("API Gateway")
+
+            with Cluster("Lambda Handlers"):
+                hc_patient_fn = Lambda("patient-handler")
+                hc_appointment_fn = Lambda("appointment-handler")
+                hc_docs_fn = Lambda("documents-handler")
+                hc_ai_fn = Lambda("ai-handler")
+
+            with Cluster("Data Layer"):
+                hc_patients_table = Dynamodb("Patients")
+                hc_appointments_table = Dynamodb("Appointments")
+                hc_prescriptions_table = Dynamodb("Prescriptions")
+                hc_providers_table = Dynamodb("Providers")
+                hc_cases_table = Dynamodb("Cases")
+                hc_conversations_table = Dynamodb("Conversations")
+                hc_documents_table = Dynamodb("Documents")
+
+            with Cluster("Storage"):
+                hc_docs_bucket = S3("Medical Records")
+
+            # Healthcare connections
+            cloudflare >> hc_cloudfront
+            hc_cloudfront >> hc_apigw
+            hc_apigw >> [hc_patient_fn, hc_appointment_fn, hc_docs_fn, hc_ai_fn]
+            hc_patient_fn >> [hc_patients_table, hc_prescriptions_table]
+            hc_appointment_fn >> [hc_appointments_table, hc_providers_table, hc_cases_table]
+            hc_ai_fn >> hc_conversations_table
+            hc_docs_fn >> [hc_docs_bucket, hc_documents_table]
+
+        # Shared AI Service
+        with Cluster("Shared AI Service"):
+            bedrock = Bedrock("Bedrock")
+
+        # AI handler to Bedrock
+        hc_ai_fn >> bedrock
+
+
+def generate_healthcare_only_data_flow_diagram():
+    """Generate healthcare-only data flow diagram."""
+
+    graph_attr = {
+        "fontsize": "14",
+        "bgcolor": "white",
+        "pad": "1.0",
+        "ranksep": "1.5",
+        "nodesep": "1.0",
+        "splines": "ortho",
+    }
+
+    with Diagram(
+        "Silvermoat Healthcare Data Flow",
+        filename="docs/data-flow-healthcare",
+        show=False,
+        direction="TB",
+        graph_attr=graph_attr,
+        outformat="png"
+    ):
+        # User
+        hc_user = User("Healthcare\nPatient")
+
+        # Healthcare Vertical Flow
+        with Cluster("Healthcare Vertical"):
+            hc_cf = CloudFront("CloudFront")
+            hc_api = APIGateway("API Gateway")
+
+            with Cluster("Lambda Handlers"):
+                hc_patient_fn = Lambda("patient-handler")
+                hc_appointment_fn = Lambda("appointment-handler")
+                hc_ai_fn = Lambda("ai-handler")
+
+            with Cluster("Data Layer"):
+                hc_patients_db = Dynamodb("Patients")
+                hc_appointments_db = Dynamodb("Appointments")
+                hc_prescriptions_db = Dynamodb("Prescriptions")
+                hc_providers_db = Dynamodb("Providers")
+                hc_conversations_db = Dynamodb("Conversations")
+
+            # Healthcare flow
+            hc_user >> hc_cf >> hc_api
+            hc_api >> [hc_patient_fn, hc_appointment_fn, hc_ai_fn]
+            hc_patient_fn >> [hc_patients_db, hc_prescriptions_db]
+            hc_appointment_fn >> [hc_appointments_db, hc_providers_db]
+            hc_ai_fn >> hc_conversations_db
+
+        # Shared AI Service
+        with Cluster("Shared AI Service"):
+            bedrock = Bedrock("Bedrock")
+
+        # AI handler to Bedrock
+        hc_ai_fn >> bedrock
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate Silvermoat architecture diagrams")
     parser.add_argument(
         "--vertical",
-        choices=["insurance", "retail", "all"],
+        choices=["insurance", "retail", "healthcare", "all"],
         default="all",
         help="Which vertical to generate diagrams for (default: all)"
     )
@@ -527,30 +654,48 @@ if __name__ == "__main__":
         print("    ✓ docs/data-flow-retail.png")
         print("\n✓ Retail diagrams generated successfully!")
 
+    elif args.vertical == "healthcare":
+        print("Generating Healthcare vertical documentation diagrams...\n")
+        print("1/2 Generating architecture diagram...")
+        generate_healthcare_only_architecture_diagram()
+        print("    ✓ docs/architecture-healthcare.png")
+        print("2/2 Generating data flow diagram...")
+        generate_healthcare_only_data_flow_diagram()
+        print("    ✓ docs/data-flow-healthcare.png")
+        print("\n✓ Healthcare diagrams generated successfully!")
+
     else:  # all
         print("Generating Silvermoat multi-vertical documentation diagrams...\n")
 
-        print("1/6 Generating insurance architecture diagram...")
+        print("1/8 Generating insurance architecture diagram...")
         generate_insurance_only_architecture_diagram()
         print("    ✓ docs/architecture-insurance.png")
 
-        print("2/6 Generating insurance data flow diagram...")
+        print("2/8 Generating insurance data flow diagram...")
         generate_insurance_only_data_flow_diagram()
         print("    ✓ docs/data-flow-insurance.png")
 
-        print("3/6 Generating retail architecture diagram...")
+        print("3/8 Generating retail architecture diagram...")
         generate_retail_only_architecture_diagram()
         print("    ✓ docs/architecture-retail.png")
 
-        print("4/6 Generating retail data flow diagram...")
+        print("4/8 Generating retail data flow diagram...")
         generate_retail_only_data_flow_diagram()
         print("    ✓ docs/data-flow-retail.png")
 
-        print("5/6 Generating multi-vertical architecture diagram...")
+        print("5/8 Generating healthcare architecture diagram...")
+        generate_healthcare_only_architecture_diagram()
+        print("    ✓ docs/architecture-healthcare.png")
+
+        print("6/8 Generating healthcare data flow diagram...")
+        generate_healthcare_only_data_flow_diagram()
+        print("    ✓ docs/data-flow-healthcare.png")
+
+        print("7/8 Generating multi-vertical architecture diagram...")
         generate_multi_vertical_architecture_diagram()
         print("    ✓ docs/architecture.png")
 
-        print("6/6 Generating multi-vertical data flow diagram...")
+        print("8/8 Generating multi-vertical data flow diagram...")
         generate_multi_vertical_data_flow_diagram()
         print("    ✓ docs/data-flow.png")
 
@@ -558,4 +703,5 @@ if __name__ == "__main__":
         print("   Showing multi-vertical architecture with:")
         print("   - Insurance vertical (insurance.silvermoat.net)")
         print("   - Retail vertical (retail.silvermoat.net)")
+        print("   - Healthcare vertical (healthcare.silvermoat.net)")
         print("   - Shared Bedrock AI service")

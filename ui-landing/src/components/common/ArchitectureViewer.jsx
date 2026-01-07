@@ -28,7 +28,7 @@ const ArchitectureViewer = ({ open, onClose }) => {
           deployment, automated testing, vertical isolation, and AI-powered customer service across multiple business domains.
         </Paragraph>
         <Paragraph style={{ fontSize: 15, color: 'rgba(0, 0, 0, 0.65)' }}>
-          The platform supports both Insurance and Retail verticals, each with complete isolation at the infrastructure level.
+          The platform supports Insurance, Retail, and Healthcare verticals, each with complete isolation at the infrastructure level.
           Each vertical manages its full lifecycle—from customer onboarding through transaction processing and support—all
           through intuitive web interfaces powered by Claude AI for intelligent assistance.
         </Paragraph>
@@ -44,7 +44,7 @@ const ArchitectureViewer = ({ open, onClose }) => {
         <List
           size="small"
           dataSource={[
-            { title: 'Multi-Vertical Architecture', description: 'Complete infrastructure isolation between Insurance and Retail verticals' },
+            { title: 'Multi-Vertical Architecture', description: 'Complete infrastructure isolation between Insurance, Retail, and Healthcare verticals' },
             { title: 'Insurance: Quote Management', description: 'Generate and manage insurance quotes with automated pricing' },
             { title: 'Insurance: Policy Lifecycle', description: 'Complete policy creation, renewal, and management workflows' },
             { title: 'Insurance: Claims Processing', description: 'End-to-end claims filing, document upload, and status tracking' },
@@ -52,10 +52,15 @@ const ArchitectureViewer = ({ open, onClose }) => {
             { title: 'Retail: Order Processing', description: 'Complete order lifecycle from cart to fulfillment' },
             { title: 'Retail: Inventory Tracking', description: 'Real-time stock levels and warehouse management' },
             { title: 'Retail: Payment Processing', description: 'Secure payment capture and transaction tracking' },
+            { title: 'Healthcare: Patient Records', description: 'Complete EHR with secure access controls' },
+            { title: 'Healthcare: Appointment Scheduling', description: 'Real-time calendar and availability management' },
+            { title: 'Healthcare: Prescription Management', description: 'Track medications from prescribe to fulfillment' },
+            { title: 'Healthcare: Care Coordination', description: 'Multi-provider communication and referrals' },
+            { title: 'Healthcare: HIPAA Compliance', description: 'Secure document storage and audit trails' },
             { title: 'AI-Powered Support', description: 'Claude AI chatbot for customer and employee assistance across all verticals' },
-            { title: 'Document Management', description: 'Secure S3-based storage for policies, claims, receipts, and documents' },
+            { title: 'Document Management', description: 'Secure S3-based storage for policies, claims, receipts, and medical records' },
             { title: 'Multi-Role Access', description: 'Separate interfaces for customers and employees in each vertical' },
-            { title: 'Real-time Notifications', description: 'SNS-based alerts for policy, claim, and order updates' },
+            { title: 'Real-time Notifications', description: 'SNS-based alerts for policy, claim, order, and appointment updates' },
             { title: 'Shared AI Service', description: 'Centralized AWS Bedrock integration serving all verticals' },
             { title: 'Vertical Isolation', description: 'Complete data and infrastructure separation ensuring security and scalability' },
           ]}
@@ -90,7 +95,7 @@ const ArchitectureViewer = ({ open, onClose }) => {
           <div>
             <Text strong style={{ display: 'block', marginBottom: 8 }}>Database</Text>
             <Text style={{ fontSize: 14, color: 'rgba(0, 0, 0, 0.65)' }}>
-              DynamoDB (14 tables across verticals)
+              DynamoDB (21 tables across verticals)
             </Text>
           </div>
           <div>

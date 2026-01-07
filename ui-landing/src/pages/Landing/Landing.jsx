@@ -8,6 +8,7 @@ import { Card, Button, Typography, Space, Row, Col } from 'antd';
 import {
   SafetyOutlined,
   ShoppingOutlined,
+  MedicineBoxOutlined,
   ArrowRightOutlined,
   CheckCircleOutlined,
   InfoCircleOutlined,
@@ -24,8 +25,10 @@ const { Title, Text, Paragraph } = Typography;
 const getVerticalUrls = () => {
   const insuranceUrl = import.meta.env.VITE_INSURANCE_URL;
   const retailUrl = import.meta.env.VITE_RETAIL_URL;
+  const healthcareUrl = import.meta.env.VITE_HEALTHCARE_URL;
 
-  // In production builds, URLs must be explicitly provided
+  // In production builds, insurance and retail URLs must be explicitly provided
+  // Healthcare is optional (may not have infrastructure deployed yet)
   if (import.meta.env.PROD && (!insuranceUrl || !retailUrl)) {
     throw new Error(
       'VITE_INSURANCE_URL and VITE_RETAIL_URL must be set for production builds. ' +
@@ -37,6 +40,7 @@ const getVerticalUrls = () => {
   return {
     insurance: insuranceUrl || 'http://localhost:5173',
     retail: retailUrl || 'http://localhost:5174',
+    healthcare: healthcareUrl || 'http://localhost:5175',
   };
 };
 
@@ -44,7 +48,7 @@ const Landing = () => {
   const [architectureVisible, setArchitectureVisible] = useState(false);
 
   // Get vertical URLs dynamically (no hardcoded production URLs)
-  const { insurance: insuranceUrl, retail: retailUrl } = getVerticalUrls();
+  const { insurance: insuranceUrl, retail: retailUrl, healthcare: healthcareUrl } = getVerticalUrls();
 
   const verticals = [
     {
@@ -60,6 +64,13 @@ const Landing = () => {
       description: 'Complete e-commerce platform with product management, order processing, and inventory tracking.',
       url: retailUrl,
       color: '#722ed1',
+    },
+    {
+      name: 'Healthcare',
+      icon: <MedicineBoxOutlined style={{ fontSize: 56, color: '#52c41a' }} />,
+      description: 'Healthcare management platform with patient records, appointments, and care coordination.',
+      url: healthcareUrl,
+      color: '#52c41a',
     },
   ];
 
