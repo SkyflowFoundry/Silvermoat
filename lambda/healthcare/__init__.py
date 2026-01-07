@@ -1,0 +1,1 @@
+"""Healthcare vertical Lambda handlers"""
