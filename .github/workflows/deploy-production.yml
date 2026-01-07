@@ -119,14 +119,8 @@ jobs:
       - name: Detect infrastructure and UI changes
         id: check
         uses: ./.github/actions/detect-changes
-
-      - name: Override for manual dispatch
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          # Manual dispatch always deploys everything (unless already handled by detect-changes)
-          echo "infrastructure_changed=true" >> $GITHUB_OUTPUT
-          echo "ui_changed=true" >> $GITHUB_OUTPUT
-          echo "Manual dispatch - will deploy infrastructure and UI"
+        with:
+          force_deploy: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.force_deploy == true) && 'true' || 'false' }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
