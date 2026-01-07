@@ -18,6 +18,7 @@ import Header from './Header';
 import Sidebar from './Sidebar';
 import Breadcrumbs from './Breadcrumbs';
 import BottomNav from '../mobile/BottomNav';
+import ChatInterface from '../chat/ChatInterface';
 import { useAppContext } from '../../contexts/AppContext';
 
 const { Content } = Layout;
@@ -165,19 +166,8 @@ const AppLayout = () => {
         />
       </Drawer>
 
-      {/* Chat Drawer - Placeholder until Phase 7 */}
-      <Drawer
-        title="Chat Assistant"
-        placement="right"
-        onClose={closeChatDrawer}
-        open={chatDrawerOpen}
-        width={isMobile ? '100%' : 450}
-        styles={{
-          body: { padding: 24 },
-        }}
-      >
-        <p>Chat interface coming in Phase 7</p>
-      </Drawer>
+      {/* Chat Interface */}
+      <ChatInterface open={chatDrawerOpen} onClose={closeChatDrawer} />
     </Layout>
   );
 };
