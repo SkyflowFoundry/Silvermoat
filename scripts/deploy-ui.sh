@@ -190,20 +190,38 @@ if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "landing" ]; then
   INSURANCE_WEB_URL=""
   RETAIL_WEB_URL=""
 
-  # Fetch insurance URL if stack exists
+  # Fetch insurance URL if stack exists (prefer CustomDomainUrl over WebUrl)
   if aws cloudformation describe-stacks --stack-name "${BASE_STACK_NAME}-insurance" &>/dev/null; then
+    # Try CustomDomainUrl first (DNS name like insurance.silvermoat.net)
     INSURANCE_WEB_URL=$(aws cloudformation describe-stacks \
       --stack-name "${BASE_STACK_NAME}-insurance" \
-      --query 'Stacks[0].Outputs[?OutputKey==`WebUrl`].OutputValue' \
+      --query 'Stacks[0].Outputs[?OutputKey==`CustomDomainUrl`].OutputValue' \
       --output text 2>/dev/null || echo "")
+
+    # Fallback to WebUrl if CustomDomainUrl not available (CloudFront or S3 URL)
+    if [ -z "$INSURANCE_WEB_URL" ]; then
+      INSURANCE_WEB_URL=$(aws cloudformation describe-stacks \
+        --stack-name "${BASE_STACK_NAME}-insurance" \
+        --query 'Stacks[0].Outputs[?OutputKey==`WebUrl`].OutputValue' \
+        --output text 2>/dev/null || echo "")
+    fi
   fi
 
-  # Fetch retail URL if stack exists
+  # Fetch retail URL if stack exists (prefer CustomDomainUrl over WebUrl)
   if aws cloudformation describe-stacks --stack-name "${BASE_STACK_NAME}-retail" &>/dev/null; then
+    # Try CustomDomainUrl first (DNS name like retail.silvermoat.net)
     RETAIL_WEB_URL=$(aws cloudformation describe-stacks \
       --stack-name "${BASE_STACK_NAME}-retail" \
-      --query 'Stacks[0].Outputs[?OutputKey==`WebUrl`].OutputValue' \
+      --query 'Stacks[0].Outputs[?OutputKey==`CustomDomainUrl`].OutputValue' \
       --output text 2>/dev/null || echo "")
+
+    # Fallback to WebUrl if CustomDomainUrl not available (CloudFront or S3 URL)
+    if [ -z "$RETAIL_WEB_URL" ]; then
+      RETAIL_WEB_URL=$(aws cloudformation describe-stacks \
+        --stack-name "${BASE_STACK_NAME}-retail" \
+        --query 'Stacks[0].Outputs[?OutputKey==`WebUrl`].OutputValue' \
+        --output text 2>/dev/null || echo "")
+    fi
   fi
 
   # Export as environment variables for Vite build
