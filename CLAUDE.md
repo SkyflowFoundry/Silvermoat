@@ -110,3 +110,10 @@ Every plan MUST include:
 2. Utility functions? → Unit tests
 3. API endpoints? → Contract tests
 4. Similar resources have equivalent coverage? → Add tests
+
+## Adding New Verticals
+
+When adding a new vertical (e.g., healthcare, logistics):
+- See `docs/ADDING-VERTICALS.md` for complete checklist
+- Follow existing insurance/retail patterns
+- ~4-6 hours per vertical for experienced developer

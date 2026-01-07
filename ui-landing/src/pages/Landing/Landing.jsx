@@ -3,13 +3,16 @@
  * Directory/portal for accessing Silvermoat verticals
  */
 
+import { useState } from 'react';
 import { Card, Button, Typography, Space, Row, Col } from 'antd';
 import {
   SafetyOutlined,
   ShoppingOutlined,
   ArrowRightOutlined,
   CheckCircleOutlined,
+  InfoCircleOutlined,
 } from '@ant-design/icons';
+import ArchitectureViewer from '../../components/common/ArchitectureViewer';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -38,33 +41,23 @@ const getVerticalUrls = () => {
 };
 
 const Landing = () => {
+  const [architectureVisible, setArchitectureVisible] = useState(false);
+
   // Get vertical URLs dynamically (no hardcoded production URLs)
   const { insurance: insuranceUrl, retail: retailUrl } = getVerticalUrls();
 
   const verticals = [
     {
       name: 'Insurance',
-      icon: <SafetyOutlined style={{ fontSize: 48, color: '#003d82' }} />,
-      description: 'Comprehensive insurance management platform for policies, claims, and customer service.',
-      features: [
-        'Policy Management & Quoting',
-        'Claims Processing & Tracking',
-        'Customer Portal & Support',
-        'AI-Powered Assistance',
-      ],
+      icon: <SafetyOutlined style={{ fontSize: 56, color: '#003d82' }} />,
+      description: 'Enterprise insurance management with policy lifecycle, claims processing, and AI-powered customer support.',
       url: insuranceUrl,
       color: '#003d82',
     },
     {
       name: 'Retail',
-      icon: <ShoppingOutlined style={{ fontSize: 48, color: '#722ed1' }} />,
-      description: 'Complete e-commerce solution for product management, orders, and inventory tracking.',
-      features: [
-        'Product Catalog & Management',
-        'Order Processing & Fulfillment',
-        'Inventory Tracking',
-        'Customer Service Platform',
-      ],
+      icon: <ShoppingOutlined style={{ fontSize: 56, color: '#722ed1' }} />,
+      description: 'Complete e-commerce platform with product management, order processing, and inventory tracking.',
       url: retailUrl,
       color: '#722ed1',
     },
@@ -75,72 +68,117 @@ const Landing = () => {
       style={{
         minHeight: '100vh',
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        padding: '40px 20px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
       }}
     >
-      <div style={{ maxWidth: 1200, width: '100%' }}>
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+      {/* Hero Section */}
+      <div style={{
+        padding: '80px 20px 60px',
+        textAlign: 'center',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+      }}>
+        <div style={{ maxWidth: 800, margin: '0 auto' }}>
           <img
             src="/silvermoat-logo.png"
             alt="Silvermoat"
             style={{
-              width: 120,
-              height: 120,
-              marginBottom: 24,
+              width: 100,
+              height: 100,
+              marginBottom: 32,
               filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.2))',
             }}
           />
-          <Title level={1} style={{ color: 'white', marginBottom: 8 }}>
-            Welcome to Silvermoat
+          <Title level={1} style={{
+            color: 'white',
+            marginBottom: 16,
+            fontSize: 56,
+            fontWeight: 700,
+            lineHeight: 1.2,
+          }}>
+            Silvermoat Platform
           </Title>
-          <Text style={{ fontSize: 18, color: 'rgba(255, 255, 255, 0.9)' }}>
-            Multi-Vertical Platform - Choose your vertical below
-          </Text>
         </div>
+      </div>
 
-        {/* Vertical Cards */}
-        <Row gutter={[32, 32]} justify="center">
+      {/* Verticals Grid Section */}
+      <div style={{ padding: '60px 20px', maxWidth: 1200, margin: '0 auto' }}>
+        <Title level={2} style={{
+          color: 'white',
+          textAlign: 'center',
+          marginBottom: 16,
+          fontSize: 32,
+        }}>
+          Choose Your Vertical
+        </Title>
+        <Text style={{
+          display: 'block',
+          textAlign: 'center',
+          color: 'rgba(255, 255, 255, 0.8)',
+          fontSize: 16,
+          marginBottom: 48,
+        }}>
+          Select a vertical to access customer and employee portals
+        </Text>
+
+        {/* Vertical Cards - Compact Grid */}
+        <Row gutter={[24, 24]} justify="center">
           {verticals.map((vertical) => (
-            <Col xs={24} sm={24} md={12} lg={10} key={vertical.name}>
+            <Col xs={24} sm={12} md={8} lg={8} key={vertical.name}>
               <Card
                 hoverable
                 style={{
                   height: '100%',
-                  borderRadius: 16,
+                  minHeight: 280,
+                  borderRadius: 12,
                   border: 'none',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                  transition: 'all 0.3s ease',
+                  cursor: 'pointer',
                 }}
-                bodyStyle={{ padding: 32 }}
+                bodyStyle={{
+                  padding: 28,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: '100%',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.18)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.12)';
+                }}
               >
-                <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                   {/* Icon */}
-                  <div style={{ textAlign: 'center' }}>{vertical.icon}</div>
+                  <div style={{
+                    textAlign: 'center',
+                    marginBottom: 20,
+                  }}>
+                    {vertical.icon}
+                  </div>
 
                   {/* Name */}
-                  <Title level={2} style={{ margin: 0, textAlign: 'center', color: vertical.color }}>
+                  <Title level={3} style={{
+                    margin: '0 0 12px 0',
+                    textAlign: 'center',
+                    color: vertical.color,
+                    fontSize: 24,
+                  }}>
                     {vertical.name}
                   </Title>
 
                   {/* Description */}
-                  <Paragraph style={{ fontSize: 16, color: '#595959', marginBottom: 16 }}>
+                  <Paragraph style={{
+                    fontSize: 14,
+                    color: '#595959',
+                    marginBottom: 20,
+                    textAlign: 'center',
+                    lineHeight: 1.6,
+                    flex: 1,
+                  }}>
                     {vertical.description}
                   </Paragraph>
-
-                  {/* Features */}
-                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                    {vertical.features.map((feature, index) => (
-                      <div key={index} style={{ display: 'flex', alignItems: 'flex-start' }}>
-                        <CheckCircleOutlined
-                          style={{ color: '#52c41a', marginRight: 8, marginTop: 4 }}
-                        />
-                        <Text style={{ fontSize: 14 }}>{feature}</Text>
-                      </div>
-                    ))}
-                  </Space>
 
                   {/* Learn More Button */}
                   <Button
@@ -150,28 +188,65 @@ const Landing = () => {
                     icon={<ArrowRightOutlined />}
                     href={vertical.url}
                     style={{
-                      marginTop: 16,
-                      height: 48,
-                      fontSize: 16,
+                      height: 44,
+                      fontSize: 15,
+                      fontWeight: 600,
                       backgroundColor: vertical.color,
                       borderColor: vertical.color,
                     }}
                   >
-                    Learn More
+                    Enter Portal
                   </Button>
-                </Space>
+                </div>
               </Card>
             </Col>
           ))}
         </Row>
 
         {/* Footer */}
-        <div style={{ textAlign: 'center', marginTop: 48 }}>
-          <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 14 }}>
+        <div style={{ textAlign: 'center', marginTop: 64, paddingBottom: 40 }}>
+          <Text style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: 14 }}>
             © 2025 Silvermoat. All rights reserved.
           </Text>
         </div>
       </div>
+
+      {/* Floating Info Icon */}
+      <div
+        onClick={() => setArchitectureVisible(true)}
+        style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          width: 44,
+          height: 44,
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+          transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+          zIndex: 1000,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'scale(1.1)';
+          e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.4)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
+        }}
+      >
+        <InfoCircleOutlined style={{ fontSize: 22, color: 'white' }} />
+      </div>
+
+      {/* Architecture Viewer Modal */}
+      <ArchitectureViewer
+        open={architectureVisible}
+        onClose={() => setArchitectureVisible(false)}
+      />
     </div>
   );
 };

@@ -58,9 +58,9 @@ def test_landing_vertical_cards_visible(driver, landing_base_url):
     assert "insurance" in page_source, "Insurance vertical should be displayed"
     assert "retail" in page_source, "Retail vertical should be displayed"
 
-    # Check for "Learn More" buttons/links (Ant Design Button with href renders as <a>)
-    learn_more_elements = driver.find_elements(By.XPATH, "//*[contains(., 'Learn More') and (self::button or self::a)]")
-    assert len(learn_more_elements) >= 2, f"Should have at least 2 'Learn More' buttons/links, found {len(learn_more_elements)}"
+    # Check for "Enter Portal" buttons/links (Ant Design Button with href renders as <a>)
+    enter_portal_elements = driver.find_elements(By.XPATH, "//*[contains(., 'Enter Portal') and (self::button or self::a)]")
+    assert len(enter_portal_elements) >= 2, f"Should have at least 2 'Enter Portal' buttons/links, found {len(enter_portal_elements)}"
 
 
 @pytest.mark.e2e
@@ -70,11 +70,11 @@ def test_landing_insurance_link(driver, landing_base_url):
     driver.get(landing_base_url)
     wait_for_app_ready(driver)
 
-    # Find all "Learn More" links/buttons with href
-    learn_more_links = driver.find_elements(By.XPATH, "//a[contains(., 'Learn More')][@href]")
+    # Find all "Enter Portal" links/buttons with href
+    enter_portal_links = driver.find_elements(By.XPATH, "//a[contains(., 'Enter Portal')][@href]")
 
     # Get all hrefs
-    all_hrefs = [link.get_attribute('href') for link in learn_more_links]
+    all_hrefs = [link.get_attribute('href') for link in enter_portal_links]
 
     # Find insurance link (should contain 'insurance' in URL)
     insurance_links = [href for href in all_hrefs if href and 'insurance' in href.lower()]
@@ -94,11 +94,11 @@ def test_landing_retail_link(driver, landing_base_url):
     driver.get(landing_base_url)
     wait_for_app_ready(driver)
 
-    # Find all "Learn More" links/buttons with href
-    learn_more_links = driver.find_elements(By.XPATH, "//a[contains(., 'Learn More')][@href]")
+    # Find all "Enter Portal" links/buttons with href
+    enter_portal_links = driver.find_elements(By.XPATH, "//a[contains(., 'Enter Portal')][@href]")
 
     # Get all hrefs
-    all_hrefs = [link.get_attribute('href') for link in learn_more_links]
+    all_hrefs = [link.get_attribute('href') for link in enter_portal_links]
 
     # Find retail link (should contain 'retail' in URL)
     retail_links = [href for href in all_hrefs if href and 'retail' in href.lower()]
