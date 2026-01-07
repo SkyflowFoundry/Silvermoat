@@ -13,6 +13,7 @@ import Dashboard from './pages/Dashboard';
 import { retailTheme } from './config/theme';
 
 // Lazy load entity pages
+const Landing = lazy(() => import('./pages/Landing/Landing'));
 const ProductList = lazy(() => import('./pages/Products/ProductList'));
 const ProductDetail = lazy(() => import('./pages/Products/ProductDetail'));
 const InventoryList = lazy(() => import('./pages/Inventory/InventoryList'));
@@ -62,9 +63,11 @@ function App() {
             <AppProvider>
               <Suspense fallback={<LoadingFallback />}>
                 <Routes>
+                  {/* Landing page (no layout) */}
+                  <Route path="/" element={<Landing />} />
+
                   {/* Employee routes with layout */}
                   <Route element={<AppLayout />}>
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/dashboard" element={<Dashboard />} />
 
                     {/* Phase 2: Products */}

@@ -5,7 +5,7 @@ const { Title, Paragraph, Text } = Typography;
 const ArchitectureViewer = ({ open, onClose }) => {
   return (
     <Modal
-      title="About Silvermoat"
+      title="About Silvermoat Retail"
       open={open}
       onCancel={onClose}
       footer={null}
@@ -23,14 +23,14 @@ const ArchitectureViewer = ({ open, onClose }) => {
           Project Overview
         </Title>
         <Paragraph style={{ fontSize: 15, color: 'rgba(0, 0, 0, 0.65)', marginBottom: 16 }}>
-          Silvermoat is a comprehensive cloud-native insurance management platform built entirely on AWS serverless
+          Silvermoat Retail is a comprehensive cloud-native e-commerce platform built entirely on AWS serverless
           infrastructure. It demonstrates enterprise-grade patterns including Infrastructure as Code (IaC), continuous
           deployment, automated testing, and AI-powered customer service.
         </Paragraph>
         <Paragraph style={{ fontSize: 15, color: 'rgba(0, 0, 0, 0.65)' }}>
-          The platform enables insurance providers to manage the complete policy lifecycle—from quote generation
-          through policy management, claims processing, and customer support—all through an intuitive web interface
-          powered by Claude AI for intelligent assistance.
+          The platform enables retail organizations to manage the complete product and order lifecycle—from product
+          catalog management through order processing, inventory tracking, and customer support—all through an
+          intuitive web interface powered by Claude AI for intelligent assistance.
         </Paragraph>
       </div>
 
@@ -44,13 +44,13 @@ const ArchitectureViewer = ({ open, onClose }) => {
         <List
           size="small"
           dataSource={[
-            { title: 'Quote Management', description: 'Generate and manage insurance quotes with automated pricing' },
-            { title: 'Policy Lifecycle', description: 'Complete policy creation, renewal, and management workflows' },
-            { title: 'Claims Processing', description: 'End-to-end claims filing, document upload, and status tracking' },
-            { title: 'AI-Powered Support', description: 'Claude AI chatbot for customer and agent assistance' },
-            { title: 'Document Management', description: 'Secure S3-based storage for policies and claim documents' },
-            { title: 'Multi-Role Access', description: 'Separate interfaces for customers and insurance agents' },
-            { title: 'Real-time Notifications', description: 'SNS-based alerts for policy and claim updates' },
+            { title: 'Product Catalog Management', description: 'Browse and manage product inventory with search and filtering' },
+            { title: 'Order Processing', description: 'Complete order lifecycle from cart to fulfillment' },
+            { title: 'Inventory Tracking', description: 'Real-time stock levels and warehouse management' },
+            { title: 'Payment Processing', description: 'Secure payment capture and transaction tracking' },
+            { title: 'AI-Powered Support', description: 'Claude AI chatbot for customer and employee assistance' },
+            { title: 'Multi-Channel Support', description: 'Separate interfaces for customers and retail employees' },
+            { title: 'Document Management', description: 'Secure S3-based storage for receipts and documents' },
           ]}
           renderItem={(item) => (
             <List.Item>
@@ -127,14 +127,14 @@ const ArchitectureViewer = ({ open, onClose }) => {
           AWS Infrastructure Architecture
         </Title>
         <Paragraph style={{ marginBottom: 24, fontSize: 15, color: 'rgba(0, 0, 0, 0.65)' }}>
-          Silvermoat Insurance is built on AWS serverless infrastructure with CloudFront CDN for global content delivery,
+          Silvermoat Retail is built on AWS serverless infrastructure with CloudFront CDN for global content delivery,
           API Gateway for REST APIs, four domain-based Lambda handlers, seven DynamoDB tables for data persistence,
           S3 for document storage, and AWS Bedrock integration with Claude AI for intelligent customer service.
         </Paragraph>
 
         <img
-          src="/architecture-insurance.png"
-          alt="Silvermoat Insurance AWS Architecture"
+          src="/architecture-retail.png"
+          alt="Silvermoat Retail AWS Architecture"
           style={{
             width: '100%',
             height: 'auto',
@@ -156,12 +156,12 @@ const ArchitectureViewer = ({ open, onClose }) => {
         <Paragraph style={{ marginBottom: 24, fontSize: 15, color: 'rgba(0, 0, 0, 0.65)' }}>
           Shows how customer requests flow through the system from the React UI through CloudFront and
           API Gateway to the Lambda handlers, which interact with DynamoDB tables, S3 storage, Claude AI,
-          and SNS notifications to process and respond to requests.
+          and payment systems to process and respond to requests.
         </Paragraph>
 
         <img
-          src="/data-flow-insurance.png"
-          alt="Silvermoat Insurance Data Flow"
+          src="/data-flow-retail.png"
+          alt="Silvermoat Retail Data Flow"
           style={{
             width: '100%',
             height: 'auto',

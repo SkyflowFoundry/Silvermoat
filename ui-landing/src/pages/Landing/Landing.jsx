@@ -3,13 +3,16 @@
  * Directory/portal for accessing Silvermoat verticals
  */
 
+import { useState } from 'react';
 import { Card, Button, Typography, Space, Row, Col } from 'antd';
 import {
   SafetyOutlined,
   ShoppingOutlined,
   ArrowRightOutlined,
   CheckCircleOutlined,
+  InfoCircleOutlined,
 } from '@ant-design/icons';
+import ArchitectureViewer from '../../components/common/ArchitectureViewer';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -38,6 +41,8 @@ const getVerticalUrls = () => {
 };
 
 const Landing = () => {
+  const [architectureVisible, setArchitectureVisible] = useState(false);
+
   // Get vertical URLs dynamically (no hardcoded production URLs)
   const { insurance: insuranceUrl, retail: retailUrl } = getVerticalUrls();
 
@@ -172,6 +177,43 @@ const Landing = () => {
           </Text>
         </div>
       </div>
+
+      {/* Floating Info Icon */}
+      <div
+        onClick={() => setArchitectureVisible(true)}
+        style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          width: 44,
+          height: 44,
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+          transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+          zIndex: 1000,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'scale(1.1)';
+          e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.4)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
+        }}
+      >
+        <InfoCircleOutlined style={{ fontSize: 22, color: 'white' }} />
+      </div>
+
+      {/* Architecture Viewer Modal */}
+      <ArchitectureViewer
+        open={architectureVisible}
+        onClose={() => setArchitectureVisible(false)}
+      />
     </div>
   );
 };

@@ -153,13 +153,13 @@ deploy_vertical_ui() {
   echo ""
 }
 
-# Generate architecture diagram (shared across verticals)
+# Generate architecture diagrams (all verticals)
 # Only if Graphviz is installed (optional, non-blocking)
 if command -v dot >/dev/null 2>&1; then
-  echo "Generating architecture diagram..."
+  echo "Generating architecture diagrams..."
   pip install -q -r "$PROJECT_ROOT/requirements-docs.txt" || echo "Warning: Failed to install diagram dependencies"
   cd "$PROJECT_ROOT"
-  python3 "$PROJECT_ROOT/scripts/generate-architecture-diagram.py" || echo "Warning: Failed to generate diagram"
+  python3 "$PROJECT_ROOT/scripts/generate-architecture-diagram.py" --vertical all || echo "Warning: Failed to generate diagrams"
   echo ""
 else
   echo "Skipping architecture diagram generation (Graphviz not installed)"
@@ -170,10 +170,11 @@ fi
 if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "insurance" ]; then
   deploy_vertical_ui "Insurance" "$PROJECT_ROOT/ui-insurance" "$INSURANCE_BUCKET" "$INSURANCE_API_URL"
 
-  # Copy architecture diagram to insurance UI bucket (if it exists)
-  if [ -f "$PROJECT_ROOT/docs/architecture.png" ]; then
-    echo "Copying architecture diagram to insurance UI..."
-    $AWS_CMD s3 cp "$PROJECT_ROOT/docs/architecture.png" "s3://$INSURANCE_BUCKET/architecture.png"
+  # Copy insurance-specific architecture diagrams to insurance UI bucket
+  if [ -f "$PROJECT_ROOT/docs/architecture-insurance.png" ]; then
+    echo "Copying insurance architecture diagrams to insurance UI..."
+    $AWS_CMD s3 cp "$PROJECT_ROOT/docs/architecture-insurance.png" "s3://$INSURANCE_BUCKET/architecture-insurance.png"
+    $AWS_CMD s3 cp "$PROJECT_ROOT/docs/data-flow-insurance.png" "s3://$INSURANCE_BUCKET/data-flow-insurance.png"
     echo ""
   fi
 fi
@@ -181,7 +182,14 @@ fi
 # Deploy Retail UI
 if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "retail" ]; then
   deploy_vertical_ui "Retail" "$PROJECT_ROOT/ui-retail" "$RETAIL_BUCKET" "$RETAIL_API_URL"
-  echo ""
+
+  # Copy retail-specific architecture diagrams to retail UI bucket
+  if [ -f "$PROJECT_ROOT/docs/architecture-retail.png" ]; then
+    echo "Copying retail architecture diagrams to retail UI..."
+    $AWS_CMD s3 cp "$PROJECT_ROOT/docs/architecture-retail.png" "s3://$RETAIL_BUCKET/architecture-retail.png"
+    $AWS_CMD s3 cp "$PROJECT_ROOT/docs/data-flow-retail.png" "s3://$RETAIL_BUCKET/data-flow-retail.png"
+    echo ""
+  fi
 fi
 
 # Deploy Landing UI
@@ -229,7 +237,14 @@ if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "landing" ]; then
   export VITE_RETAIL_URL="$RETAIL_WEB_URL"
 
   deploy_vertical_ui "Landing" "$PROJECT_ROOT/ui-landing" "$LANDING_BUCKET" ""
-  echo ""
+
+  # Copy multi-vertical architecture diagrams to landing UI bucket
+  if [ -f "$PROJECT_ROOT/docs/architecture.png" ]; then
+    echo "Copying multi-vertical architecture diagrams to landing UI..."
+    $AWS_CMD s3 cp "$PROJECT_ROOT/docs/architecture.png" "s3://$LANDING_BUCKET/architecture.png"
+    $AWS_CMD s3 cp "$PROJECT_ROOT/docs/data-flow.png" "s3://$LANDING_BUCKET/data-flow.png"
+    echo ""
+  fi
 fi
 
 echo "========================================="
