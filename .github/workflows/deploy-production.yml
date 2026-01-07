@@ -668,12 +668,14 @@ jobs:
 
   deploy-landing-ui:
     name: Deploy Landing UI
-    needs: [detect-changes, deploy-landing-infra, configure-landing-dns]
+    needs: [detect-changes, deploy-landing-infra, configure-landing-dns, deploy-insurance-ui, deploy-retail-ui]
     if: |
       always() &&
       (needs.deploy-landing-infra.result == 'success' || needs.deploy-landing-infra.result == 'skipped') &&
       (needs.configure-landing-dns.result == 'success' || needs.configure-landing-dns.result == 'skipped') &&
-      (needs.deploy-landing-infra.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true')
+      (needs.deploy-landing-infra.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true') &&
+      (needs.deploy-insurance-ui.result == 'success' || needs.deploy-insurance-ui.result == 'skipped') &&
+      (needs.deploy-retail-ui.result == 'success' || needs.deploy-retail-ui.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
 

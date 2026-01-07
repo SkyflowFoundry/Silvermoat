@@ -142,11 +142,13 @@ jobs:
 
   deploy-landing-ui:
     name: Deploy Landing UI
-    needs: [detect-changes, deploy-landing-infra]
+    needs: [detect-changes, deploy-landing-infra, deploy-insurance-ui, deploy-retail-ui]
     if: |
       always() &&
       (needs.detect-changes.outputs.ui_changed == 'true' || needs.deploy-landing-infra.result == 'success' || inputs.force_deploy == 'true') &&
-      (needs.deploy-landing-infra.result == 'success' || needs.deploy-landing-infra.result == 'skipped')
+      (needs.deploy-landing-infra.result == 'success' || needs.deploy-landing-infra.result == 'skipped') &&
+      (needs.deploy-insurance-ui.result == 'success' || needs.deploy-insurance-ui.result == 'skipped') &&
+      (needs.deploy-retail-ui.result == 'success' || needs.deploy-retail-ui.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
