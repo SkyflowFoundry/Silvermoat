@@ -8,6 +8,10 @@ inputs:
   head_sha:
     description: 'Head SHA for comparison (optional, auto-detected from context)'
     required: false
+  force_deploy:
+    description: 'Force deploy everything (for workflow_dispatch)'
+    required: false
+    default: 'false'
 
 outputs:
   infrastructure:
@@ -34,6 +38,15 @@ runs:
       id: detect
       shell: bash
       run: |
+        # Force deploy mode (workflow_dispatch)
+        if [ "${{ inputs.force_deploy }}" = "true" ]; then
+          echo "🚀 Force deploy mode - deploying all components"
+          echo "infrastructure=true" >> $GITHUB_OUTPUT
+          echo "ui=true" >> $GITHUB_OUTPUT
+          echo "tests=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
         # Determine comparison strategy based on context
         if [ -n "${{ github.event.pull_request.number }}" ]; then
           # Active PR: compare base and head

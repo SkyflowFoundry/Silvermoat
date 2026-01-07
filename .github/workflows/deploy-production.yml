@@ -105,9 +105,9 @@ jobs:
     outputs:
       infrastructure_changed: ${{ steps.check.outputs.infrastructure_changed }}
       ui_changed: ${{ steps.check.outputs.ui_changed }}
-      insurance_stack_exists: ${{ steps.check-insurance.outputs.stack_exists }}
-      retail_stack_exists: ${{ steps.check-retail.outputs.stack_exists }}
-      landing_stack_exists: ${{ steps.check-landing.outputs.stack_exists }}
+      insurance_stack_exists: ${{ steps.check-stacks.outputs.insurance_exists }}
+      retail_stack_exists: ${{ steps.check-stacks.outputs.retail_exists }}
+      landing_stack_exists: ${{ steps.check-stacks.outputs.landing_exists }}
 
     steps:
       - name: Checkout merged commit
@@ -119,14 +119,8 @@ jobs:
       - name: Detect infrastructure and UI changes
         id: check
         uses: ./.github/actions/detect-changes
-
-      - name: Override for manual dispatch
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          # Manual dispatch always deploys everything (unless already handled by detect-changes)
-          echo "infrastructure_changed=true" >> $GITHUB_OUTPUT
-          echo "ui_changed=true" >> $GITHUB_OUTPUT
-          echo "Manual dispatch - will deploy infrastructure and UI"
+        with:
+          force_deploy: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.force_deploy == true) && 'true' || 'false' }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -134,17 +128,35 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Check if insurance stack exists
-        id: check-insurance
-        run: ./scripts/ci/check-stack-status.sh silvermoat-insurance
+      - name: Check if stacks exist
+        id: check-stacks
+        run: |
+          # Check insurance stack
+          if aws cloudformation describe-stacks --stack-name "silvermoat-insurance" >/dev/null 2>&1; then
+            echo "insurance_exists=true" >> $GITHUB_OUTPUT
+            echo "Insurance stack exists: silvermoat-insurance"
+          else
+            echo "insurance_exists=false" >> $GITHUB_OUTPUT
+            echo "Insurance stack does not exist: silvermoat-insurance"
+          fi
 
-      - name: Check if retail stack exists
-        id: check-retail
-        run: ./scripts/ci/check-stack-status.sh silvermoat-retail
+          # Check retail stack
+          if aws cloudformation describe-stacks --stack-name "silvermoat-retail" >/dev/null 2>&1; then
+            echo "retail_exists=true" >> $GITHUB_OUTPUT
+            echo "Retail stack exists: silvermoat-retail"
+          else
+            echo "retail_exists=false" >> $GITHUB_OUTPUT
+            echo "Retail stack does not exist: silvermoat-retail"
+          fi
 
-      - name: Check if landing stack exists
-        id: check-landing
-        run: ./scripts/ci/check-stack-status.sh silvermoat-landing
+          # Check landing stack
+          if aws cloudformation describe-stacks --stack-name "silvermoat-landing" >/dev/null 2>&1; then
+            echo "landing_exists=true" >> $GITHUB_OUTPUT
+            echo "Landing stack exists: silvermoat-landing"
+          else
+            echo "landing_exists=false" >> $GITHUB_OUTPUT
+            echo "Landing stack does not exist: silvermoat-landing"
+          fi
 
   # ========================================
   # Insurance Vertical Pipeline
