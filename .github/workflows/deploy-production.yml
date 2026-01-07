@@ -771,32 +771,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup environment
-        uses: ./.github/actions/setup-env
-
-      - name: Install Python dependencies
-        run: pip install -r requirements-test.txt
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Install Chrome and ChromeDriver
-        uses: browser-actions/setup-chrome@v1
-
       - name: Run insurance E2E tests
-        env:
-          INSURANCE_URL: ${{ needs.deploy-insurance-ui.outputs.web_url }}
-          INSURANCE_API_URL: ${{ needs.deploy-insurance-ui.outputs.api_url }}
-          HEADLESS: 'true'
-        run: |
-          cd tests/e2e
-          pytest -v --tb=short -m "insurance"
+        uses: ./.github/actions/run-e2e-tests
+        with:
+          vertical: insurance
+          web-url: ${{ needs.deploy-insurance-ui.outputs.web_url }}
+          api-url: ${{ needs.deploy-insurance-ui.outputs.api_url }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
 
   retail-tests:
     name: Retail E2E Tests
@@ -805,32 +786,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup environment
-        uses: ./.github/actions/setup-env
-
-      - name: Install Python dependencies
-        run: pip install -r requirements-test.txt
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Install Chrome and ChromeDriver
-        uses: browser-actions/setup-chrome@v1
-
       - name: Run retail E2E tests
-        env:
-          RETAIL_URL: ${{ needs.deploy-retail-ui.outputs.web_url }}
-          RETAIL_API_URL: ${{ needs.deploy-retail-ui.outputs.api_url }}
-          HEADLESS: 'true'
-        run: |
-          cd tests/e2e
-          pytest -v --tb=short -m "retail"
+        uses: ./.github/actions/run-e2e-tests
+        with:
+          vertical: retail
+          web-url: ${{ needs.deploy-retail-ui.outputs.web_url }}
+          api-url: ${{ needs.deploy-retail-ui.outputs.api_url }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
 
   landing-tests:
     name: Landing E2E Tests
@@ -839,31 +801,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup environment
-        uses: ./.github/actions/setup-env
-
-      - name: Install Python dependencies
-        run: pip install -r requirements-test.txt
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Install Chrome and ChromeDriver
-        uses: browser-actions/setup-chrome@v1
-
       - name: Run landing E2E tests
-        env:
-          LANDING_URL: ${{ needs.deploy-landing-ui.outputs.web_url }}
-          HEADLESS: 'true'
-        run: |
-          cd tests/e2e
-          pytest -v --tb=short -m "landing"
+        uses: ./.github/actions/run-e2e-tests
+        with:
+          vertical: landing
+          web-url: ${{ needs.deploy-landing-ui.outputs.web_url }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
 
   # ========================================
   # Demo Data Seeding
