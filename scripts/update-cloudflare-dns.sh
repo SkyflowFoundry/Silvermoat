@@ -206,8 +206,8 @@ fi
 
 if [[ -z "$CLOUDFRONT_DOMAIN" || "$CLOUDFRONT_DOMAIN" == "None" ]]; then
     info "CloudFront not found in stack outputs (tried $CLOUDFRONT_OUTPUT_KEY and CloudFrontDomain)"
-    info "This is expected for test stacks that skip CloudFront for faster deployment"
-    info "Skipping DNS update"
+    info "This stack does not have a CloudFront distribution configured"
+    info "Skipping DNS update - using S3 website URL directly"
     exit 0
 fi
 

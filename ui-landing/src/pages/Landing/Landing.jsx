@@ -14,6 +14,10 @@ import {
 const { Title, Text, Paragraph } = Typography;
 
 const Landing = () => {
+  // Get vertical URLs from environment (for test deployments) or use production defaults
+  const insuranceUrl = import.meta.env.VITE_INSURANCE_URL || 'https://insurance.silvermoat.net';
+  const retailUrl = import.meta.env.VITE_RETAIL_URL || 'https://retail.silvermoat.net';
+
   const verticals = [
     {
       name: 'Insurance',
@@ -25,7 +29,7 @@ const Landing = () => {
         'Customer Portal & Support',
         'AI-Powered Assistance',
       ],
-      url: 'https://insurance.silvermoat.net',
+      url: insuranceUrl,
       color: '#003d82',
     },
     {
@@ -38,7 +42,7 @@ const Landing = () => {
         'Inventory Tracking',
         'Customer Service Platform',
       ],
-      url: 'https://retail.silvermoat.net',
+      url: retailUrl,
       color: '#722ed1',
     },
   ];
