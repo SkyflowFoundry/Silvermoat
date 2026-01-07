@@ -11,6 +11,24 @@ source "$SCRIPT_DIR/lib/check-aws.sh"
 
 STACK_NAME="${STACK_NAME:-silvermoat}"
 
+# Extract vertical from stack name if present
+# Format: silvermoat-{vertical} or silvermoat-test-pr-{N}-{vertical}
+if [[ "$STACK_NAME" == *-insurance ]]; then
+    export VERTICAL="insurance"
+elif [[ "$STACK_NAME" == *-retail ]]; then
+    export VERTICAL="retail"
+elif [[ "$STACK_NAME" == *-landing ]]; then
+    export VERTICAL="landing"
+elif [[ "$STACK_NAME" == *-certificate ]]; then
+    export VERTICAL="certificate"
+fi
+
+echo "Stack to delete: $STACK_NAME"
+if [[ -n "$VERTICAL" ]]; then
+    echo "Detected vertical: $VERTICAL"
+fi
+echo ""
+
 # Parse command line arguments
 SKIP_CONFIRM=false
 while [[ $# -gt 0 ]]; do

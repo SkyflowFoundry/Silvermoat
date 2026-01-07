@@ -25,42 +25,41 @@ env = Environment(
 deploy_insurance = vertical is None or vertical == "insurance"
 deploy_retail = vertical is None or vertical == "retail"
 deploy_landing = vertical is None or vertical == "landing"
-deploy_certificate = vertical is None or vertical == "certificate"
 
 # ========================================
 # Certificate Stack (Shared - Production Only)
 # ========================================
 # Deploy shared certificate stack if any vertical needs CloudFront
+# Always check certificate needs when deploying verticals (CDK handles dependencies)
 certificate_stack = None
 
-if deploy_certificate:
-    # Check if any vertical being deployed needs CloudFront
-    needs_cloudfront = False
+# Check if any vertical being deployed needs CloudFront
+needs_cloudfront = False
 
-    if deploy_insurance:
-        insurance_config = get_config(f"{stack_name}-insurance", stage_name)
-        if insurance_config.create_cloudfront:
-            needs_cloudfront = True
+if deploy_insurance:
+    insurance_config = get_config(f"{stack_name}-insurance", stage_name)
+    if insurance_config.create_cloudfront:
+        needs_cloudfront = True
 
-    if deploy_retail and not needs_cloudfront:
-        retail_config = get_config(f"{stack_name}-retail", stage_name)
-        if retail_config.create_cloudfront:
-            needs_cloudfront = True
+if deploy_retail and not needs_cloudfront:
+    retail_config = get_config(f"{stack_name}-retail", stage_name)
+    if retail_config.create_cloudfront:
+        needs_cloudfront = True
 
-    if deploy_landing and not needs_cloudfront:
-        landing_config = get_config(f"{stack_name}-landing", stage_name)
-        if landing_config.create_cloudfront:
-            needs_cloudfront = True
+if deploy_landing and not needs_cloudfront:
+    landing_config = get_config(f"{stack_name}-landing", stage_name)
+    if landing_config.create_cloudfront:
+        needs_cloudfront = True
 
-    if needs_cloudfront:
-        # Use insurance config for certificate (all verticals share same domain settings)
-        cert_config = get_config(f"{stack_name}-certificate", stage_name)
-        certificate_stack = CertificateStack(
-            app,
-            f"{stack_name}-certificate",
-            config=cert_config,
-            env=env,
-        )
+if needs_cloudfront:
+    # Use insurance config for certificate (all verticals share same domain settings)
+    cert_config = get_config(f"{stack_name}-certificate", stage_name)
+    certificate_stack = CertificateStack(
+        app,
+        f"{stack_name}-certificate",
+        config=cert_config,
+        env=env,
+    )
 
 # ========================================
 # Vertical Stacks (Pass shared certificate)
