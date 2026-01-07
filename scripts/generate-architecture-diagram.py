@@ -58,7 +58,7 @@ def generate_architecture_diagram():
         # Landing Page
         with Cluster("Landing Page"):
             with Cluster("Frontend Distribution"):
-                landing_cloudfront = CloudFront("CloudFront\nsilvermoat.com")
+                landing_cloudfront = CloudFront("CloudFront\nsilvermoat.net")
                 landing_ui_bucket = S3("UI Bucket")
 
             landing_cloudfront >> landing_ui_bucket

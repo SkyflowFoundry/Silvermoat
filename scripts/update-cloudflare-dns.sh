@@ -74,15 +74,17 @@ else
     CREATE_WILDCARD="${CREATE_WILDCARD:-false}"
 fi
 
-# Determine subdomain
+# Determine subdomain (no hardcoding - all use DOMAIN_NAME)
 if [[ "$VERTICAL" == "landing" ]]; then
-    # Landing uses apex domain
-    SUBDOMAIN="silvermoat.com"
+    # Landing uses apex domain (e.g., silvermoat.net)
+    SUBDOMAIN="${DOMAIN_NAME}"
     CLOUDFRONT_OUTPUT_KEY="LandingCloudFrontDomain"
 elif [[ -n "$VERTICAL" ]]; then
+    # Vertical-specific subdomain (insurance.silvermoat.net, retail.silvermoat.net)
     SUBDOMAIN="${VERTICAL}.${DOMAIN_NAME}"
     CLOUDFRONT_OUTPUT_KEY="${VERTICAL^}CloudFrontDomain"  # InsuranceCloudFrontDomain or RetailCloudFrontDomain
 else
+    # Fallback to root domain
     SUBDOMAIN="$DOMAIN_NAME"
     CLOUDFRONT_OUTPUT_KEY="CloudFrontDomain"
 fi
