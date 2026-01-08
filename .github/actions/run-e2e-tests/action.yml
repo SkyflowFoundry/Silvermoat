@@ -41,6 +41,8 @@ runs:
         INSURANCE_API_URL: ${{ inputs.vertical == 'insurance' && inputs.api-url || '' }}
         RETAIL_URL: ${{ inputs.vertical == 'retail' && inputs.web-url || '' }}
         RETAIL_API_URL: ${{ inputs.vertical == 'retail' && inputs.api-url || '' }}
+        HEALTHCARE_URL: ${{ inputs.vertical == 'healthcare' && inputs.web-url || '' }}
+        HEALTHCARE_API_URL: ${{ inputs.vertical == 'healthcare' && inputs.api-url || '' }}
         LANDING_URL: ${{ inputs.vertical == 'landing' && inputs.web-url || '' }}
         HEADLESS: 'true'
       run: |
