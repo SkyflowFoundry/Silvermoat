@@ -821,7 +821,7 @@ jobs:
 
   deploy-landing-ui:
     name: Deploy Landing UI
-    needs: [detect-changes, deploy-landing-infra, configure-landing-dns, deploy-insurance-ui, deploy-retail-ui, deploy-healthcare-ui]
+    needs: [detect-changes, deploy-landing-infra, configure-landing-dns]
     if: |
       always() &&
       (needs.deploy-landing-infra.result == 'success' || needs.deploy-landing-infra.result == 'skipped') &&

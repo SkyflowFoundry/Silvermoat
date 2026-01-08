@@ -164,7 +164,7 @@ jobs:
 
   deploy-landing-ui:
     name: Deploy Landing UI
-    needs: [detect-changes, deploy-landing-infra, deploy-insurance-ui, deploy-retail-ui, deploy-healthcare-ui]
+    needs: [detect-changes, deploy-landing-infra]
     if: |
       always() &&
       (needs.detect-changes.outputs.ui_changed == 'true' || needs.detect-changes.outputs.landing_ui_changed == 'true' || needs.deploy-landing-infra.result == 'success' || inputs.force_deploy == 'true') &&
