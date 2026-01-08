@@ -803,34 +803,10 @@ jobs:
             exit 1
           fi
 
-  e2e-healthcare:
-    name: Healthcare E2E Tests
-    needs: [detect-changes, deploy-healthcare-infra, deploy-healthcare-ui]
-    if: |
-      always() &&
-      (needs.deploy-healthcare-ui.result == 'success' ||
-       needs.detect-changes.outputs.healthcare_stack_exists == 'true')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run healthcare E2E tests
-        uses: ./.github/actions/run-e2e-tests
-        with:
-          vertical: healthcare
-          web-url: ${{ needs.deploy-healthcare-ui.outputs.web_url }}
-          api-url: ${{ needs.deploy-healthcare-ui.outputs.api_url }}
-          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
-
   seed-healthcare-data:
     name: Seed Healthcare Data
-    needs: [deploy-healthcare-ui, e2e-healthcare]
-    if: |
-      always() &&
-      needs.deploy-healthcare-ui.result == 'success' &&
-      (needs.e2e-healthcare.result == 'success' || needs.e2e-healthcare.result == 'skipped')
+    needs: [deploy-healthcare-ui, healthcare-e2e-tests]
+    if: needs.deploy-healthcare-ui.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -1027,6 +1003,46 @@ jobs:
           api-url: ${{ needs.deploy-retail-ui.outputs.api_url }}
           aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
 
+  healthcare-e2e-tests:
+    name: Healthcare E2E Tests (${{ matrix.category }})
+    needs: [detect-changes, deploy-healthcare-infra, deploy-healthcare-ui]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        category: [smoke, api, ui, lifecycle]
+
+    steps:
+      - name: Check if tests should run
+        id: should_run
+        run: |
+          DEPLOY_RESULT="${{ needs.deploy-healthcare-ui.result }}"
+          STACK_EXISTS="${{ needs.detect-changes.outputs.healthcare_stack_exists }}"
+
+          if [[ "$DEPLOY_RESULT" == "success" ]] || [[ "$STACK_EXISTS" == "true" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "Running healthcare tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "Skipping healthcare tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+          fi
+
+      - name: Checkout code
+        if: steps.should_run.outputs.should_run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Run healthcare ${{ matrix.category }} tests
+        if: steps.should_run.outputs.should_run == 'true'
+        uses: ./.github/actions/run-e2e-tests
+        with:
+          vertical: healthcare
+          category: ${{ matrix.category }}
+          web-url: ${{ needs.deploy-healthcare-ui.outputs.web_url }}
+          api-url: ${{ needs.deploy-healthcare-ui.outputs.api_url }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
   landing-e2e-tests:
     name: Landing E2E Tests (${{ matrix.category }})
     needs: [detect-changes, deploy-landing-infra, deploy-landing-ui]
@@ -1116,10 +1132,10 @@ jobs:
       deploy-retail-ui,
       deploy-healthcare-ui,
       deploy-landing-ui,
-      insurance-tests,
-      retail-tests,
-      e2e-healthcare,
-      landing-tests,
+      insurance-e2e-tests,
+      retail-e2e-tests,
+      healthcare-e2e-tests,
+      landing-e2e-tests,
       seed-insurance-data,
       seed-retail-data,
       seed-healthcare-data
@@ -1158,10 +1174,10 @@ jobs:
           echo "  Web: ${{ needs.deploy-landing-ui.outputs.web_url }}"
           echo ""
           echo "🧪 E2E Tests:"
-          echo "  Insurance: ${{ needs.insurance-tests.result }}"
-          echo "  Retail: ${{ needs.retail-tests.result }}"
-          echo "  Healthcare: ${{ needs.e2e-healthcare.result }}"
-          echo "  Landing: ${{ needs.landing-tests.result }}"
+          echo "  Insurance: ${{ needs.insurance-e2e-tests.result }}"
+          echo "  Retail: ${{ needs.retail-e2e-tests.result }}"
+          echo "  Healthcare: ${{ needs.healthcare-e2e-tests.result }}"
+          echo "  Landing: ${{ needs.landing-e2e-tests.result }}"
           echo ""
           echo "🌱 Data Seeding:"
           echo "  Insurance: ${{ needs.seed-insurance-data.result }}"
