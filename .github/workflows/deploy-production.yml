@@ -180,6 +180,7 @@ jobs:
       always() &&
       needs.detect-changes.result == 'success' &&
       (needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+       needs.detect-changes.outputs.insurance_lambda_changed == 'true' ||
        needs.detect-changes.outputs.insurance_stack_exists == 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -216,6 +217,7 @@ jobs:
       always() &&
       needs.detect-changes.result == 'success' &&
       (needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+       needs.detect-changes.outputs.retail_lambda_changed == 'true' ||
        needs.detect-changes.outputs.retail_stack_exists == 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -252,6 +254,7 @@ jobs:
       always() &&
       needs.detect-changes.result == 'success' &&
       (needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+       needs.detect-changes.outputs.healthcare_lambda_changed == 'true' ||
        needs.detect-changes.outputs.healthcare_stack_exists == 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -288,6 +291,7 @@ jobs:
       always() &&
       needs.detect-changes.result == 'success' &&
       (needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+       needs.detect-changes.outputs.landing_lambda_changed == 'true' ||
        needs.detect-changes.outputs.landing_stack_exists == 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -476,7 +480,7 @@ jobs:
       always() &&
       (needs.deploy-insurance-infra.result == 'success' || needs.deploy-insurance-infra.result == 'skipped') &&
       (needs.configure-insurance-dns.result == 'success' || needs.configure-insurance-dns.result == 'skipped') &&
-      (needs.deploy-insurance-infra.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true')
+      (needs.deploy-insurance-infra.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true' || needs.detect-changes.outputs.insurance_ui_changed == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -586,7 +590,7 @@ jobs:
       always() &&
       (needs.deploy-retail-infra.result == 'success' || needs.deploy-retail-infra.result == 'skipped') &&
       (needs.configure-retail-dns.result == 'success' || needs.configure-retail-dns.result == 'skipped') &&
-      (needs.deploy-retail-infra.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true')
+      (needs.deploy-retail-infra.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true' || needs.detect-changes.outputs.retail_ui_changed == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -696,7 +700,7 @@ jobs:
       always() &&
       (needs.deploy-healthcare-infra.result == 'success' || needs.deploy-healthcare-infra.result == 'skipped') &&
       (needs.configure-healthcare-dns.result == 'success' || needs.configure-healthcare-dns.result == 'skipped') &&
-      (needs.deploy-healthcare-infra.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true')
+      (needs.deploy-healthcare-infra.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true' || needs.detect-changes.outputs.healthcare_ui_changed == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -845,7 +849,7 @@ jobs:
       always() &&
       (needs.deploy-landing-infra.result == 'success' || needs.deploy-landing-infra.result == 'skipped') &&
       (needs.configure-landing-dns.result == 'success' || needs.configure-landing-dns.result == 'skipped') &&
-      (needs.deploy-landing-infra.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true') &&
+      (needs.deploy-landing-infra.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true' || needs.detect-changes.outputs.landing_ui_changed == 'true') &&
       (needs.deploy-insurance-infra.result == 'success' || needs.deploy-insurance-infra.result == 'skipped') &&
       (needs.deploy-retail-infra.result == 'success' || needs.deploy-retail-infra.result == 'skipped') &&
       (needs.deploy-healthcare-infra.result == 'success' || needs.deploy-healthcare-infra.result == 'skipped')
