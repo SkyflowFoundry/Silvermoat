@@ -805,10 +805,11 @@ jobs:
 
   e2e-healthcare:
     name: Healthcare E2E Tests
-    needs: [deploy-healthcare-infra, deploy-healthcare-ui]
+    needs: [detect-changes, deploy-healthcare-infra, deploy-healthcare-ui]
     if: |
       always() &&
-      needs.deploy-healthcare-ui.result == 'success'
+      (needs.deploy-healthcare-ui.result == 'success' ||
+       needs.detect-changes.outputs.healthcare_stack_exists == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -948,8 +949,11 @@ jobs:
 
   insurance-tests:
     name: Insurance E2E Tests
-    needs: [deploy-insurance-ui]
-    if: always() && needs.deploy-insurance-ui.result == 'success'
+    needs: [detect-changes, deploy-insurance-ui]
+    if: |
+      always() &&
+      (needs.deploy-insurance-ui.result == 'success' ||
+       needs.detect-changes.outputs.insurance_stack_exists == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -966,8 +970,11 @@ jobs:
 
   retail-tests:
     name: Retail E2E Tests
-    needs: [deploy-retail-ui]
-    if: always() && needs.deploy-retail-ui.result == 'success'
+    needs: [detect-changes, deploy-retail-ui]
+    if: |
+      always() &&
+      (needs.deploy-retail-ui.result == 'success' ||
+       needs.detect-changes.outputs.retail_stack_exists == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -984,8 +991,11 @@ jobs:
 
   landing-tests:
     name: Landing E2E Tests
-    needs: [deploy-landing-ui]
-    if: always() && needs.deploy-landing-ui.result == 'success'
+    needs: [detect-changes, deploy-landing-ui]
+    if: |
+      always() &&
+      (needs.deploy-landing-ui.result == 'success' ||
+       needs.detect-changes.outputs.landing_stack_exists == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
