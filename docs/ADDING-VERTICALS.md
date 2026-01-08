@@ -1,6 +1,23 @@
 # Adding New Verticals
 
-Quick reference for adding a new vertical (e.g., healthcare, logistics) to Silvermoat.
+Complete guide for adding a new vertical (e.g., healthcare, logistics) to Silvermoat.
+
+## Critical Order of Operations
+
+**Follow this exact order to avoid deployment failures:**
+
+1. **CDK Configuration** (Section 7.1) - Add vertical to `cdk/config/environments.py` FIRST
+2. **Lambda Handlers** (Section 6) - Create all Lambda files BEFORE CDK stack
+3. **CDK Stack** (Section 7.2-7.5) - Create stack file, update app.py, update deploy-stack.sh
+4. **GitHub Workflows** (Section 5) - Update both test and production workflows
+5. **Everything else** - UI, tests, diagrams, etc.
+
+**Why this order matters:**
+- Missing from environments.py → CloudFront CNAME conflict in production
+- Missing Lambda handlers → CDK deployment fails with "Cannot find asset"
+- Missing workflow updates → CI/CD never triggers deployment
+
+See Section 12 (Common Pitfalls) for real examples of what breaks when you skip steps.
 
 ## 1. UI Structure
 
@@ -108,7 +125,31 @@ const {vertical}Url = import.meta.env.VITE_{VERTICAL}_URL;
 
 **deploy-test.yml & deploy-production.yml**
 
-### 5.1 Update detect-changes job
+### 5.1 Add vertical to workflow paths (deploy-production.yml only)
+
+**CRITICAL**: Update the `paths` trigger at the top of `deploy-production.yml`:
+
+```yaml
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+    paths:
+      - 'cdk/**'
+      - 'lambda/**'
+      - 'ui-insurance/**'
+      - 'ui-retail/**'
+      - 'ui-healthcare/**'     # ADD THIS
+      - 'ui-{vertical}/**'     # ADD YOUR VERTICAL
+      - 'ui-landing/**'
+      - 'tests/e2e/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+```
+
+**Why this matters:** Without this, production deployments won't trigger when you change your vertical's UI code.
+
+### 5.2 Update detect-changes job
 
 Add stack existence output:
 ```yaml
@@ -126,7 +167,7 @@ else
 fi
 ```
 
-### 5.2 Add infrastructure deployment job
+### 5.3 Add infrastructure deployment job
 
 ```yaml
 deploy-{vertical}-infra:
@@ -158,7 +199,7 @@ deploy-{vertical}-infra:
         VERTICAL: {vertical}
         STAGE_NAME: prod
         CREATE_CLOUDFRONT: true
-        DOMAIN_NAME: silvermoat.net
+        DOMAIN_NAME: "*.silvermoat.net"  # Use wildcard - but environments.py overrides this anyway
       run: |
         echo "Deploying {vertical} production stack: silvermoat-{vertical}"
         chmod +x scripts/deploy-stack.sh
@@ -166,7 +207,7 @@ deploy-{vertical}-infra:
         echo "stack_name=silvermoat-{vertical}" >> $GITHUB_OUTPUT
 ```
 
-### 5.3 Add DNS configuration job (production only)
+### 5.4 Add DNS configuration job (production only)
 
 ```yaml
 configure-{vertical}-dns:
@@ -201,14 +242,14 @@ configure-{vertical}-dns:
         CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
         STACK_NAME: silvermoat-{vertical}
-        DOMAIN_NAME: silvermoat.net
+        DOMAIN_NAME: "*.silvermoat.net"
       run: |
         echo "Running smart DNS update for {vertical}..."
         chmod +x scripts/update-cloudflare-dns.sh
         ./scripts/update-cloudflare-dns.sh
 ```
 
-### 5.4 Add UI deployment job
+### 5.5 Add UI deployment job
 
 ```yaml
 deploy-{vertical}-ui:
@@ -235,7 +276,7 @@ deploy-{vertical}-ui:
         ./scripts/deploy-ui.sh
 ```
 
-### 5.5 Update cleanup-test matrix (production workflow)
+### 5.6 Update cleanup-test matrix (production workflow)
 
 Add vertical to cleanup matrix:
 ```yaml
@@ -244,7 +285,7 @@ strategy:
     vertical: [insurance, retail, {vertical}, landing]
 ```
 
-### 5.6 Update deploy-landing-ui dependencies
+### 5.7 Update deploy-landing-ui dependencies
 
 Add vertical to needs array:
 ```yaml
@@ -475,11 +516,38 @@ cd lambda/{vertical}
 python3 -c "import handler; print(handler.handler({'path': '/', 'httpMethod': 'GET'}, {}))"
 ```
 
-## 7. CDK Infrastructure Stack
+## 7. CDK Configuration
 
-**CRITICAL: Lambda handlers must exist (section 6) before CDK can deploy**
+**CRITICAL: Update environments.py FIRST, before creating stack file**
 
-### 7.1 Create vertical stack file
+### 7.1 Add vertical to production config
+
+**THIS IS THE MOST IMPORTANT STEP - Skipping this causes CloudFront CNAME conflicts**
+
+Add your vertical to the production stack list in `cdk/config/environments.py`:
+
+```python
+# Production stacks
+if stack_name in ["silvermoat", "silvermoat-insurance", "silvermoat-retail",
+                  "silvermoat-healthcare", "silvermoat-{vertical}", "silvermoat-landing"]:  # ADD YOUR VERTICAL HERE
+    return SilvermoatConfig(
+        app_name="silvermoat",
+        stage_name="prod",
+        api_deployment_token="v1",
+        ui_seeding_mode="external",
+        domain_name="*.silvermoat.net",  # Wildcard for multi-vertical subdomains
+        create_cloudfront=True,
+    )
+```
+
+**Why this matters:**
+- If your vertical is NOT in this list, it falls back to `SilvermoatConfig.from_env()`
+- This reads `DOMAIN_NAME` from workflow environment variables
+- This causes CloudFront to try using apex domain (silvermoat.net) instead of subdomain
+- This conflicts with landing page's CloudFront distribution
+- **Result: Production deployment fails with "CNAME already associated with different resource"**
+
+### 7.2 Create vertical stack file
 
 Create `cdk/stacks/{vertical}_stack.py` following the pattern from `retail_stack.py`:
 
@@ -652,7 +720,7 @@ class HealthcareStack(Stack):
                 )
 ```
 
-### 7.2 Update CDK app.py
+### 7.3 Update CDK app.py
 
 Add healthcare to `cdk/app.py`:
 
@@ -674,7 +742,7 @@ if deploy_healthcare:
     )
 ```
 
-### 7.3 Key components in vertical stack
+### 7.4 Key components in vertical stack
 
 The `VerticalStack` (inherited) automatically creates:
 - **7 DynamoDB tables**: Patients, Appointments, Prescriptions, Providers, Cases, Conversations, Documents
@@ -683,7 +751,7 @@ The `VerticalStack` (inherited) automatically creates:
 - **S3 buckets**: UI bucket (website hosting) + documents bucket
 - **IAM roles**: Lambda execution roles with least-privilege access
 
-### 7.4 Update deploy-stack.sh
+### 7.5 Update deploy-stack.sh
 
 Add vertical deployment block to `scripts/deploy-stack.sh`:
 
@@ -728,9 +796,14 @@ def test_landing_{vertical}_link(driver, landing_base_url):
     assert href.startswith('http'), f"{Vertical} link should be absolute URL, got: {href}"
 ```
 
-## 8. File Checklist
+## 8. Complete Implementation Checklist
 
-**Required files:**
+**Follow this order exactly:**
+
+### Phase 1: CDK Configuration (DO THIS FIRST)
+- [ ] **CRITICAL**: Add `"silvermoat-{vertical}"` to production stack list in `cdk/config/environments.py:8`
+
+### Phase 2: Lambda Handlers (BEFORE CDK stack)
 
 ### UI Files
 - [ ] `ui-{vertical}/package.json` (with dependencies)
@@ -739,31 +812,36 @@ def test_landing_{vertical}_link(driver, landing_base_url):
 - [ ] `ui-{vertical}/src/components/common/ArchitectureViewer.jsx`
 - [ ] `ui-{vertical}/public/silvermoat-logo.png`
 
-### Lambda Handler Files (CRITICAL - must exist before CDK)
 - [ ] `lambda/{vertical}/__init__.py`
 - [ ] `lambda/{vertical}/handler.py`
 - [ ] `lambda/{vertical}/entities.py`
 - [ ] `lambda/{vertical}/chatbot.py`
 - [ ] `lambda/{vertical}/customer_chatbot.py`
 
-### CDK Files
+### Phase 3: CDK Stack
 - [ ] Create `cdk/stacks/{vertical}_stack.py`
 - [ ] Update `cdk/app.py` (add import, deploy variable, stack instantiation)
-
-### Scripts
-- [ ] Update `scripts/generate-architecture-diagram.py`
-- [ ] Update `scripts/deploy-ui.sh`
 - [ ] Update `scripts/deploy-stack.sh` (add vertical deployment block)
 
-### Main Landing
+### Phase 4: GitHub Workflows (CRITICAL)
+- [ ] **deploy-production.yml**: Add `ui-{vertical}/**` to paths trigger (top of file)
+- [ ] **deploy-test.yml**: Update detect-changes job (add {vertical}_stack_exists output)
+- [ ] **deploy-test.yml**: Add check-stacks step for {vertical}
+- [ ] **deploy-test.yml**: Add deploy-{vertical}-infra job
+- [ ] **deploy-test.yml**: Add deploy-{vertical}-ui job
+- [ ] **deploy-test.yml**: Update cleanup-test matrix
+- [ ] **deploy-test.yml**: Update deploy-landing-ui dependencies
+- [ ] **deploy-production.yml**: Same as test workflow PLUS:
+  - [ ] Add configure-{vertical}-dns job
+
+### Phase 5: UI and Supporting Files
+- [ ] Create `ui-{vertical}/` directory with all React files
 - [ ] Update `ui-landing/src/pages/Landing/Landing.jsx`
 - [ ] Update `ui-landing/src/components/common/ArchitectureViewer.jsx`
+- [ ] Update `scripts/generate-architecture-diagram.py`
+- [ ] Update `scripts/deploy-ui.sh`
 
-### Workflows
-- [ ] Update `.github/workflows/deploy-test.yml` (5 changes: detect-changes, deploy-infra, deploy-ui, cleanup-test, landing-ui)
-- [ ] Update `.github/workflows/deploy-production.yml` (6 changes: detect-changes, deploy-infra, configure-dns, deploy-ui, cleanup-test, landing-ui)
-
-### Tests
+### Phase 6: Tests
 - [ ] Update `tests/e2e/tests/test_landing_workflows.py`
 
 ## 9. Color Scheme Conventions
@@ -822,6 +900,19 @@ See existing insurance/retail stacks for patterns.
 
 ## 12. Common Pitfalls
 
+### Missing vertical from environments.py (MOST CRITICAL)
+- **Problem**: Production deployment fails with CloudFront error: "One or more of the CNAMEs you provided are already associated with a different resource"
+- **Root cause**: Vertical not in production stack list at `cdk/config/environments.py:8`
+- **What happens**:
+  1. Config lookup fails to match your stack name
+  2. Falls back to `SilvermoatConfig.from_env()`
+  3. Reads `DOMAIN_NAME` from workflow (could be anything)
+  4. CDK stack logic: if domain doesn't start with `*`, uses it as-is
+  5. Tries to create CloudFront with apex domain (silvermoat.net)
+  6. Conflicts with landing page's existing CloudFront distribution
+- **Solution**: Add `"silvermoat-{vertical}"` to the list in `cdk/config/environments.py:8` FIRST
+- **Real example**: Healthcare was missing from this list, causing exact this issue in production
+
 ### Missing Lambda handlers (CRITICAL)
 - **Problem**: `Cannot find asset at /path/to/lambda/{vertical}` during CDK deployment
 - **Root cause**: Lambda handler directory doesn't exist when CDK tries to package Lambda code
@@ -848,3 +939,15 @@ See existing insurance/retail stacks for patterns.
 ### E2E test count mismatch
 - **Problem**: Tests expect wrong number of "Enter Portal" buttons
 - **Solution**: Update assertion to `>= N` where N = total number of verticals
+
+### Missing workflow paths trigger
+- **Problem**: Production deployment doesn't trigger when UI code changes
+- **Root cause**: `ui-{vertical}/**` not in workflow paths trigger
+- **Solution**: Add `ui-{vertical}/**` to paths in deploy-production.yml
+- **Real example**: Healthcare deployment didn't trigger until we added `ui-healthcare/**` to paths
+
+### UI build failure - missing API functions
+- **Problem**: Vite build fails with "X is not exported by src/services/api.js"
+- **Root cause**: Service files import functions that don't exist in shared api.js
+- **Solution**: Either implement the function in api.js or remove the import
+- **Real example**: Healthcare services imported `updateEntityStatus` which didn't exist, causing build failure
