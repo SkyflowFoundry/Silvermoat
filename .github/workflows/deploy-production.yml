@@ -821,18 +821,12 @@ jobs:
 
   deploy-landing-ui:
     name: Deploy Landing UI
-    needs: [detect-changes, deploy-landing-infra, configure-landing-dns, deploy-insurance-infra, deploy-retail-infra, deploy-healthcare-infra, deploy-insurance-ui, deploy-retail-ui, deploy-healthcare-ui]
+    needs: [detect-changes, deploy-landing-infra, configure-landing-dns, deploy-insurance-ui, deploy-retail-ui, deploy-healthcare-ui]
     if: |
       always() &&
       (needs.deploy-landing-infra.result == 'success' || needs.deploy-landing-infra.result == 'skipped') &&
       (needs.configure-landing-dns.result == 'success' || needs.configure-landing-dns.result == 'skipped') &&
-      (needs.deploy-landing-infra.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true' || needs.detect-changes.outputs.landing_ui_changed == 'true') &&
-      (needs.deploy-insurance-infra.result == 'success' || needs.deploy-insurance-infra.result == 'skipped') &&
-      (needs.deploy-retail-infra.result == 'success' || needs.deploy-retail-infra.result == 'skipped') &&
-      (needs.deploy-healthcare-infra.result == 'success' || needs.deploy-healthcare-infra.result == 'skipped') &&
-      (needs.deploy-insurance-ui.result == 'success' || needs.deploy-insurance-ui.result == 'skipped') &&
-      (needs.deploy-retail-ui.result == 'success' || needs.deploy-retail-ui.result == 'skipped') &&
-      (needs.deploy-healthcare-ui.result == 'success' || needs.deploy-healthcare-ui.result == 'skipped')
+      (needs.deploy-landing-infra.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true' || needs.detect-changes.outputs.landing_ui_changed == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
