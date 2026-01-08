@@ -705,12 +705,14 @@ jobs:
           cat >> /tmp/pr-comment.md <<EOF
           ### Deployment Status
 
-          | Vertical | Infrastructure | UI | Tests | Data Seeding |
-          |----------|---------------|-----|-------|--------------|
-          | 🏥 **Insurance** | ${{ needs.deploy-insurance-infra.result == 'success' && '✅' || needs.deploy-insurance-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-insurance-ui.result == 'success' && '✅' || needs.deploy-insurance-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.insurance-tests.result == 'success' && '✅' || needs.insurance-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-insurance-data.result == 'success' && '✅' || needs.seed-insurance-data.result == 'skipped' && '⏭️' || '❌' }} |
-          | 🛒 **Retail** | ${{ needs.deploy-retail-infra.result == 'success' && '✅' || needs.deploy-retail-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-retail-ui.result == 'success' && '✅' || needs.deploy-retail-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.retail-tests.result == 'success' && '✅' || needs.retail-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-retail-data.result == 'success' && '✅' || needs.seed-retail-data.result == 'skipped' && '⏭️' || '❌' }} |
-          | 🩺 **Healthcare** | ${{ needs.deploy-healthcare-infra.result == 'success' && '✅' || needs.deploy-healthcare-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-healthcare-ui.result == 'success' && '✅' || needs.deploy-healthcare-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.healthcare-tests.result == 'success' && '✅' || needs.healthcare-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-healthcare-data.result == 'success' && '✅' || needs.seed-healthcare-data.result == 'skipped' && '⏭️' || '❌' }} |
-          | 🏠 **Landing** | ${{ needs.deploy-landing-infra.result == 'success' && '✅' || needs.deploy-landing-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-landing-ui.result == 'success' && '✅' || needs.deploy-landing-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.landing-tests.result == 'success' && '✅' || needs.landing-tests.result == 'skipped' && '⏭️' || '❌' }} | N/A |
+          | Vertical | Infrastructure | UI | Data Seeding |
+          |----------|---------------|-----|--------------|
+          | 🏥 **Insurance** | ${{ needs.deploy-insurance-infra.result == 'success' && '✅' || needs.deploy-insurance-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-insurance-ui.result == 'success' && '✅' || needs.deploy-insurance-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-insurance-data.result == 'success' && '✅' || needs.seed-insurance-data.result == 'skipped' && '⏭️' || '❌' }} |
+          | 🛒 **Retail** | ${{ needs.deploy-retail-infra.result == 'success' && '✅' || needs.deploy-retail-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-retail-ui.result == 'success' && '✅' || needs.deploy-retail-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-retail-data.result == 'success' && '✅' || needs.seed-retail-data.result == 'skipped' && '⏭️' || '❌' }} |
+          | 🩺 **Healthcare** | ${{ needs.deploy-healthcare-infra.result == 'success' && '✅' || needs.deploy-healthcare-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-healthcare-ui.result == 'success' && '✅' || needs.deploy-healthcare-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-healthcare-data.result == 'success' && '✅' || needs.seed-healthcare-data.result == 'skipped' && '⏭️' || '❌' }} |
+          | 🏠 **Landing** | ${{ needs.deploy-landing-infra.result == 'success' && '✅' || needs.deploy-landing-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-landing-ui.result == 'success' && '✅' || needs.deploy-landing-ui.result == 'skipped' && '⏭️' || '❌' }} | N/A |
+
+          **E2E Tests:** ${{ needs.e2e-tests.result == 'success' && '✅ All passed' || needs.e2e-tests.result == 'skipped' && '⏭️ Skipped' || '❌ Some failed - check workflow for details' }}
 
           EOF
 
@@ -771,13 +773,13 @@ jobs:
           # Add failure notice if any failures
           if [ "${{ needs.deploy-insurance-infra.result }}" = "failure" ] || \
              [ "${{ needs.deploy-insurance-ui.result }}" = "failure" ] || \
-             [ "${{ needs.insurance-tests.result }}" = "failure" ] || \
              [ "${{ needs.deploy-retail-infra.result }}" = "failure" ] || \
              [ "${{ needs.deploy-retail-ui.result }}" = "failure" ] || \
-             [ "${{ needs.retail-tests.result }}" = "failure" ] || \
+             [ "${{ needs.deploy-healthcare-infra.result }}" = "failure" ] || \
+             [ "${{ needs.deploy-healthcare-ui.result }}" = "failure" ] || \
              [ "${{ needs.deploy-landing-infra.result }}" = "failure" ] || \
              [ "${{ needs.deploy-landing-ui.result }}" = "failure" ] || \
-             [ "${{ needs.landing-tests.result }}" = "failure" ]; then
+             [ "${{ needs.e2e-tests.result }}" = "failure" ]; then
             cat >> /tmp/pr-comment.md <<EOF
           ---
 
