@@ -21,6 +21,7 @@ from customer_chatbot import handle_customer_chat as handle_healthcare_customer_
 # - CLAIMS_TABLE -> prescriptions
 HEALTHCARE_DOMAIN_MAPPING = {
     "patient": "CUSTOMERS_TABLE",
+    "customer": "CUSTOMERS_TABLE",       # Alias for patient (used by upsert_customer method)
     "appointment": "QUOTES_TABLE",       # Healthcare appointments stored in quotes table
     "medical_record": "POLICIES_TABLE",  # Healthcare medical records stored in policies table
     "prescription": "CLAIMS_TABLE",      # Healthcare prescriptions stored in claims table
