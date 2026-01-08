@@ -16,6 +16,7 @@ from ..conftest import wait_for_app_ready
 
 @pytest.mark.e2e
 @pytest.mark.landing
+@pytest.mark.smoke
 def test_landing_page_loads(driver, landing_base_url):
     """Test landing page loads successfully"""
     driver.get(landing_base_url)
@@ -31,6 +32,7 @@ def test_landing_page_loads(driver, landing_base_url):
 
 @pytest.mark.e2e
 @pytest.mark.landing
+@pytest.mark.smoke
 def test_landing_logo_displays(driver, landing_base_url):
     """Test logo displays correctly"""
     driver.get(landing_base_url)
@@ -47,6 +49,7 @@ def test_landing_logo_displays(driver, landing_base_url):
 
 @pytest.mark.e2e
 @pytest.mark.landing
+@pytest.mark.smoke
 def test_landing_vertical_cards_visible(driver, landing_base_url):
     """Test insurance, retail, and healthcare cards are visible"""
     driver.get(landing_base_url)
@@ -66,6 +69,7 @@ def test_landing_vertical_cards_visible(driver, landing_base_url):
 
 @pytest.mark.e2e
 @pytest.mark.landing
+@pytest.mark.ui
 def test_landing_insurance_link(driver, landing_base_url):
     """Test insurance card has working link"""
     driver.get(landing_base_url)
@@ -90,6 +94,7 @@ def test_landing_insurance_link(driver, landing_base_url):
 
 @pytest.mark.e2e
 @pytest.mark.landing
+@pytest.mark.ui
 def test_landing_retail_link(driver, landing_base_url):
     """Test retail card has working link"""
     driver.get(landing_base_url)
@@ -114,6 +119,7 @@ def test_landing_retail_link(driver, landing_base_url):
 
 @pytest.mark.e2e
 @pytest.mark.landing
+@pytest.mark.ui
 def test_landing_healthcare_link(driver, landing_base_url):
     """Test healthcare card has working link"""
     driver.get(landing_base_url)
@@ -141,6 +147,7 @@ def test_landing_healthcare_link(driver, landing_base_url):
 
 @pytest.mark.e2e
 @pytest.mark.landing
+@pytest.mark.smoke
 def test_landing_page_responsive(driver, landing_base_url):
     """Test landing page is responsive"""
     driver.get(landing_base_url)

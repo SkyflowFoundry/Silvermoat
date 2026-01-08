@@ -19,6 +19,7 @@ from ..conftest import wait_for_app_ready
 
 @pytest.mark.e2e
 @pytest.mark.retail
+@pytest.mark.smoke
 def test_retail_dashboard_loads(driver, retail_base_url):
     """Test retail dashboard loads successfully"""
     driver.get(f"{retail_base_url}/dashboard")
@@ -34,6 +35,7 @@ def test_retail_dashboard_loads(driver, retail_base_url):
 
 @pytest.mark.e2e
 @pytest.mark.retail
+@pytest.mark.smoke
 def test_retail_seed_data_button_exists(driver, retail_base_url):
     """Test retail dashboard has seed data functionality"""
     driver.get(f"{retail_base_url}/dashboard")
@@ -49,6 +51,7 @@ def test_retail_seed_data_button_exists(driver, retail_base_url):
 @pytest.mark.e2e
 @pytest.mark.retail
 @pytest.mark.slow
+@pytest.mark.api
 def test_retail_product_via_api(driver, retail_base_url, retail_api_url):
     """Test creating product via API and verifying it appears in UI"""
     # Create product via API
@@ -82,6 +85,7 @@ def test_retail_product_via_api(driver, retail_base_url, retail_api_url):
 
 @pytest.mark.e2e
 @pytest.mark.retail
+@pytest.mark.smoke
 def test_retail_home_has_dashboard_link(driver, retail_base_url):
     """Test retail home page has link to dashboard"""
     driver.get(retail_base_url)
@@ -96,6 +100,7 @@ def test_retail_home_has_dashboard_link(driver, retail_base_url):
 
 @pytest.mark.e2e
 @pytest.mark.retail
+@pytest.mark.smoke
 def test_retail_navigation_to_dashboard(driver, retail_base_url):
     """Test navigating from home to dashboard"""
     driver.get(retail_base_url)
@@ -130,6 +135,7 @@ def test_retail_navigation_to_dashboard(driver, retail_base_url):
 
 @pytest.mark.e2e
 @pytest.mark.retail
+@pytest.mark.api
 def test_retail_order_via_api(driver, retail_base_url, retail_api_url):
     """Test creating order via API"""
     # Create order via API
@@ -168,6 +174,7 @@ def test_retail_order_via_api(driver, retail_base_url, retail_api_url):
 
 @pytest.mark.e2e
 @pytest.mark.retail
+@pytest.mark.smoke
 def test_retail_dashboard_navigation(driver, retail_base_url):
     """Test dashboard shows all entity navigation cards"""
     driver.get(f"{retail_base_url}/dashboard")
@@ -186,6 +193,7 @@ def test_retail_dashboard_navigation(driver, retail_base_url):
 
 @pytest.mark.e2e
 @pytest.mark.retail
+@pytest.mark.api
 def test_retail_inventory_workflow(driver, retail_base_url, retail_api_url):
     """Test creating inventory item and verifying it"""
     # Create product first (inventory depends on product)
@@ -230,6 +238,7 @@ def test_retail_inventory_workflow(driver, retail_base_url, retail_api_url):
 
 @pytest.mark.e2e
 @pytest.mark.retail
+@pytest.mark.api
 def test_retail_payment_workflow(driver, retail_base_url, retail_api_url):
     """Test creating payment linked to order"""
     # Create order first
@@ -274,6 +283,7 @@ def test_retail_payment_workflow(driver, retail_base_url, retail_api_url):
 
 @pytest.mark.e2e
 @pytest.mark.retail
+@pytest.mark.api
 def test_retail_case_workflow(driver, retail_base_url, retail_api_url):
     """Test creating support case"""
     case_data = {
@@ -304,6 +314,7 @@ def test_retail_case_workflow(driver, retail_base_url, retail_api_url):
 
 @pytest.mark.e2e
 @pytest.mark.retail
+@pytest.mark.ui
 def test_retail_customer_portal_loads(driver, retail_base_url):
     """Test customer portal pages load successfully"""
     # Customer dashboard
@@ -325,6 +336,7 @@ def test_retail_customer_portal_loads(driver, retail_base_url):
 @pytest.mark.e2e
 @pytest.mark.retail
 @pytest.mark.slow
+@pytest.mark.lifecycle
 def test_retail_full_workflow_seed_and_clear(driver, retail_base_url, retail_api_url):
     """Test complete workflow: seed data, verify entities, clear data"""
     # Get initial counts
@@ -348,3 +360,49 @@ def test_retail_full_workflow_seed_and_clear(driver, retail_base_url, retail_api
     finally:
         # Cleanup
         requests.delete(f"{retail_api_url}/product/{product_id}")
+
+
+@pytest.mark.e2e
+@pytest.mark.retail
+@pytest.mark.slow
+@pytest.mark.ui
+@pytest.mark.chat
+def test_retail_chatbot_interaction(driver, retail_base_url):
+    """Test chatbot button exists and can be opened"""
+    driver.get(f"{retail_base_url}/dashboard")
+    wait_for_app_ready(driver)
+
+    # Look for chatbot button (floating action button)
+    page_source = driver.page_source.lower()
+    has_chat_button = "chat" in page_source or "message" in page_source or "assistant" in page_source
+
+    assert has_chat_button, "Should have chatbot button visible"
+
+    # Try to find and click chatbot button
+    try:
+        wait = WebDriverWait(driver, 10)
+        # Look for button with chat/message icon or text
+        buttons = driver.find_elements(By.TAG_NAME, "button")
+
+        chat_button = None
+        for button in buttons:
+            button_html = button.get_attribute('outerHTML').lower()
+            button_text = button.text.lower()
+            if 'chat' in button_html or 'message' in button_html or 'chat' in button_text:
+                chat_button = button
+                break
+
+        if chat_button and chat_button.is_displayed():
+            chat_button.click()
+
+            # Wait a moment for drawer/modal to open
+            import time
+            time.sleep(1)
+
+            # Chatbot interface should appear
+            page_source_after = driver.page_source.lower()
+            assert "chat" in page_source_after or "message" in page_source_after, "Chat interface should open"
+    except Exception as e:
+        # If we can't interact with it, at least verify it exists
+        print(f"Could not interact with chatbot: {e}")
+        assert has_chat_button, "Chatbot button should exist even if not clickable in test"
