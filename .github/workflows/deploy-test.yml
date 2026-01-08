@@ -8,6 +8,7 @@ on:
       - 'lambda/**'
       - 'ui-insurance/**'
       - 'ui-retail/**'
+      - 'ui-healthcare/**'
       - 'tests/e2e/**'
       - 'scripts/**'
       - '.github/workflows/**'
