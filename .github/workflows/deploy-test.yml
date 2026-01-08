@@ -288,17 +288,30 @@ jobs:
       - name: Check if tests should run
         id: should_run
         run: |
-          # Run tests if:
-          # 1. Deployment succeeded, OR
-          # 2. Stack already exists (no deployment needed)
-          DEPLOY_RESULT="${{ needs[matrix.deploy_job].result }}"
-          STACK_EXISTS="${{ needs.detect-changes.outputs[matrix.stack_check] }}"
+          # Run tests if deployment succeeded OR stack already exists
+          VERTICAL="${{ matrix.vertical }}"
+
+          # Get deployment result and stack existence for this vertical
+          if [[ "$VERTICAL" == "insurance" ]]; then
+            DEPLOY_RESULT="${{ needs.deploy-insurance-ui.result }}"
+            STACK_EXISTS="${{ needs.detect-changes.outputs.insurance_stack_exists }}"
+          elif [[ "$VERTICAL" == "retail" ]]; then
+            DEPLOY_RESULT="${{ needs.deploy-retail-ui.result }}"
+            STACK_EXISTS="${{ needs.detect-changes.outputs.retail_stack_exists }}"
+          elif [[ "$VERTICAL" == "healthcare" ]]; then
+            DEPLOY_RESULT="${{ needs.deploy-healthcare-ui.result }}"
+            STACK_EXISTS="${{ needs.detect-changes.outputs.healthcare_stack_exists }}"
+          elif [[ "$VERTICAL" == "landing" ]]; then
+            DEPLOY_RESULT="${{ needs.deploy-landing-ui.result }}"
+            STACK_EXISTS="${{ needs.detect-changes.outputs.landing_stack_exists }}"
+          fi
 
           if [[ "$DEPLOY_RESULT" == "success" ]] || [[ "$STACK_EXISTS" == "true" ]]; then
             echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "Running tests for $VERTICAL (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
           else
             echo "should_run=false" >> $GITHUB_OUTPUT
-            echo "Skipping tests - deployment did not succeed and stack doesn't exist"
+            echo "Skipping tests for $VERTICAL (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
           fi
 
       - name: Checkout code
