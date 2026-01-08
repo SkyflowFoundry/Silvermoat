@@ -15,11 +15,35 @@ inputs:
 
 outputs:
   infrastructure:
-    description: 'Whether infrastructure files changed (true/false)'
+    description: 'Whether global infrastructure files changed (true/false)'
     value: ${{ steps.detect.outputs.infrastructure }}
+  insurance_lambda_changed:
+    description: 'Whether insurance Lambda files changed (true/false)'
+    value: ${{ steps.detect.outputs.insurance_lambda_changed }}
+  retail_lambda_changed:
+    description: 'Whether retail Lambda files changed (true/false)'
+    value: ${{ steps.detect.outputs.retail_lambda_changed }}
+  healthcare_lambda_changed:
+    description: 'Whether healthcare Lambda files changed (true/false)'
+    value: ${{ steps.detect.outputs.healthcare_lambda_changed }}
+  landing_lambda_changed:
+    description: 'Whether landing Lambda files changed (true/false)'
+    value: ${{ steps.detect.outputs.landing_lambda_changed }}
   ui:
-    description: 'Whether UI files changed (true/false)'
+    description: 'Whether global UI files changed (true/false)'
     value: ${{ steps.detect.outputs.ui }}
+  insurance_ui_changed:
+    description: 'Whether insurance UI files changed (true/false)'
+    value: ${{ steps.detect.outputs.insurance_ui_changed }}
+  retail_ui_changed:
+    description: 'Whether retail UI files changed (true/false)'
+    value: ${{ steps.detect.outputs.retail_ui_changed }}
+  healthcare_ui_changed:
+    description: 'Whether healthcare UI files changed (true/false)'
+    value: ${{ steps.detect.outputs.healthcare_ui_changed }}
+  landing_ui_changed:
+    description: 'Whether landing UI files changed (true/false)'
+    value: ${{ steps.detect.outputs.landing_ui_changed }}
   tests:
     description: 'Whether test files changed (true/false)'
     value: ${{ steps.detect.outputs.tests }}
@@ -69,22 +93,79 @@ runs:
         echo "$CHANGED_FILES"
         echo ""
 
-        # Infrastructure changes
-        if echo "$CHANGED_FILES" | grep -E '^(cdk/|lambda/|scripts/deploy-stack\.sh)'; then
+        # Global infrastructure changes (CDK, shared scripts)
+        if echo "$CHANGED_FILES" | grep -E '^(cdk/|scripts/deploy-stack\.sh)'; then
           echo "infrastructure=true" >> $GITHUB_OUTPUT
-          echo "✅ Infrastructure files changed"
+          echo "✅ Global infrastructure files changed"
         else
           echo "infrastructure=false" >> $GITHUB_OUTPUT
-          echo "ℹ️ No infrastructure changes"
+          echo "ℹ️ No global infrastructure changes"
         fi
 
-        # UI changes
-        if echo "$CHANGED_FILES" | grep -E '^(ui-insurance/|ui-retail/|ui-healthcare/|ui-landing/|scripts/generate-architecture-diagram\.py|scripts/deploy-ui\.sh)'; then
+        # Per-vertical Lambda changes
+        if echo "$CHANGED_FILES" | grep -E '^lambda/insurance/'; then
+          echo "insurance_lambda_changed=true" >> $GITHUB_OUTPUT
+          echo "✅ Insurance Lambda changed"
+        else
+          echo "insurance_lambda_changed=false" >> $GITHUB_OUTPUT
+        fi
+
+        if echo "$CHANGED_FILES" | grep -E '^lambda/retail/'; then
+          echo "retail_lambda_changed=true" >> $GITHUB_OUTPUT
+          echo "✅ Retail Lambda changed"
+        else
+          echo "retail_lambda_changed=false" >> $GITHUB_OUTPUT
+        fi
+
+        if echo "$CHANGED_FILES" | grep -E '^lambda/healthcare/'; then
+          echo "healthcare_lambda_changed=true" >> $GITHUB_OUTPUT
+          echo "✅ Healthcare Lambda changed"
+        else
+          echo "healthcare_lambda_changed=false" >> $GITHUB_OUTPUT
+        fi
+
+        if echo "$CHANGED_FILES" | grep -E '^lambda/landing/'; then
+          echo "landing_lambda_changed=true" >> $GITHUB_OUTPUT
+          echo "✅ Landing Lambda changed"
+        else
+          echo "landing_lambda_changed=false" >> $GITHUB_OUTPUT
+        fi
+
+        # Global UI changes (shared scripts)
+        if echo "$CHANGED_FILES" | grep -E '^(scripts/generate-architecture-diagram\.py|scripts/deploy-ui\.sh)'; then
           echo "ui=true" >> $GITHUB_OUTPUT
-          echo "✅ UI files changed"
+          echo "✅ Global UI scripts changed"
         else
           echo "ui=false" >> $GITHUB_OUTPUT
-          echo "ℹ️ No UI changes"
+        fi
+
+        # Per-vertical UI changes
+        if echo "$CHANGED_FILES" | grep -E '^ui-insurance/'; then
+          echo "insurance_ui_changed=true" >> $GITHUB_OUTPUT
+          echo "✅ Insurance UI changed"
+        else
+          echo "insurance_ui_changed=false" >> $GITHUB_OUTPUT
+        fi
+
+        if echo "$CHANGED_FILES" | grep -E '^ui-retail/'; then
+          echo "retail_ui_changed=true" >> $GITHUB_OUTPUT
+          echo "✅ Retail UI changed"
+        else
+          echo "retail_ui_changed=false" >> $GITHUB_OUTPUT
+        fi
+
+        if echo "$CHANGED_FILES" | grep -E '^ui-healthcare/'; then
+          echo "healthcare_ui_changed=true" >> $GITHUB_OUTPUT
+          echo "✅ Healthcare UI changed"
+        else
+          echo "healthcare_ui_changed=false" >> $GITHUB_OUTPUT
+        fi
+
+        if echo "$CHANGED_FILES" | grep -E '^ui-landing/'; then
+          echo "landing_ui_changed=true" >> $GITHUB_OUTPUT
+          echo "✅ Landing UI changed"
+        else
+          echo "landing_ui_changed=false" >> $GITHUB_OUTPUT
         fi
 
         # Test changes
