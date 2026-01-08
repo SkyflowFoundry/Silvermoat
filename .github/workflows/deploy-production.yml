@@ -1114,7 +1114,7 @@ jobs:
 
   landing-e2e-tests:
     name: Landing E2E Tests (${{ matrix.category }})
-    needs: [detect-changes, deploy-landing-infra, deploy-landing-ui]
+    needs: [detect-changes, deploy-landing-infra, deploy-landing-ui, deploy-insurance-ui, deploy-retail-ui, deploy-healthcare-ui]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
