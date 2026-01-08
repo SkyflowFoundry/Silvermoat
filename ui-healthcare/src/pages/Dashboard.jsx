@@ -1,5 +1,5 @@
 /**
- * Retail Dashboard Page
+ * Healthcare Dashboard Page
  * Overview page with demo data seeding functionality
  */
 
@@ -8,18 +8,18 @@ import { Typography, Card, Space, Button, Modal, Progress, message, InputNumber,
 import {
   ThunderboltOutlined,
   DeleteOutlined,
-  ShoppingOutlined,
-  ShoppingCartOutlined,
-  InboxOutlined,
+  UserOutlined,
+  CalendarOutlined,
+  MedicineBoxOutlined,
   DollarOutlined,
   CustomerServiceOutlined,
   ArrowRightOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { seedRetailData, clearRetailData } from '../utils/seedData';
-import { useProducts } from '../hooks/queries/useProducts';
-import { useOrders } from '../hooks/queries/useOrders';
-import { useInventory } from '../hooks/queries/useInventory';
+import { usePatients } from '../hooks/queries/usePatients';
+import { useAppointments } from '../hooks/queries/useAppointments';
+import { usePrescriptions } from '../hooks/queries/usePrescriptions';
 import { usePayments } from '../hooks/queries/usePayments';
 import { useCases } from '../hooks/queries/useCases';
 
@@ -36,13 +36,13 @@ const Dashboard = () => {
   const [clearProgress, setClearProgress] = useState({ message: '', current: 0, total: 0 });
 
   // Fetch entity data for stats
-  const { data: productsData, isLoading: productsLoading } = useProducts();
-  const { data: ordersData, isLoading: ordersLoading } = useOrders();
-  const { data: inventoryData, isLoading: inventoryLoading } = useInventory();
+  const { data: patientsData, isLoading: patientsLoading } = usePatients();
+  const { data: appointmentsData, isLoading: appointmentsLoading } = useAppointments();
+  const { data: prescriptionsData, isLoading: prescriptionsLoading } = usePrescriptions();
   const { data: paymentsData, isLoading: paymentsLoading } = usePayments();
   const { data: casesData, isLoading: casesLoading } = useCases();
 
-  const isLoadingStats = productsLoading || ordersLoading || inventoryLoading || paymentsLoading || casesLoading;
+  const isLoadingStats = patientsLoading || appointmentsLoading || prescriptionsLoading || paymentsLoading || casesLoading;
 
   const handleSeedData = async () => {
     setSeeding(true);
@@ -54,9 +54,9 @@ const Dashboard = () => {
       }, recordCount);
 
       message.success(
-        `Successfully created retail demo data! ` +
-        `(${results.products.length} products, ${results.orders.length} orders, ` +
-        `${results.inventory.length} inventory items, ${results.payments.length} payments, ` +
+        `Successfully created healthcare demo data! ` +
+        `(${results.patients?.length || 0} patients, ${results.appointments?.length || 0} appointments, ` +
+        `${results.prescriptions?.length || 0} prescriptions, ${results.payments.length} payments, ` +
         `${results.cases.length} cases)`
       );
 
@@ -82,7 +82,7 @@ const Dashboard = () => {
         setClearProgress({ message: msg, current, total });
       });
 
-      message.success('Successfully cleared all retail data!');
+      message.success('Successfully cleared all healthcare data!');
       setClearModalVisible(false);
 
       // Refresh the page after a short delay
@@ -98,40 +98,40 @@ const Dashboard = () => {
 
   const entityCards = [
     {
-      title: 'Products',
-      path: '/products',
-      icon: ShoppingOutlined,
+      title: 'Patients',
+      path: '/patients',
+      icon: UserOutlined,
       color: '#531dab',
       background: '#f0f5ff',
-      count: productsData?.items?.length || 0,
-      description: 'Manage product catalog',
+      count: patientsData?.items?.length || 0,
+      description: 'Manage patient records',
     },
     {
-      title: 'Orders',
-      path: '/orders',
-      icon: ShoppingCartOutlined,
+      title: 'Appointments',
+      path: '/appointments',
+      icon: CalendarOutlined,
       color: '#52c41a',
       background: '#f6ffed',
-      count: ordersData?.items?.length || 0,
-      description: 'Track customer orders',
+      count: appointmentsData?.items?.length || 0,
+      description: 'Schedule and track appointments',
     },
     {
-      title: 'Inventory',
-      path: '/inventory',
-      icon: InboxOutlined,
+      title: 'Prescriptions',
+      path: '/prescriptions',
+      icon: MedicineBoxOutlined,
       color: '#1890ff',
       background: '#e6f7ff',
-      count: inventoryData?.items?.length || 0,
-      description: 'Monitor stock levels',
+      count: prescriptionsData?.items?.length || 0,
+      description: 'Manage prescriptions',
     },
     {
-      title: 'Payments',
-      path: '/payments',
+      title: 'Billing',
+      path: '/billing',
       icon: DollarOutlined,
       color: '#faad14',
       background: '#fffbe6',
       count: paymentsData?.items?.length || 0,
-      description: 'View payment records',
+      description: 'View billing records',
     },
     {
       title: 'Cases',
@@ -149,10 +149,10 @@ const Dashboard = () => {
       {/* Header */}
       <Space direction="vertical" size="small" style={{ marginBottom: 24, width: '100%' }}>
         <Title level={2} style={{ margin: 0 }}>
-          Retail Dashboard
+          Healthcare Dashboard
         </Title>
         <Paragraph type="secondary" style={{ margin: 0 }}>
-          Welcome to Silvermoat Retail Management System
+          Welcome to Silvermoat Healthcare System
         </Paragraph>
       </Space>
 
@@ -185,8 +185,8 @@ const Dashboard = () => {
         style={{ marginBottom: 24 }}
       >
         <Paragraph>
-          Use the seed data tool to quickly populate the retail system with realistic demo data.
-          This creates products, orders, inventory records, payments, and support cases.
+          Use the seed data tool to quickly populate the healthcare system with realistic demo data.
+          This creates patients, appointments, prescriptions, payments, and support cases.
         </Paragraph>
       </Card>
 
@@ -231,7 +231,7 @@ const Dashboard = () => {
 
       {/* Seed Data Modal */}
       <Modal
-        title="Seed Retail Demo Data"
+        title="Seed Healthcare Demo Data"
         open={seedModalVisible}
         onCancel={() => !seeding && setSeedModalVisible(false)}
         footer={[
@@ -251,13 +251,13 @@ const Dashboard = () => {
       >
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <Paragraph>
-            This will create realistic retail demo data including:
+            This will create realistic healthcare demo data including:
           </Paragraph>
           <ul>
-            <li>Products with SKUs, prices, and categories</li>
-            <li>Customer orders with multiple items</li>
-            <li>Inventory records across warehouses</li>
-            <li>Payment records for orders</li>
+            <li>Patient records with demographics and medical history</li>
+            <li>Appointments with various providers</li>
+            <li>Prescriptions with dosage and refill information</li>
+            <li>Billing records and payments</li>
             <li>Support cases</li>
           </ul>
 
@@ -291,7 +291,7 @@ const Dashboard = () => {
 
       {/* Clear Data Modal */}
       <Modal
-        title="Clear All Retail Data"
+        title="Clear All Healthcare Data"
         open={clearModalVisible}
         onCancel={() => !clearing && setClearModalVisible(false)}
         footer={[
@@ -315,8 +315,8 @@ const Dashboard = () => {
             Warning: This action cannot be undone!
           </Paragraph>
           <Paragraph>
-            This will permanently delete all retail data including products, orders, inventory,
-            payments, and cases.
+            This will permanently delete all healthcare data including patients, appointments,
+            prescriptions, payments, and cases.
           </Paragraph>
 
           {clearing && (

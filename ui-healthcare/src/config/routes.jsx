@@ -1,5 +1,5 @@
 /**
- * Application Routes Configuration - Retail Vertical
+ * Application Routes Configuration - Healthcare Vertical
  * Lazy-loaded routes for optimal performance
  */
 

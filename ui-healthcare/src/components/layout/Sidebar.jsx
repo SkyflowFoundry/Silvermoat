@@ -19,10 +19,10 @@ const Sidebar = () => {
   // Determine which entity we're currently viewing
   const getCurrentEntity = () => {
     const path = location.pathname;
-    if (path.startsWith('/products')) return 'products';
-    if (path.startsWith('/orders')) return 'orders';
-    if (path.startsWith('/inventory')) return 'inventory';
-    if (path.startsWith('/payments')) return 'payments';
+    if (path.startsWith('/patients')) return 'patients';
+    if (path.startsWith('/appointments')) return 'appointments';
+    if (path.startsWith('/prescriptions')) return 'prescriptions';
+    if (path.startsWith('/billing')) return 'billing';
     if (path.startsWith('/cases')) return 'cases';
     return null;
   };
@@ -38,8 +38,8 @@ const Sidebar = () => {
     const entityLabel = currentEntity.charAt(0).toUpperCase() + currentEntity.slice(1);
     // Handle special cases for singular forms
     let singularEntity = entityLabel;
-    if (currentEntity === 'inventory') {
-      singularEntity = 'Inventory Item';
+    if (currentEntity === 'billing') {
+      singularEntity = 'Billing Record';
     } else {
       singularEntity = entityLabel.slice(0, -1); // Remove trailing 's'
     }
