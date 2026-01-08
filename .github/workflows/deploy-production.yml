@@ -944,69 +944,115 @@ jobs:
           echo "Custom Domain URL: ${CUSTOM_URL}"
 
   # ========================================
-  # E2E Tests (Verticalized)
+  # E2E Tests Matrix (Parallelized by Category)
   # ========================================
 
-  insurance-tests:
-    name: Insurance E2E Tests
-    needs: [detect-changes, deploy-insurance-ui]
-    if: |
-      always() &&
-      (needs.deploy-insurance-ui.result == 'success' ||
-       needs.detect-changes.outputs.insurance_stack_exists == 'true')
+  e2e-tests:
+    name: E2E Tests (${{ matrix.vertical }} - ${{ matrix.category }})
+    needs: [detect-changes, deploy-insurance-infra, deploy-insurance-ui, deploy-retail-infra, deploy-retail-ui, deploy-landing-infra, deploy-landing-ui]
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Insurance tests (2 smoke, 3 api, 4 ui, 1 lifecycle)
+          - vertical: insurance
+            category: smoke
+            deploy_job: deploy-insurance-ui
+            stack_check: insurance_stack_exists
+          - vertical: insurance
+            category: api
+            deploy_job: deploy-insurance-ui
+            stack_check: insurance_stack_exists
+          - vertical: insurance
+            category: ui
+            deploy_job: deploy-insurance-ui
+            stack_check: insurance_stack_exists
+          - vertical: insurance
+            category: lifecycle
+            deploy_job: deploy-insurance-ui
+            stack_check: insurance_stack_exists
+
+          # Retail tests (5 smoke, 5 api, 2 ui, 1 lifecycle)
+          - vertical: retail
+            category: smoke
+            deploy_job: deploy-retail-ui
+            stack_check: retail_stack_exists
+          - vertical: retail
+            category: api
+            deploy_job: deploy-retail-ui
+            stack_check: retail_stack_exists
+          - vertical: retail
+            category: ui
+            deploy_job: deploy-retail-ui
+            stack_check: retail_stack_exists
+          - vertical: retail
+            category: lifecycle
+            deploy_job: deploy-retail-ui
+            stack_check: retail_stack_exists
+
+          # Landing tests (4 smoke, 3 ui)
+          - vertical: landing
+            category: smoke
+            deploy_job: deploy-landing-ui
+            stack_check: landing_stack_exists
+          - vertical: landing
+            category: ui
+            deploy_job: deploy-landing-ui
+            stack_check: landing_stack_exists
+
     steps:
+      - name: Check if tests should run
+        id: should_run
+        run: |
+          # Run tests if:
+          # 1. Deployment succeeded, OR
+          # 2. Stack already exists (no deployment needed)
+          DEPLOY_RESULT="${{ needs[matrix.deploy_job].result }}"
+          STACK_EXISTS="${{ needs.detect-changes.outputs[matrix.stack_check] }}"
+
+          if [[ "$DEPLOY_RESULT" == "success" ]] || [[ "$STACK_EXISTS" == "true" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "Skipping tests - deployment did not succeed and stack doesn't exist"
+          fi
+
       - name: Checkout code
+        if: steps.should_run.outputs.should_run == 'true'
         uses: actions/checkout@v4
 
-      - name: Run insurance E2E tests
+      - name: Get URLs for ${{ matrix.vertical }}
+        if: steps.should_run.outputs.should_run == 'true'
+        id: urls
+        run: |
+          WEB_URL=""
+          API_URL=""
+
+          # Get URLs from deploy job outputs
+          if [[ "${{ matrix.vertical }}" == "insurance" ]]; then
+            WEB_URL="${{ needs.deploy-insurance-ui.outputs.web_url }}"
+            API_URL="${{ needs.deploy-insurance-ui.outputs.api_url }}"
+          elif [[ "${{ matrix.vertical }}" == "retail" ]]; then
+            WEB_URL="${{ needs.deploy-retail-ui.outputs.web_url }}"
+            API_URL="${{ needs.deploy-retail-ui.outputs.api_url }}"
+          elif [[ "${{ matrix.vertical }}" == "landing" ]]; then
+            WEB_URL="${{ needs.deploy-landing-ui.outputs.web_url }}"
+          fi
+
+          echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
+          echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
+
+      - name: Run ${{ matrix.vertical }} ${{ matrix.category }} tests
+        if: steps.should_run.outputs.should_run == 'true'
         uses: ./.github/actions/run-e2e-tests
         with:
-          vertical: insurance
-          web-url: ${{ needs.deploy-insurance-ui.outputs.web_url }}
-          api-url: ${{ needs.deploy-insurance-ui.outputs.api_url }}
-          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
-
-  retail-tests:
-    name: Retail E2E Tests
-    needs: [detect-changes, deploy-retail-ui]
-    if: |
-      always() &&
-      (needs.deploy-retail-ui.result == 'success' ||
-       needs.detect-changes.outputs.retail_stack_exists == 'true')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run retail E2E tests
-        uses: ./.github/actions/run-e2e-tests
-        with:
-          vertical: retail
-          web-url: ${{ needs.deploy-retail-ui.outputs.web_url }}
-          api-url: ${{ needs.deploy-retail-ui.outputs.api_url }}
-          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
-
-  landing-tests:
-    name: Landing E2E Tests
-    needs: [detect-changes, deploy-landing-ui]
-    if: |
-      always() &&
-      (needs.deploy-landing-ui.result == 'success' ||
-       needs.detect-changes.outputs.landing_stack_exists == 'true')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run landing E2E tests
-        uses: ./.github/actions/run-e2e-tests
-        with:
-          vertical: landing
-          web-url: ${{ needs.deploy-landing-ui.outputs.web_url }}
+          vertical: ${{ matrix.vertical }}
+          category: ${{ matrix.category }}
+          web-url: ${{ steps.urls.outputs.web_url }}
+          api-url: ${{ steps.urls.outputs.api_url }}
           aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
 
   # ========================================
@@ -1015,11 +1061,8 @@ jobs:
 
   seed-insurance-data:
     name: Seed Insurance Data
-    needs: [deploy-insurance-ui, insurance-tests]
-    if: |
-      always() &&
-      needs.deploy-insurance-ui.result == 'success' &&
-      (needs.insurance-tests.result == 'success' || needs.insurance-tests.result == 'skipped')
+    needs: [deploy-insurance-ui]
+    if: needs.deploy-insurance-ui.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -1035,11 +1078,8 @@ jobs:
 
   seed-retail-data:
     name: Seed Retail Data
-    needs: [deploy-retail-ui, retail-tests]
-    if: |
-      always() &&
-      needs.deploy-retail-ui.result == 'success' &&
-      (needs.retail-tests.result == 'success' || needs.retail-tests.result == 'skipped')
+    needs: [deploy-retail-ui]
+    if: needs.deploy-retail-ui.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
