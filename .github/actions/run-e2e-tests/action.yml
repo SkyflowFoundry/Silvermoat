@@ -3,8 +3,12 @@ description: Run E2E tests for a specific vertical with Selenium/Chrome
 
 inputs:
   vertical:
-    description: 'Vertical name (insurance/retail/landing)'
+    description: 'Vertical name (insurance/retail/healthcare/landing)'
     required: true
+  category:
+    description: 'Test category (smoke/api/ui/lifecycle) - runs all tests if not specified'
+    required: false
+    default: ''
   web-url:
     description: 'Web URL for the vertical'
     required: true
@@ -47,4 +51,14 @@ runs:
         HEADLESS: 'true'
       run: |
         cd tests/e2e
-        pytest -v --tb=short -m "${{ inputs.vertical }}"
+
+        # Build marker expression based on inputs
+        MARKER="${{ inputs.vertical }}"
+
+        # Add category filter if specified
+        if [ -n "${{ inputs.category }}" ]; then
+          MARKER="${MARKER} and ${{ inputs.category }}"
+        fi
+
+        echo "Running tests with marker: ${MARKER}"
+        pytest -v --tb=short -m "${MARKER}"

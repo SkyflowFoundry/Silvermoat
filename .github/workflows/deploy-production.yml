@@ -106,6 +106,14 @@ jobs:
     outputs:
       infrastructure_changed: ${{ steps.check.outputs.infrastructure_changed }}
       ui_changed: ${{ steps.check.outputs.ui_changed }}
+      insurance_lambda_changed: ${{ steps.check.outputs.insurance_lambda_changed }}
+      retail_lambda_changed: ${{ steps.check.outputs.retail_lambda_changed }}
+      healthcare_lambda_changed: ${{ steps.check.outputs.healthcare_lambda_changed }}
+      landing_lambda_changed: ${{ steps.check.outputs.landing_lambda_changed }}
+      insurance_ui_changed: ${{ steps.check.outputs.insurance_ui_changed }}
+      retail_ui_changed: ${{ steps.check.outputs.retail_ui_changed }}
+      healthcare_ui_changed: ${{ steps.check.outputs.healthcare_ui_changed }}
+      landing_ui_changed: ${{ steps.check.outputs.landing_ui_changed }}
       insurance_stack_exists: ${{ steps.check-stacks.outputs.insurance_exists }}
       retail_stack_exists: ${{ steps.check-stacks.outputs.retail_exists }}
       healthcare_stack_exists: ${{ steps.check-stacks.outputs.healthcare_exists }}
@@ -803,34 +811,10 @@ jobs:
             exit 1
           fi
 
-  e2e-healthcare:
-    name: Healthcare E2E Tests
-    needs: [detect-changes, deploy-healthcare-infra, deploy-healthcare-ui]
-    if: |
-      always() &&
-      (needs.deploy-healthcare-ui.result == 'success' ||
-       needs.detect-changes.outputs.healthcare_stack_exists == 'true')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run healthcare E2E tests
-        uses: ./.github/actions/run-e2e-tests
-        with:
-          vertical: healthcare
-          web-url: ${{ needs.deploy-healthcare-ui.outputs.web_url }}
-          api-url: ${{ needs.deploy-healthcare-ui.outputs.api_url }}
-          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
-
   seed-healthcare-data:
     name: Seed Healthcare Data
-    needs: [deploy-healthcare-ui, e2e-healthcare]
-    if: |
-      always() &&
-      needs.deploy-healthcare-ui.result == 'success' &&
-      (needs.e2e-healthcare.result == 'success' || needs.e2e-healthcare.result == 'skipped')
+    needs: [deploy-healthcare-ui, healthcare-e2e-tests]
+    if: needs.deploy-healthcare-ui.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -845,15 +829,10 @@ jobs:
 
   deploy-landing-ui:
     name: Deploy Landing UI
-    needs: [detect-changes, deploy-landing-infra, configure-landing-dns, deploy-insurance-infra, deploy-retail-infra, deploy-healthcare-infra]
+    needs: [detect-changes]
     if: |
-      always() &&
-      (needs.deploy-landing-infra.result == 'success' || needs.deploy-landing-infra.result == 'skipped') &&
-      (needs.configure-landing-dns.result == 'success' || needs.configure-landing-dns.result == 'skipped') &&
-      (needs.deploy-landing-infra.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true' || needs.detect-changes.outputs.landing_ui_changed == 'true') &&
-      (needs.deploy-insurance-infra.result == 'success' || needs.deploy-insurance-infra.result == 'skipped') &&
-      (needs.deploy-retail-infra.result == 'success' || needs.deploy-retail-infra.result == 'skipped') &&
-      (needs.deploy-healthcare-infra.result == 'success' || needs.deploy-healthcare-infra.result == 'skipped')
+      needs.detect-changes.outputs.ui_changed == 'true' ||
+      needs.detect-changes.outputs.landing_ui_changed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -944,69 +923,257 @@ jobs:
           echo "Custom Domain URL: ${CUSTOM_URL}"
 
   # ========================================
-  # E2E Tests (Verticalized)
+  # E2E Tests Matrix (Parallelized by Category)
   # ========================================
 
-  insurance-tests:
-    name: Insurance E2E Tests
-    needs: [detect-changes, deploy-insurance-ui]
-    if: |
-      always() &&
-      (needs.deploy-insurance-ui.result == 'success' ||
-       needs.detect-changes.outputs.insurance_stack_exists == 'true')
+  insurance-e2e-tests:
+    name: Insurance E2E Tests (${{ matrix.category }})
+    needs: [detect-changes, deploy-insurance-infra, deploy-insurance-ui]
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        category: [smoke, api, ui, lifecycle]
+
     steps:
+      - name: Check if tests should run
+        id: should_run
+        run: |
+          DEPLOY_RESULT="${{ needs.deploy-insurance-ui.result }}"
+          STACK_EXISTS="${{ needs.detect-changes.outputs.insurance_stack_exists }}"
+
+          if [[ "$DEPLOY_RESULT" == "success" ]] || [[ "$STACK_EXISTS" == "true" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "Running insurance tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "Skipping insurance tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+          fi
+
       - name: Checkout code
+        if: steps.should_run.outputs.should_run == 'true'
         uses: actions/checkout@v4
 
-      - name: Run insurance E2E tests
+      - name: Configure AWS credentials
+        if: steps.should_run.outputs.should_run == 'true' && needs.deploy-insurance-ui.result == 'skipped'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Get stack outputs (deployment skipped)
+        if: steps.should_run.outputs.should_run == 'true' && needs.deploy-insurance-ui.result == 'skipped'
+        id: fetch_urls
+        run: |
+          OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name silvermoat-insurance \
+            --query 'Stacks[0].Outputs' \
+            --output json)
+
+          API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceApiUrl") | .OutputValue')
+          WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceCloudFrontUrl") | .OutputValue')
+          CUSTOM_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceDomainUrl") | .OutputValue')
+
+          echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
+          echo "web_url=${CUSTOM_URL:-$WEB_URL}" >> $GITHUB_OUTPUT
+
+      - name: Run insurance ${{ matrix.category }} tests
+        if: steps.should_run.outputs.should_run == 'true'
         uses: ./.github/actions/run-e2e-tests
         with:
           vertical: insurance
-          web-url: ${{ needs.deploy-insurance-ui.outputs.web_url }}
-          api-url: ${{ needs.deploy-insurance-ui.outputs.api_url }}
+          category: ${{ matrix.category }}
+          web-url: ${{ needs.deploy-insurance-ui.result == 'success' && needs.deploy-insurance-ui.outputs.web_url || steps.fetch_urls.outputs.web_url }}
+          api-url: ${{ needs.deploy-insurance-ui.result == 'success' && needs.deploy-insurance-ui.outputs.api_url || steps.fetch_urls.outputs.api_url }}
           aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
 
-  retail-tests:
-    name: Retail E2E Tests
-    needs: [detect-changes, deploy-retail-ui]
-    if: |
-      always() &&
-      (needs.deploy-retail-ui.result == 'success' ||
-       needs.detect-changes.outputs.retail_stack_exists == 'true')
+  retail-e2e-tests:
+    name: Retail E2E Tests (${{ matrix.category }})
+    needs: [detect-changes, deploy-retail-infra, deploy-retail-ui]
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        category: [smoke, api, ui, lifecycle]
+
     steps:
+      - name: Check if tests should run
+        id: should_run
+        run: |
+          DEPLOY_RESULT="${{ needs.deploy-retail-ui.result }}"
+          STACK_EXISTS="${{ needs.detect-changes.outputs.retail_stack_exists }}"
+
+          if [[ "$DEPLOY_RESULT" == "success" ]] || [[ "$STACK_EXISTS" == "true" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "Running retail tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "Skipping retail tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+          fi
+
       - name: Checkout code
+        if: steps.should_run.outputs.should_run == 'true'
         uses: actions/checkout@v4
 
-      - name: Run retail E2E tests
+      - name: Configure AWS credentials
+        if: steps.should_run.outputs.should_run == 'true' && needs.deploy-retail-ui.result == 'skipped'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Get stack outputs (deployment skipped)
+        if: steps.should_run.outputs.should_run == 'true' && needs.deploy-retail-ui.result == 'skipped'
+        id: fetch_urls
+        run: |
+          OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name silvermoat-retail \
+            --query 'Stacks[0].Outputs' \
+            --output json)
+
+          API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailApiUrl") | .OutputValue')
+          WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailCloudFrontUrl") | .OutputValue')
+          CUSTOM_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailDomainUrl") | .OutputValue')
+
+          echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
+          echo "web_url=${CUSTOM_URL:-$WEB_URL}" >> $GITHUB_OUTPUT
+
+      - name: Run retail ${{ matrix.category }} tests
+        if: steps.should_run.outputs.should_run == 'true'
         uses: ./.github/actions/run-e2e-tests
         with:
           vertical: retail
-          web-url: ${{ needs.deploy-retail-ui.outputs.web_url }}
-          api-url: ${{ needs.deploy-retail-ui.outputs.api_url }}
+          category: ${{ matrix.category }}
+          web-url: ${{ needs.deploy-retail-ui.result == 'success' && needs.deploy-retail-ui.outputs.web_url || steps.fetch_urls.outputs.web_url }}
+          api-url: ${{ needs.deploy-retail-ui.result == 'success' && needs.deploy-retail-ui.outputs.api_url || steps.fetch_urls.outputs.api_url }}
           aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
 
-  landing-tests:
-    name: Landing E2E Tests
-    needs: [detect-changes, deploy-landing-ui]
-    if: |
-      always() &&
-      (needs.deploy-landing-ui.result == 'success' ||
-       needs.detect-changes.outputs.landing_stack_exists == 'true')
+  healthcare-e2e-tests:
+    name: Healthcare E2E Tests (${{ matrix.category }})
+    needs: [detect-changes, deploy-healthcare-infra, deploy-healthcare-ui]
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        category: [smoke, api, ui, lifecycle]
+
     steps:
+      - name: Check if tests should run
+        id: should_run
+        run: |
+          DEPLOY_RESULT="${{ needs.deploy-healthcare-ui.result }}"
+          STACK_EXISTS="${{ needs.detect-changes.outputs.healthcare_stack_exists }}"
+
+          if [[ "$DEPLOY_RESULT" == "success" ]] || [[ "$STACK_EXISTS" == "true" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "Running healthcare tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "Skipping healthcare tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+          fi
+
       - name: Checkout code
+        if: steps.should_run.outputs.should_run == 'true'
         uses: actions/checkout@v4
 
-      - name: Run landing E2E tests
+      - name: Configure AWS credentials
+        if: steps.should_run.outputs.should_run == 'true' && needs.deploy-healthcare-ui.result == 'skipped'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Get stack outputs (deployment skipped)
+        if: steps.should_run.outputs.should_run == 'true' && needs.deploy-healthcare-ui.result == 'skipped'
+        id: fetch_urls
+        run: |
+          OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name silvermoat-healthcare \
+            --query 'Stacks[0].Outputs' \
+            --output json)
+
+          API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="HealthcareApiUrl") | .OutputValue')
+          WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="HealthcareCloudFrontUrl") | .OutputValue')
+          CUSTOM_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="HealthcareDomainUrl") | .OutputValue')
+
+          echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
+          echo "web_url=${CUSTOM_URL:-$WEB_URL}" >> $GITHUB_OUTPUT
+
+      - name: Run healthcare ${{ matrix.category }} tests
+        if: steps.should_run.outputs.should_run == 'true'
+        uses: ./.github/actions/run-e2e-tests
+        with:
+          vertical: healthcare
+          category: ${{ matrix.category }}
+          web-url: ${{ needs.deploy-healthcare-ui.result == 'success' && needs.deploy-healthcare-ui.outputs.web_url || steps.fetch_urls.outputs.web_url }}
+          api-url: ${{ needs.deploy-healthcare-ui.result == 'success' && needs.deploy-healthcare-ui.outputs.api_url || steps.fetch_urls.outputs.api_url }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
+  landing-e2e-tests:
+    name: Landing E2E Tests (${{ matrix.category }})
+    needs: [detect-changes, deploy-landing-infra, deploy-landing-ui, deploy-insurance-ui, deploy-retail-ui, deploy-healthcare-ui]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        category: [smoke, ui]
+
+    steps:
+      - name: Check if tests should run
+        id: should_run
+        run: |
+          DEPLOY_RESULT="${{ needs.deploy-landing-ui.result }}"
+          STACK_EXISTS="${{ needs.detect-changes.outputs.landing_stack_exists }}"
+
+          if [[ "$DEPLOY_RESULT" == "success" ]] || [[ "$STACK_EXISTS" == "true" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "Running landing tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "Skipping landing tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+          fi
+
+      - name: Checkout code
+        if: steps.should_run.outputs.should_run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        if: steps.should_run.outputs.should_run == 'true' && needs.deploy-landing-ui.result == 'skipped'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Get stack outputs (deployment skipped)
+        if: steps.should_run.outputs.should_run == 'true' && needs.deploy-landing-ui.result == 'skipped'
+        id: fetch_urls
+        run: |
+          OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name silvermoat-landing \
+            --query 'Stacks[0].Outputs' \
+            --output json)
+
+          WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="LandingCloudFrontUrl") | .OutputValue')
+          CUSTOM_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="LandingDomainUrl") | .OutputValue')
+
+          echo "web_url=${CUSTOM_URL:-$WEB_URL}" >> $GITHUB_OUTPUT
+
+      - name: Run landing ${{ matrix.category }} tests
+        if: steps.should_run.outputs.should_run == 'true'
         uses: ./.github/actions/run-e2e-tests
         with:
           vertical: landing
-          web-url: ${{ needs.deploy-landing-ui.outputs.web_url }}
+          category: ${{ matrix.category }}
+          web-url: ${{ needs.deploy-landing-ui.result == 'success' && needs.deploy-landing-ui.outputs.web_url || steps.fetch_urls.outputs.web_url }}
+          api-url: ''
           aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
 
   # ========================================
@@ -1015,11 +1182,8 @@ jobs:
 
   seed-insurance-data:
     name: Seed Insurance Data
-    needs: [deploy-insurance-ui, insurance-tests]
-    if: |
-      always() &&
-      needs.deploy-insurance-ui.result == 'success' &&
-      (needs.insurance-tests.result == 'success' || needs.insurance-tests.result == 'skipped')
+    needs: [deploy-insurance-ui, insurance-e2e-tests]
+    if: needs.deploy-insurance-ui.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -1035,11 +1199,8 @@ jobs:
 
   seed-retail-data:
     name: Seed Retail Data
-    needs: [deploy-retail-ui, retail-tests]
-    if: |
-      always() &&
-      needs.deploy-retail-ui.result == 'success' &&
-      (needs.retail-tests.result == 'success' || needs.retail-tests.result == 'skipped')
+    needs: [deploy-retail-ui, retail-e2e-tests]
+    if: needs.deploy-retail-ui.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -1064,10 +1225,10 @@ jobs:
       deploy-retail-ui,
       deploy-healthcare-ui,
       deploy-landing-ui,
-      insurance-tests,
-      retail-tests,
-      e2e-healthcare,
-      landing-tests,
+      insurance-e2e-tests,
+      retail-e2e-tests,
+      healthcare-e2e-tests,
+      landing-e2e-tests,
       seed-insurance-data,
       seed-retail-data,
       seed-healthcare-data
@@ -1106,10 +1267,10 @@ jobs:
           echo "  Web: ${{ needs.deploy-landing-ui.outputs.web_url }}"
           echo ""
           echo "🧪 E2E Tests:"
-          echo "  Insurance: ${{ needs.insurance-tests.result }}"
-          echo "  Retail: ${{ needs.retail-tests.result }}"
-          echo "  Healthcare: ${{ needs.e2e-healthcare.result }}"
-          echo "  Landing: ${{ needs.landing-tests.result }}"
+          echo "  Insurance: ${{ needs.insurance-e2e-tests.result }}"
+          echo "  Retail: ${{ needs.retail-e2e-tests.result }}"
+          echo "  Healthcare: ${{ needs.healthcare-e2e-tests.result }}"
+          echo "  Landing: ${{ needs.landing-e2e-tests.result }}"
           echo ""
           echo "🌱 Data Seeding:"
           echo "  Insurance: ${{ needs.seed-insurance-data.result }}"
