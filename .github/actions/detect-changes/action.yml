@@ -79,7 +79,7 @@ runs:
         fi
 
         # UI changes
-        if echo "$CHANGED_FILES" | grep -E '^(ui-insurance/|ui-retail/|ui-landing/|scripts/generate-architecture-diagram\.py|scripts/deploy-ui\.sh)'; then
+        if echo "$CHANGED_FILES" | grep -E '^(ui-insurance/|ui-retail/|ui-healthcare/|ui-landing/|scripts/generate-architecture-diagram\.py|scripts/deploy-ui\.sh)'; then
           echo "ui=true" >> $GITHUB_OUTPUT
           echo "✅ UI files changed"
         else
