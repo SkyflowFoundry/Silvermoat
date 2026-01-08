@@ -1,5 +1,5 @@
 /**
- * Application Sidebar - Retail Vertical
+ * Application Sidebar - Healthcare Vertical
  * Secondary navigation and context-specific actions
  */
 

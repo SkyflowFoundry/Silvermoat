@@ -1,5 +1,5 @@
 /**
- * Application Header - Retail Vertical
+ * Application Header - Healthcare Vertical
  * Top navigation bar with logo, menu, and user actions
  */
 
@@ -7,9 +7,9 @@ import { Layout, Menu, Button, Space, Typography } from 'antd';
 import {
   MenuUnfoldOutlined,
   DashboardOutlined,
-  ShoppingOutlined,
-  ShoppingCartOutlined,
-  InboxOutlined,
+  UserOutlined,
+  CalendarOutlined,
+  MedicineBoxOutlined,
   DollarOutlined,
   CustomerServiceOutlined,
 } from '@ant-design/icons';
@@ -28,10 +28,10 @@ const Header = () => {
   const getSelectedKey = () => {
     const path = location.pathname;
     if (path === '/dashboard' || path === '/') return 'dashboard';
-    if (path.startsWith('/products')) return 'products';
-    if (path.startsWith('/orders')) return 'orders';
-    if (path.startsWith('/inventory')) return 'inventory';
-    if (path.startsWith('/payments')) return 'payments';
+    if (path.startsWith('/patients')) return 'patients';
+    if (path.startsWith('/appointments')) return 'appointments';
+    if (path.startsWith('/prescriptions')) return 'prescriptions';
+    if (path.startsWith('/billing')) return 'billing';
     if (path.startsWith('/cases')) return 'cases';
     return 'dashboard';
   };
@@ -45,28 +45,28 @@ const Header = () => {
       onClick: () => navigate('/dashboard'),
     },
     {
-      key: 'products',
-      icon: <ShoppingOutlined />,
-      label: 'Products',
-      onClick: () => navigate('/products'),
+      key: 'patients',
+      icon: <UserOutlined />,
+      label: 'Patients',
+      onClick: () => navigate('/patients'),
     },
     {
-      key: 'orders',
-      icon: <ShoppingCartOutlined />,
-      label: 'Orders',
-      onClick: () => navigate('/orders'),
+      key: 'appointments',
+      icon: <CalendarOutlined />,
+      label: 'Appointments',
+      onClick: () => navigate('/appointments'),
     },
     {
-      key: 'inventory',
-      icon: <InboxOutlined />,
-      label: 'Inventory',
-      onClick: () => navigate('/inventory'),
+      key: 'prescriptions',
+      icon: <MedicineBoxOutlined />,
+      label: 'Prescriptions',
+      onClick: () => navigate('/prescriptions'),
     },
     {
-      key: 'payments',
+      key: 'billing',
       icon: <DollarOutlined />,
-      label: 'Payments',
-      onClick: () => navigate('/payments'),
+      label: 'Billing',
+      onClick: () => navigate('/billing'),
     },
     {
       key: 'cases',
@@ -83,7 +83,7 @@ const Header = () => {
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: isMobile ? '0 12px' : '0 24px',
-        background: '#531dab', // Retail theme purple
+        background: '#13c2c2', // Healthcare theme teal
         position: 'sticky',
         top: 0,
         zIndex: 1000,
@@ -110,7 +110,7 @@ const Header = () => {
         >
           <img
             src="/silvermoat-logo.png"
-            alt="Silvermoat Retail"
+            alt="Silvermoat Healthcare"
             style={{
               height: isMobile ? 28 : 36,
               width: 'auto',
@@ -126,7 +126,7 @@ const Header = () => {
               letterSpacing: '-0.5px',
             }}
           >
-            Silvermoat Retail
+            Silvermoat Healthcare
           </Text>
         </div>
       </Space>

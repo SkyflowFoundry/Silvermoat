@@ -1,67 +1,73 @@
 /**
- * Application Constants - Retail Vertical
+ * Application Constants - Healthcare Vertical
  * Defines entity types, status values, and other app-wide constants
  */
 
 // Entity Types (Domain Objects)
 export const ENTITIES = {
-  PRODUCT: 'product',
-  ORDER: 'order',
-  INVENTORY: 'inventory',
-  PAYMENT: 'payment',
+  PATIENT: 'patient',
+  APPOINTMENT: 'appointment',
+  PRESCRIPTION: 'prescription',
+  MEDICAL_RECORD: 'medical_record',
+  BILLING: 'billing',
   CASE: 'case',
 };
 
 // Entity Labels (for display)
 export const ENTITY_LABELS = {
-  [ENTITIES.PRODUCT]: 'Product',
-  [ENTITIES.ORDER]: 'Order',
-  [ENTITIES.INVENTORY]: 'Inventory',
-  [ENTITIES.PAYMENT]: 'Payment',
+  [ENTITIES.PATIENT]: 'Patient',
+  [ENTITIES.APPOINTMENT]: 'Appointment',
+  [ENTITIES.PRESCRIPTION]: 'Prescription',
+  [ENTITIES.MEDICAL_RECORD]: 'Medical Record',
+  [ENTITIES.BILLING]: 'Billing',
   [ENTITIES.CASE]: 'Case',
 };
 
-// Product Statuses
-export const PRODUCT_STATUSES = {
+// Patient Statuses
+export const PATIENT_STATUSES = {
   ACTIVE: 'ACTIVE',
-  DISCONTINUED: 'DISCONTINUED',
-  OUT_OF_STOCK: 'OUT_OF_STOCK',
+  INACTIVE: 'INACTIVE',
+  DECEASED: 'DECEASED',
 };
 
-export const PRODUCT_STATUS_OPTIONS = [
-  { label: 'Active', value: PRODUCT_STATUSES.ACTIVE, color: 'success' },
-  { label: 'Discontinued', value: PRODUCT_STATUSES.DISCONTINUED, color: 'default' },
-  { label: 'Out of Stock', value: PRODUCT_STATUSES.OUT_OF_STOCK, color: 'warning' },
+export const PATIENT_STATUS_OPTIONS = [
+  { label: 'Active', value: PATIENT_STATUSES.ACTIVE, color: 'success' },
+  { label: 'Inactive', value: PATIENT_STATUSES.INACTIVE, color: 'default' },
+  { label: 'Deceased', value: PATIENT_STATUSES.DECEASED, color: 'error' },
 ];
 
-// Order Statuses
-export const ORDER_STATUSES = {
-  PENDING: 'PENDING',
-  PROCESSING: 'PROCESSING',
-  SHIPPED: 'SHIPPED',
-  DELIVERED: 'DELIVERED',
+// Appointment Statuses
+export const APPOINTMENT_STATUSES = {
+  SCHEDULED: 'SCHEDULED',
+  CONFIRMED: 'CONFIRMED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
+  NO_SHOW: 'NO_SHOW',
+};
+
+export const APPOINTMENT_STATUS_OPTIONS = [
+  { label: 'Scheduled', value: APPOINTMENT_STATUSES.SCHEDULED, color: 'default' },
+  { label: 'Confirmed', value: APPOINTMENT_STATUSES.CONFIRMED, color: 'processing' },
+  { label: 'In Progress', value: APPOINTMENT_STATUSES.IN_PROGRESS, color: 'warning' },
+  { label: 'Completed', value: APPOINTMENT_STATUSES.COMPLETED, color: 'success' },
+  { label: 'Cancelled', value: APPOINTMENT_STATUSES.CANCELLED, color: 'error' },
+  { label: 'No Show', value: APPOINTMENT_STATUSES.NO_SHOW, color: 'error' },
+];
+
+// Prescription Statuses
+export const PRESCRIPTION_STATUSES = {
+  ACTIVE: 'ACTIVE',
+  FILLED: 'FILLED',
+  EXPIRED: 'EXPIRED',
   CANCELLED: 'CANCELLED',
 };
 
-export const ORDER_STATUS_OPTIONS = [
-  { label: 'Pending', value: ORDER_STATUSES.PENDING, color: 'default' },
-  { label: 'Processing', value: ORDER_STATUSES.PROCESSING, color: 'processing' },
-  { label: 'Shipped', value: ORDER_STATUSES.SHIPPED, color: 'warning' },
-  { label: 'Delivered', value: ORDER_STATUSES.DELIVERED, color: 'success' },
-  { label: 'Cancelled', value: ORDER_STATUSES.CANCELLED, color: 'error' },
-];
-
-// Inventory Statuses
-export const INVENTORY_STATUSES = {
-  IN_STOCK: 'IN_STOCK',
-  LOW_STOCK: 'LOW_STOCK',
-  OUT_OF_STOCK: 'OUT_OF_STOCK',
-};
-
-export const INVENTORY_STATUS_OPTIONS = [
-  { label: 'In Stock', value: INVENTORY_STATUSES.IN_STOCK, color: 'success' },
-  { label: 'Low Stock', value: INVENTORY_STATUSES.LOW_STOCK, color: 'warning' },
-  { label: 'Out of Stock', value: INVENTORY_STATUSES.OUT_OF_STOCK, color: 'error' },
+export const PRESCRIPTION_STATUS_OPTIONS = [
+  { label: 'Active', value: PRESCRIPTION_STATUSES.ACTIVE, color: 'success' },
+  { label: 'Filled', value: PRESCRIPTION_STATUSES.FILLED, color: 'processing' },
+  { label: 'Expired', value: PRESCRIPTION_STATUSES.EXPIRED, color: 'default' },
+  { label: 'Cancelled', value: PRESCRIPTION_STATUSES.CANCELLED, color: 'error' },
 ];
 
 // Payment Methods
@@ -129,27 +135,27 @@ export const NAV_ITEMS = [
     icon: 'DashboardOutlined',
   },
   {
-    key: 'products',
-    label: 'Products',
-    path: '/products',
-    icon: 'ShoppingOutlined',
+    key: 'patients',
+    label: 'Patients',
+    path: '/patients',
+    icon: 'UserOutlined',
   },
   {
-    key: 'orders',
-    label: 'Orders',
-    path: '/orders',
-    icon: 'ShoppingCartOutlined',
+    key: 'appointments',
+    label: 'Appointments',
+    path: '/appointments',
+    icon: 'CalendarOutlined',
   },
   {
-    key: 'inventory',
-    label: 'Inventory',
-    path: '/inventory',
-    icon: 'InboxOutlined',
+    key: 'prescriptions',
+    label: 'Prescriptions',
+    path: '/prescriptions',
+    icon: 'MedicineBoxOutlined',
   },
   {
-    key: 'payments',
-    label: 'Payments',
-    path: '/payments',
+    key: 'billing',
+    label: 'Billing',
+    path: '/billing',
     icon: 'DollarOutlined',
   },
   {
@@ -186,12 +192,12 @@ export const TABLE_SIZES = {
 export default {
   ENTITIES,
   ENTITY_LABELS,
-  PRODUCT_STATUSES,
-  PRODUCT_STATUS_OPTIONS,
-  ORDER_STATUSES,
-  ORDER_STATUS_OPTIONS,
-  INVENTORY_STATUSES,
-  INVENTORY_STATUS_OPTIONS,
+  PATIENT_STATUSES,
+  PATIENT_STATUS_OPTIONS,
+  APPOINTMENT_STATUSES,
+  APPOINTMENT_STATUS_OPTIONS,
+  PRESCRIPTION_STATUSES,
+  PRESCRIPTION_STATUS_OPTIONS,
   PAYMENT_METHODS,
   PAYMENT_METHOD_OPTIONS,
   PAYMENT_STATUSES,
