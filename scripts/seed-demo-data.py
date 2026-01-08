@@ -595,6 +595,248 @@ def seed_retail_cases(count=15):
 
     print(f"✓ Created {count} cases")
 
+# ============================================
+# Healthcare Vertical Seeding Functions
+# ============================================
+
+# Storage for healthcare entities
+patients = []
+appointments = []
+prescriptions = []
+
+def create_patient(idx):
+    """Create a single patient and return data."""
+    patient_email = fake.email()
+    data = {
+        "name": fake.name(),
+        "email": patient_email,
+        "address": fake.address().replace('\n', ', '),
+        "phone": fake.phone_number(),
+        "dateOfBirth": fake.date_of_birth(minimum_age=18, maximum_age=90).isoformat(),
+        "status": fake.random_element(["ACTIVE", "ACTIVE", "ACTIVE", "INACTIVE"]),  # Mostly active
+    }
+    response = requests.post(f"{API_BASE_URL}/patient", json=data, timeout=30)
+    response.raise_for_status()
+
+    patient_id = response.json()['id']
+    return {
+        "id": patient_id,
+        "name": data["name"],
+        "email": patient_email,
+        "address": data["address"]
+    }
+
+def seed_patients(count=50):
+    """Seed patient records to database in parallel."""
+    print(f"Seeding {count} patients...")
+
+    completed = 0
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(create_patient, i) for i in range(count)]
+
+        for future in as_completed(futures):
+            patient = future.result()
+            patients.append(patient)
+            completed += 1
+
+            if completed % 25 == 0:
+                print(f"  Created {completed}/{count} patients")
+
+    print(f"✓ Created {count} patients")
+
+def create_appointment(patient):
+    """Create a single appointment for a patient."""
+    # Generate appointment date (past or future)
+    appointment_date = fake.date_time_between(start_date='-6M', end_date='+3M')
+
+    data = {
+        "patientId": patient["id"],
+        "patientName": patient["name"],
+        "patientEmail": patient["email"],
+        "appointmentDate": appointment_date.isoformat(),
+        "appointmentType": fake.random_element(["CHECK_UP", "FOLLOW_UP", "CONSULTATION", "EMERGENCY"]),
+        "provider": fake.name(),
+        "status": fake.random_element(["SCHEDULED", "CONFIRMED", "COMPLETED", "COMPLETED", "CANCELLED"]),
+        "notes": fake.sentence(nb_words=10)
+    }
+    response = requests.post(f"{API_BASE_URL}/appointment", json=data, timeout=30)
+    response.raise_for_status()
+
+    appointment_id = response.json()['id']
+    return {
+        "id": appointment_id,
+        "patient": patient,
+        "date": appointment_date
+    }
+
+def seed_appointments(count=100):
+    """Seed appointment records ensuring each patient gets at least one (parallel)."""
+    print(f"Seeding {count} appointments...")
+
+    # Build list of patients for appointments
+    num_patients = len(patients)
+    patient_assignments = []
+
+    # First pass: one appointment per patient
+    for i in range(min(count, num_patients)):
+        patient_assignments.append(patients[i])
+
+    # Second pass: remaining appointments randomly distributed
+    for i in range(num_patients, count):
+        patient_assignments.append(fake.random_element(patients))
+
+    # Create appointments in parallel
+    completed = 0
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(create_appointment, patient) for patient in patient_assignments]
+
+        for future in as_completed(futures):
+            appointment = future.result()
+            appointments.append(appointment)
+            completed += 1
+
+            if completed % 25 == 0:
+                print(f"  Created {completed}/{count} appointments")
+
+    print(f"✓ Created {count} appointments")
+
+def create_prescription(patient):
+    """Create a single prescription for a patient."""
+    issue_date = fake.date_between(start_date='-1y', end_date='today')
+
+    data = {
+        "patientId": patient["id"],
+        "patientName": patient["name"],
+        "patientEmail": patient["email"],
+        "medication": fake.random_element([
+            "Lisinopril", "Metformin", "Atorvastatin", "Amlodipine",
+            "Omeprazole", "Levothyroxine", "Albuterol", "Gabapentin"
+        ]),
+        "dosage": fake.random_element(["5mg", "10mg", "20mg", "50mg", "100mg"]),
+        "frequency": fake.random_element(["Once daily", "Twice daily", "Three times daily", "As needed"]),
+        "prescribedDate": issue_date.isoformat(),
+        "provider": fake.name(),
+        "status": fake.random_element(["ACTIVE", "ACTIVE", "FILLED", "EXPIRED"]),
+        "refillsRemaining": fake.random_int(0, 5)
+    }
+    response = requests.post(f"{API_BASE_URL}/prescription", json=data, timeout=30)
+    response.raise_for_status()
+
+    prescription_id = response.json()['id']
+    return {
+        "id": prescription_id,
+        "patient": patient
+    }
+
+def seed_prescriptions(count=75):
+    """Seed prescription records in parallel."""
+    print(f"Seeding {count} prescriptions...")
+
+    # Distribute prescriptions across patients
+    patient_assignments = []
+    num_patients = len(patients)
+
+    for i in range(count):
+        patient_assignments.append(fake.random_element(patients))
+
+    completed = 0
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(create_prescription, patient) for patient in patient_assignments]
+
+        for future in as_completed(futures):
+            prescription = future.result()
+            prescriptions.append(prescription)
+            completed += 1
+
+            if completed % 25 == 0:
+                print(f"  Created {completed}/{count} prescriptions")
+
+    print(f"✓ Created {count} prescriptions")
+
+def create_healthcare_billing(patient):
+    """Create a single billing record for a patient."""
+    service_date = fake.date_between(start_date='-6M', end_date='today')
+
+    data = {
+        "patientId": patient["id"],
+        "patientName": patient["name"],
+        "patientEmail": patient["email"],
+        "serviceDate": service_date.isoformat(),
+        "amount": fake.random_int(50, 5000),
+        "status": fake.random_element(["PENDING", "PAID", "PAID", "OVERDUE"]),
+        "description": fake.random_element([
+            "Office Visit", "Lab Work", "X-Ray", "Surgery",
+            "Medication", "Physical Therapy", "Consultation"
+        ])
+    }
+    response = requests.post(f"{API_BASE_URL}/billing", json=data, timeout=30)
+    response.raise_for_status()
+    return response.json()['id']
+
+def seed_healthcare_billing(count=80):
+    """Seed billing records in parallel."""
+    print(f"Seeding {count} billing records...")
+
+    patient_assignments = []
+    for i in range(count):
+        patient_assignments.append(fake.random_element(patients))
+
+    completed = 0
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(create_healthcare_billing, patient) for patient in patient_assignments]
+
+        for future in as_completed(futures):
+            future.result()
+            completed += 1
+
+            if completed % 25 == 0:
+                print(f"  Created {completed}/{count} billing records")
+
+    print(f"✓ Created {count} billing records")
+
+def create_healthcare_case(patient):
+    """Create a single support case for a patient."""
+    data = {
+        "customerId": patient["id"],
+        "customerEmail": patient["email"],
+        "subject": fake.random_element([
+            "Appointment Scheduling Issue",
+            "Prescription Refill Request",
+            "Billing Question",
+            "Medical Records Request",
+            "Insurance Coverage Question",
+            "Test Results Inquiry"
+        ]),
+        "description": fake.text(max_nb_chars=200),
+        "priority": fake.random_element(["LOW", "MEDIUM", "HIGH", "URGENT"]),
+        "status": fake.random_element(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"])
+    }
+
+    response = requests.post(f"{API_BASE_URL}/case", json=data, timeout=30)
+    response.raise_for_status()
+    return response.json()['id']
+
+def seed_healthcare_cases(count=40):
+    """Seed support case records in parallel."""
+    print(f"Seeding {count} support cases...")
+
+    patient_assignments = []
+    for i in range(count):
+        patient_assignments.append(fake.random_element(patients))
+
+    completed = 0
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(create_healthcare_case, patient) for patient in patient_assignments]
+
+        for future in as_completed(futures):
+            future.result()
+            completed += 1
+
+            if completed % 25 == 0:
+                print(f"  Created {completed}/{count} cases")
+
+    print(f"✓ Created {count} cases")
+
 if __name__ == "__main__":
     try:
         print(f"Seeding {VERTICAL} demo data to {API_BASE_URL}\n")
@@ -615,6 +857,26 @@ if __name__ == "__main__":
             print(f"  - 50 inventory records")
             print(f"  - 30 payments")
             print(f"  - 15 support cases")
+
+        elif VERTICAL == 'healthcare':
+            # Healthcare seeding
+            seed_patients(50)
+            print()
+
+            # Seed resources with realistic relationships
+            # Note: Each patient guaranteed at least 1 appointment
+            seed_appointments(100)
+            seed_prescriptions(75)
+            seed_healthcare_billing(80)
+            seed_healthcare_cases(40)
+
+            total = 50 + 100 + 75 + 80 + 40
+            print(f"\n✓ Healthcare seeding complete: {total} items created")
+            print(f"  - 50 patients")
+            print(f"  - 100 appointments (each patient has 1+)")
+            print(f"  - 75 prescriptions")
+            print(f"  - 80 billing records")
+            print(f"  - 40 support cases")
 
         else:
             # Insurance seeding
