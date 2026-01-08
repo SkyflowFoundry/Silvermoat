@@ -5,7 +5,7 @@ def get_config(stack_name: str, stage_name: str) -> SilvermoatConfig:
     """Get configuration based on stack name and stage"""
 
     # Production stacks
-    if stack_name in ["silvermoat", "silvermoat-insurance", "silvermoat-retail", "silvermoat-landing"]:
+    if stack_name in ["silvermoat", "silvermoat-insurance", "silvermoat-retail", "silvermoat-healthcare", "silvermoat-landing"]:
         return SilvermoatConfig(
             app_name="silvermoat",
             stage_name="prod",
