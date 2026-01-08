@@ -9,6 +9,7 @@ on:
       - 'lambda/**'
       - 'ui-insurance/**'
       - 'ui-retail/**'
+      - 'ui-healthcare/**'
       - 'ui-landing/**'
       - 'tests/e2e/**'
       - 'scripts/**'
