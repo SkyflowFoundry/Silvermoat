@@ -2,9 +2,11 @@
 set -e
 
 # Smart Cloudflare DNS update script for multi-vertical architecture
-# Creates/updates:
-# - Vertical-specific subdomain (insurance.silvermoat.net, retail.silvermoat.net)
-# - Wildcard subdomain (*.silvermoat.net) pointing to insurance vertical
+# Creates/updates vertical-specific subdomains:
+# - insurance.silvermoat.net → insurance CloudFront
+# - retail.silvermoat.net → retail CloudFront
+# - healthcare.silvermoat.net → healthcare CloudFront
+# - silvermoat.net → landing CloudFront (apex domain)
 
 # Usage:
 #   STACK_NAME=silvermoat-insurance ./scripts/update-cloudflare-dns.sh
@@ -19,7 +21,7 @@ set -e
 
 # Optional:
 # - FORCE_UPDATE: Set to "true" to force update regardless of comparison
-# - CREATE_WILDCARD: Set to "true" to create/update wildcard record (default: true for insurance)
+# - CREATE_WILDCARD: Set to "true" to create/update wildcard record (NOT recommended for multi-vertical)
 
 STACK_NAME="${STACK_NAME:-silvermoat}"
 DOMAIN_NAME="${DOMAIN_NAME:-silvermoat.net}"
@@ -61,13 +63,16 @@ fi
 # Detect vertical from stack name
 if [[ "$STACK_NAME" == *-insurance ]]; then
     VERTICAL="insurance"
-    CREATE_WILDCARD="${CREATE_WILDCARD:-true}"  # Default: create wildcard for insurance
+    CREATE_WILDCARD="${CREATE_WILDCARD:-false}"  # No wildcard - use explicit subdomains
 elif [[ "$STACK_NAME" == *-retail ]]; then
     VERTICAL="retail"
-    CREATE_WILDCARD="${CREATE_WILDCARD:-false}"  # Default: no wildcard for retail
+    CREATE_WILDCARD="${CREATE_WILDCARD:-false}"  # No wildcard - use explicit subdomains
+elif [[ "$STACK_NAME" == *-healthcare ]]; then
+    VERTICAL="healthcare"
+    CREATE_WILDCARD="${CREATE_WILDCARD:-false}"  # No wildcard - use explicit subdomains
 elif [[ "$STACK_NAME" == *-landing ]]; then
     VERTICAL="landing"
-    CREATE_WILDCARD="${CREATE_WILDCARD:-false}"  # Default: no wildcard for landing
+    CREATE_WILDCARD="${CREATE_WILDCARD:-false}"  # No wildcard - use apex domain
 else
     # Legacy single-stack behavior
     VERTICAL=""
