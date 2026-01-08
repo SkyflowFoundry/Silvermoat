@@ -821,12 +821,10 @@ jobs:
 
   deploy-landing-ui:
     name: Deploy Landing UI
-    needs: [detect-changes, deploy-landing-infra, configure-landing-dns]
+    needs: [detect-changes]
     if: |
-      always() &&
-      (needs.deploy-landing-infra.result == 'success' || needs.deploy-landing-infra.result == 'skipped') &&
-      (needs.configure-landing-dns.result == 'success' || needs.configure-landing-dns.result == 'skipped') &&
-      (needs.deploy-landing-infra.result == 'success' || needs.detect-changes.outputs.ui_changed == 'true' || needs.detect-changes.outputs.landing_ui_changed == 'true')
+      needs.detect-changes.outputs.ui_changed == 'true' ||
+      needs.detect-changes.outputs.landing_ui_changed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 

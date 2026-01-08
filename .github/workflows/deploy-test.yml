@@ -164,11 +164,11 @@ jobs:
 
   deploy-landing-ui:
     name: Deploy Landing UI
-    needs: [detect-changes, deploy-landing-infra]
+    needs: [detect-changes]
     if: |
-      always() &&
-      (needs.detect-changes.outputs.ui_changed == 'true' || needs.detect-changes.outputs.landing_ui_changed == 'true' || needs.deploy-landing-infra.result == 'success' || inputs.force_deploy == 'true') &&
-      (needs.deploy-landing-infra.result == 'success' || needs.deploy-landing-infra.result == 'skipped')
+      needs.detect-changes.outputs.ui_changed == 'true' ||
+      needs.detect-changes.outputs.landing_ui_changed == 'true' ||
+      inputs.force_deploy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
