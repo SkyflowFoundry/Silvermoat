@@ -210,146 +210,164 @@ jobs:
   # E2E Tests Matrix (Parallelized by Category)
   # ========================================
 
-  e2e-tests:
-    name: E2E Tests (${{ matrix.vertical }} - ${{ matrix.category }})
-    needs: [detect-changes, deploy-insurance-infra, deploy-insurance-ui, deploy-retail-infra, deploy-retail-ui, deploy-healthcare-infra, deploy-healthcare-ui, deploy-landing-infra, deploy-landing-ui]
+  insurance-e2e-tests:
+    name: Insurance E2E Tests (${{ matrix.category }})
+    needs: [detect-changes, deploy-insurance-infra, deploy-insurance-ui]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # Insurance tests (2 smoke, 3 api, 4 ui, 1 lifecycle)
-          - vertical: insurance
-            category: smoke
-            deploy_job: deploy-insurance-ui
-            stack_check: insurance_stack_exists
-          - vertical: insurance
-            category: api
-            deploy_job: deploy-insurance-ui
-            stack_check: insurance_stack_exists
-          - vertical: insurance
-            category: ui
-            deploy_job: deploy-insurance-ui
-            stack_check: insurance_stack_exists
-          - vertical: insurance
-            category: lifecycle
-            deploy_job: deploy-insurance-ui
-            stack_check: insurance_stack_exists
-
-          # Retail tests (5 smoke, 5 api, 2 ui, 1 lifecycle)
-          - vertical: retail
-            category: smoke
-            deploy_job: deploy-retail-ui
-            stack_check: retail_stack_exists
-          - vertical: retail
-            category: api
-            deploy_job: deploy-retail-ui
-            stack_check: retail_stack_exists
-          - vertical: retail
-            category: ui
-            deploy_job: deploy-retail-ui
-            stack_check: retail_stack_exists
-          - vertical: retail
-            category: lifecycle
-            deploy_job: deploy-retail-ui
-            stack_check: retail_stack_exists
-
-          # Healthcare tests (5 smoke, 4 api, 1 ui, 1 lifecycle)
-          - vertical: healthcare
-            category: smoke
-            deploy_job: deploy-healthcare-ui
-            stack_check: healthcare_stack_exists
-          - vertical: healthcare
-            category: api
-            deploy_job: deploy-healthcare-ui
-            stack_check: healthcare_stack_exists
-          - vertical: healthcare
-            category: ui
-            deploy_job: deploy-healthcare-ui
-            stack_check: healthcare_stack_exists
-          - vertical: healthcare
-            category: lifecycle
-            deploy_job: deploy-healthcare-ui
-            stack_check: healthcare_stack_exists
-
-          # Landing tests (4 smoke, 3 ui)
-          - vertical: landing
-            category: smoke
-            deploy_job: deploy-landing-ui
-            stack_check: landing_stack_exists
-          - vertical: landing
-            category: ui
-            deploy_job: deploy-landing-ui
-            stack_check: landing_stack_exists
+        category: [smoke, api, ui, lifecycle]
 
     steps:
       - name: Check if tests should run
         id: should_run
         run: |
-          # Run tests if deployment succeeded OR stack already exists
-          VERTICAL="${{ matrix.vertical }}"
-
-          # Get deployment result and stack existence for this vertical
-          if [[ "$VERTICAL" == "insurance" ]]; then
-            DEPLOY_RESULT="${{ needs.deploy-insurance-ui.result }}"
-            STACK_EXISTS="${{ needs.detect-changes.outputs.insurance_stack_exists }}"
-          elif [[ "$VERTICAL" == "retail" ]]; then
-            DEPLOY_RESULT="${{ needs.deploy-retail-ui.result }}"
-            STACK_EXISTS="${{ needs.detect-changes.outputs.retail_stack_exists }}"
-          elif [[ "$VERTICAL" == "healthcare" ]]; then
-            DEPLOY_RESULT="${{ needs.deploy-healthcare-ui.result }}"
-            STACK_EXISTS="${{ needs.detect-changes.outputs.healthcare_stack_exists }}"
-          elif [[ "$VERTICAL" == "landing" ]]; then
-            DEPLOY_RESULT="${{ needs.deploy-landing-ui.result }}"
-            STACK_EXISTS="${{ needs.detect-changes.outputs.landing_stack_exists }}"
-          fi
+          DEPLOY_RESULT="${{ needs.deploy-insurance-ui.result }}"
+          STACK_EXISTS="${{ needs.detect-changes.outputs.insurance_stack_exists }}"
 
           if [[ "$DEPLOY_RESULT" == "success" ]] || [[ "$STACK_EXISTS" == "true" ]]; then
             echo "should_run=true" >> $GITHUB_OUTPUT
-            echo "Running tests for $VERTICAL (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+            echo "Running insurance tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
           else
             echo "should_run=false" >> $GITHUB_OUTPUT
-            echo "Skipping tests for $VERTICAL (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+            echo "Skipping insurance tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
           fi
 
       - name: Checkout code
         if: steps.should_run.outputs.should_run == 'true'
         uses: actions/checkout@v4
 
-      - name: Get URLs for ${{ matrix.vertical }}
-        if: steps.should_run.outputs.should_run == 'true'
-        id: urls
-        run: |
-          WEB_URL=""
-          API_URL=""
-
-          # Get URLs from deploy job outputs
-          if [[ "${{ matrix.vertical }}" == "insurance" ]]; then
-            WEB_URL="${{ needs.deploy-insurance-ui.outputs.web_url }}"
-            API_URL="${{ needs.deploy-insurance-ui.outputs.api_url }}"
-          elif [[ "${{ matrix.vertical }}" == "retail" ]]; then
-            WEB_URL="${{ needs.deploy-retail-ui.outputs.web_url }}"
-            API_URL="${{ needs.deploy-retail-ui.outputs.api_url }}"
-          elif [[ "${{ matrix.vertical }}" == "healthcare" ]]; then
-            WEB_URL="${{ needs.deploy-healthcare-ui.outputs.web_url }}"
-            API_URL="${{ needs.deploy-healthcare-ui.outputs.api_url }}"
-          elif [[ "${{ matrix.vertical }}" == "landing" ]]; then
-            WEB_URL="${{ needs.deploy-landing-ui.outputs.web_url }}"
-          fi
-
-          echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
-          echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
-
-      - name: Run ${{ matrix.vertical }} ${{ matrix.category }} tests
+      - name: Run insurance ${{ matrix.category }} tests
         if: steps.should_run.outputs.should_run == 'true'
         uses: ./.github/actions/run-e2e-tests
         with:
-          vertical: ${{ matrix.vertical }}
+          vertical: insurance
           category: ${{ matrix.category }}
-          web-url: ${{ steps.urls.outputs.web_url }}
-          api-url: ${{ steps.urls.outputs.api_url }}
+          web-url: ${{ needs.deploy-insurance-ui.outputs.web_url }}
+          api-url: ${{ needs.deploy-insurance-ui.outputs.api_url }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
+  retail-e2e-tests:
+    name: Retail E2E Tests (${{ matrix.category }})
+    needs: [detect-changes, deploy-retail-infra, deploy-retail-ui]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        category: [smoke, api, ui, lifecycle]
+
+    steps:
+      - name: Check if tests should run
+        id: should_run
+        run: |
+          DEPLOY_RESULT="${{ needs.deploy-retail-ui.result }}"
+          STACK_EXISTS="${{ needs.detect-changes.outputs.retail_stack_exists }}"
+
+          if [[ "$DEPLOY_RESULT" == "success" ]] || [[ "$STACK_EXISTS" == "true" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "Running retail tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "Skipping retail tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+          fi
+
+      - name: Checkout code
+        if: steps.should_run.outputs.should_run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Run retail ${{ matrix.category }} tests
+        if: steps.should_run.outputs.should_run == 'true'
+        uses: ./.github/actions/run-e2e-tests
+        with:
+          vertical: retail
+          category: ${{ matrix.category }}
+          web-url: ${{ needs.deploy-retail-ui.outputs.web_url }}
+          api-url: ${{ needs.deploy-retail-ui.outputs.api_url }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
+  healthcare-e2e-tests:
+    name: Healthcare E2E Tests (${{ matrix.category }})
+    needs: [detect-changes, deploy-healthcare-infra, deploy-healthcare-ui]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        category: [smoke, api, ui, lifecycle]
+
+    steps:
+      - name: Check if tests should run
+        id: should_run
+        run: |
+          DEPLOY_RESULT="${{ needs.deploy-healthcare-ui.result }}"
+          STACK_EXISTS="${{ needs.detect-changes.outputs.healthcare_stack_exists }}"
+
+          if [[ "$DEPLOY_RESULT" == "success" ]] || [[ "$STACK_EXISTS" == "true" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "Running healthcare tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "Skipping healthcare tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+          fi
+
+      - name: Checkout code
+        if: steps.should_run.outputs.should_run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Run healthcare ${{ matrix.category }} tests
+        if: steps.should_run.outputs.should_run == 'true'
+        uses: ./.github/actions/run-e2e-tests
+        with:
+          vertical: healthcare
+          category: ${{ matrix.category }}
+          web-url: ${{ needs.deploy-healthcare-ui.outputs.web_url }}
+          api-url: ${{ needs.deploy-healthcare-ui.outputs.api_url }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
+  landing-e2e-tests:
+    name: Landing E2E Tests (${{ matrix.category }})
+    needs: [detect-changes, deploy-landing-infra, deploy-landing-ui]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        category: [smoke, ui]
+
+    steps:
+      - name: Check if tests should run
+        id: should_run
+        run: |
+          DEPLOY_RESULT="${{ needs.deploy-landing-ui.result }}"
+          STACK_EXISTS="${{ needs.detect-changes.outputs.landing_stack_exists }}"
+
+          if [[ "$DEPLOY_RESULT" == "success" ]] || [[ "$STACK_EXISTS" == "true" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "Running landing tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "Skipping landing tests (deploy: $DEPLOY_RESULT, stack exists: $STACK_EXISTS)"
+          fi
+
+      - name: Checkout code
+        if: steps.should_run.outputs.should_run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Run landing ${{ matrix.category }} tests
+        if: steps.should_run.outputs.should_run == 'true'
+        uses: ./.github/actions/run-e2e-tests
+        with:
+          vertical: landing
+          category: ${{ matrix.category }}
+          web-url: ${{ needs.deploy-landing-ui.outputs.web_url }}
+          api-url: ''
           aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
 
   # ========================================
@@ -679,7 +697,10 @@ jobs:
       seed-healthcare-data,
       deploy-landing-infra,
       deploy-landing-ui,
-      e2e-tests
+      insurance-e2e-tests,
+      retail-e2e-tests,
+      healthcare-e2e-tests,
+      landing-e2e-tests
     ]
     if: always() && github.event.pull_request.number
     runs-on: ubuntu-latest
@@ -712,7 +733,11 @@ jobs:
           | 🩺 **Healthcare** | ${{ needs.deploy-healthcare-infra.result == 'success' && '✅' || needs.deploy-healthcare-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-healthcare-ui.result == 'success' && '✅' || needs.deploy-healthcare-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-healthcare-data.result == 'success' && '✅' || needs.seed-healthcare-data.result == 'skipped' && '⏭️' || '❌' }} |
           | 🏠 **Landing** | ${{ needs.deploy-landing-infra.result == 'success' && '✅' || needs.deploy-landing-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-landing-ui.result == 'success' && '✅' || needs.deploy-landing-ui.result == 'skipped' && '⏭️' || '❌' }} | N/A |
 
-          **E2E Tests:** ${{ needs.e2e-tests.result == 'success' && '✅ All passed' || needs.e2e-tests.result == 'skipped' && '⏭️ Skipped' || '❌ Some failed - check workflow for details' }}
+          **E2E Tests:**
+          - Insurance: ${{ needs.insurance-e2e-tests.result == 'success' && '✅' || needs.insurance-e2e-tests.result == 'skipped' && '⏭️' || '❌' }}
+          - Retail: ${{ needs.retail-e2e-tests.result == 'success' && '✅' || needs.retail-e2e-tests.result == 'skipped' && '⏭️' || '❌' }}
+          - Healthcare: ${{ needs.healthcare-e2e-tests.result == 'success' && '✅' || needs.healthcare-e2e-tests.result == 'skipped' && '⏭️' || '❌' }}
+          - Landing: ${{ needs.landing-e2e-tests.result == 'success' && '✅' || needs.landing-e2e-tests.result == 'skipped' && '⏭️' || '❌' }}
 
           EOF
 
@@ -779,7 +804,10 @@ jobs:
              [ "${{ needs.deploy-healthcare-ui.result }}" = "failure" ] || \
              [ "${{ needs.deploy-landing-infra.result }}" = "failure" ] || \
              [ "${{ needs.deploy-landing-ui.result }}" = "failure" ] || \
-             [ "${{ needs.e2e-tests.result }}" = "failure" ]; then
+             [ "${{ needs.insurance-e2e-tests.result }}" = "failure" ] || \
+             [ "${{ needs.retail-e2e-tests.result }}" = "failure" ] || \
+             [ "${{ needs.healthcare-e2e-tests.result }}" = "failure" ] || \
+             [ "${{ needs.landing-e2e-tests.result }}" = "failure" ]; then
             cat >> /tmp/pr-comment.md <<EOF
           ---
 
