@@ -201,7 +201,7 @@ jobs:
           VERTICAL: insurance
           STAGE_NAME: prod
           CREATE_CLOUDFRONT: true
-          DOMAIN_NAME: silvermoat.net
+          DOMAIN_NAME: "*.silvermoat.net"
         run: |
           echo "Deploying insurance production stack: silvermoat-insurance"
           chmod +x scripts/deploy-stack.sh
@@ -237,7 +237,7 @@ jobs:
           VERTICAL: retail
           STAGE_NAME: prod
           CREATE_CLOUDFRONT: true
-          DOMAIN_NAME: silvermoat.net
+          DOMAIN_NAME: "*.silvermoat.net"
         run: |
           echo "Deploying retail production stack: silvermoat-retail"
           chmod +x scripts/deploy-stack.sh
@@ -273,7 +273,7 @@ jobs:
           VERTICAL: healthcare
           STAGE_NAME: prod
           CREATE_CLOUDFRONT: true
-          DOMAIN_NAME: silvermoat.net
+          DOMAIN_NAME: "*.silvermoat.net"
         run: |
           echo "Deploying healthcare production stack: silvermoat-healthcare"
           chmod +x scripts/deploy-stack.sh
