@@ -1,0 +1,1 @@
+"""Fintech vertical Lambda handlers"""
