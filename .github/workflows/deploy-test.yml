@@ -460,7 +460,7 @@ jobs:
 
   seed-insurance-data:
     name: Seed Insurance Data
-    needs: [deploy-insurance-ui]
+    needs: [deploy-insurance-ui, insurance-e2e-tests]
     if: needs.deploy-insurance-ui.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -648,7 +648,7 @@ jobs:
 
   seed-healthcare-data:
     name: Seed Healthcare Data
-    needs: [deploy-healthcare-ui]
+    needs: [deploy-healthcare-ui, healthcare-e2e-tests]
     if: needs.deploy-healthcare-ui.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -664,7 +664,7 @@ jobs:
 
   seed-retail-data:
     name: Seed Retail Data
-    needs: [deploy-retail-ui]
+    needs: [deploy-retail-ui, retail-e2e-tests]
     if: needs.deploy-retail-ui.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
