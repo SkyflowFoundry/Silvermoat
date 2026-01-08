@@ -515,6 +515,43 @@ jobs:
           echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
           echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
 
+  healthcare-tests:
+    name: Healthcare E2E Tests
+    needs: [deploy-healthcare-infra, deploy-healthcare-ui]
+    if: always() && needs.deploy-healthcare-ui.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run healthcare E2E tests
+        uses: ./.github/actions/run-e2e-tests
+        with:
+          vertical: healthcare
+          web-url: ${{ needs.deploy-healthcare-ui.outputs.web_url }}
+          api-url: ${{ needs.deploy-healthcare-ui.outputs.api_url }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
+  seed-healthcare-data:
+    name: Seed Healthcare Data
+    needs: [deploy-healthcare-ui, healthcare-tests]
+    if: |
+      always() &&
+      needs.deploy-healthcare-ui.result == 'success' &&
+      (needs.healthcare-tests.result == 'success' || needs.healthcare-tests.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Seed healthcare demo data
+        uses: ./.github/actions/clear-and-seed-data
+        with:
+          api-base-url: ${{ needs.deploy-healthcare-ui.outputs.api_url }}
+          vertical: healthcare
+
   retail-tests:
     name: Retail E2E Tests
     needs: [deploy-retail-infra, deploy-retail-ui]
@@ -568,6 +605,10 @@ jobs:
       deploy-retail-ui,
       retail-tests,
       seed-retail-data,
+      deploy-healthcare-infra,
+      deploy-healthcare-ui,
+      healthcare-tests,
+      seed-healthcare-data,
       deploy-landing-infra,
       deploy-landing-ui,
       landing-tests
@@ -600,6 +641,7 @@ jobs:
           |----------|---------------|-----|-------|--------------|
           | 🏥 **Insurance** | ${{ needs.deploy-insurance-infra.result == 'success' && '✅' || needs.deploy-insurance-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-insurance-ui.result == 'success' && '✅' || needs.deploy-insurance-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.insurance-tests.result == 'success' && '✅' || needs.insurance-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-insurance-data.result == 'success' && '✅' || needs.seed-insurance-data.result == 'skipped' && '⏭️' || '❌' }} |
           | 🛒 **Retail** | ${{ needs.deploy-retail-infra.result == 'success' && '✅' || needs.deploy-retail-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-retail-ui.result == 'success' && '✅' || needs.deploy-retail-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.retail-tests.result == 'success' && '✅' || needs.retail-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-retail-data.result == 'success' && '✅' || needs.seed-retail-data.result == 'skipped' && '⏭️' || '❌' }} |
+          | 🩺 **Healthcare** | ${{ needs.deploy-healthcare-infra.result == 'success' && '✅' || needs.deploy-healthcare-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-healthcare-ui.result == 'success' && '✅' || needs.deploy-healthcare-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.healthcare-tests.result == 'success' && '✅' || needs.healthcare-tests.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.seed-healthcare-data.result == 'success' && '✅' || needs.seed-healthcare-data.result == 'skipped' && '⏭️' || '❌' }} |
           | 🏠 **Landing** | ${{ needs.deploy-landing-infra.result == 'success' && '✅' || needs.deploy-landing-infra.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-landing-ui.result == 'success' && '✅' || needs.deploy-landing-ui.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.landing-tests.result == 'success' && '✅' || needs.landing-tests.result == 'skipped' && '⏭️' || '❌' }} | N/A |
 
           EOF

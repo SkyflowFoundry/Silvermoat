@@ -798,6 +798,45 @@ jobs:
             exit 1
           fi
 
+  e2e-healthcare:
+    name: Healthcare E2E Tests
+    needs: [deploy-healthcare-infra, deploy-healthcare-ui]
+    if: |
+      always() &&
+      needs.deploy-healthcare-ui.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run healthcare E2E tests
+        uses: ./.github/actions/run-e2e-tests
+        with:
+          vertical: healthcare
+          web-url: ${{ needs.deploy-healthcare-ui.outputs.web_url }}
+          api-url: ${{ needs.deploy-healthcare-ui.outputs.api_url }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
+  seed-healthcare-data:
+    name: Seed Healthcare Data
+    needs: [deploy-healthcare-ui, e2e-healthcare]
+    if: |
+      always() &&
+      needs.deploy-healthcare-ui.result == 'success' &&
+      (needs.e2e-healthcare.result == 'success' || needs.e2e-healthcare.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Seed healthcare demo data
+        uses: ./.github/actions/clear-and-seed-data
+        with:
+          api-base-url: ${{ needs.deploy-healthcare-ui.outputs.api_url }}
+          vertical: healthcare
+
   deploy-landing-ui:
     name: Deploy Landing UI
     needs: [detect-changes, deploy-landing-infra, configure-landing-dns, deploy-insurance-ui, deploy-retail-ui, deploy-healthcare-ui]
@@ -1008,12 +1047,15 @@ jobs:
     needs: [
       deploy-insurance-ui,
       deploy-retail-ui,
+      deploy-healthcare-ui,
       deploy-landing-ui,
       insurance-tests,
       retail-tests,
+      e2e-healthcare,
       landing-tests,
       seed-insurance-data,
-      seed-retail-data
+      seed-retail-data,
+      seed-healthcare-data
     ]
     if: always()
     runs-on: ubuntu-latest
@@ -1037,6 +1079,12 @@ jobs:
           echo "  API: ${{ needs.deploy-retail-ui.outputs.api_url }}"
           echo "  Web: ${{ needs.deploy-retail-ui.outputs.web_url }}"
           echo ""
+          echo "🩺 Healthcare Vertical:"
+          echo "  Infra: ${{ needs.deploy-healthcare-ui.result }}"
+          echo "  UI: ${{ needs.deploy-healthcare-ui.result }}"
+          echo "  API: ${{ needs.deploy-healthcare-ui.outputs.api_url }}"
+          echo "  Web: ${{ needs.deploy-healthcare-ui.outputs.web_url }}"
+          echo ""
           echo "🏠 Landing Page:"
           echo "  Infra: ${{ needs.deploy-landing-ui.result }}"
           echo "  UI: ${{ needs.deploy-landing-ui.result }}"
@@ -1045,9 +1093,11 @@ jobs:
           echo "🧪 E2E Tests:"
           echo "  Insurance: ${{ needs.insurance-tests.result }}"
           echo "  Retail: ${{ needs.retail-tests.result }}"
+          echo "  Healthcare: ${{ needs.e2e-healthcare.result }}"
           echo "  Landing: ${{ needs.landing-tests.result }}"
           echo ""
           echo "🌱 Data Seeding:"
           echo "  Insurance: ${{ needs.seed-insurance-data.result }}"
           echo "  Retail: ${{ needs.seed-retail-data.result }}"
+          echo "  Healthcare: ${{ needs.seed-healthcare-data.result }}"
           echo "========================================="
