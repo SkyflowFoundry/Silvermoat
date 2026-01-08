@@ -114,6 +114,33 @@ def retail_base_url():
 
 
 @pytest.fixture(scope="session")
+def healthcare_base_url():
+    """Get healthcare vertical base URL"""
+    # Check environment variable first
+    app_url = os.environ.get('HEALTHCARE_URL')
+    if app_url:
+        return app_url.rstrip('/')
+
+    # Try to fetch from CloudFormation stack
+    stack_name = os.environ.get('STACK_NAME', os.environ.get('TEST_STACK_NAME'))
+    if stack_name:
+        try:
+            import boto3
+            cfn = boto3.client('cloudformation')
+            response = cfn.describe_stacks(StackName=stack_name)
+            outputs = {o['OutputKey']: o['OutputValue'] for o in response['Stacks'][0].get('Outputs', [])}
+            if 'HealthcareDomainUrl' in outputs:
+                return outputs['HealthcareDomainUrl'].rstrip('/')
+            if 'HealthcareUiBucketWebsiteURL' in outputs:
+                return outputs['HealthcareUiBucketWebsiteURL'].rstrip('/')
+        except Exception as e:
+            print(f"Warning: Could not fetch stack outputs: {e}")
+
+    # No fallback - skip healthcare tests if not configured
+    pytest.skip("HEALTHCARE_URL not configured")
+
+
+@pytest.fixture(scope="session")
 def landing_base_url():
     """Get landing page base URL"""
     # Check environment variable first
@@ -215,6 +242,31 @@ def retail_api_url():
 
     # No fallback - skip retail tests if not configured
     pytest.skip("RETAIL_API_URL not configured")
+
+
+@pytest.fixture(scope="session")
+def healthcare_api_url():
+    """Get healthcare vertical API URL"""
+    # Check environment variable first
+    api_url = os.environ.get('HEALTHCARE_API_URL')
+    if api_url:
+        return api_url.rstrip('/')
+
+    # Try to fetch from CloudFormation stack
+    stack_name = os.environ.get('STACK_NAME', os.environ.get('TEST_STACK_NAME'))
+    if stack_name:
+        try:
+            import boto3
+            cfn = boto3.client('cloudformation')
+            response = cfn.describe_stacks(StackName=stack_name)
+            outputs = {o['OutputKey']: o['OutputValue'] for o in response['Stacks'][0].get('Outputs', [])}
+            if 'HealthcareApiUrl' in outputs:
+                return outputs['HealthcareApiUrl'].rstrip('/')
+        except Exception as e:
+            print(f"Warning: Could not fetch API URL: {e}")
+
+    # No fallback - skip healthcare tests if not configured
+    pytest.skip("HEALTHCARE_API_URL not configured")
 
 
 @pytest.fixture
