@@ -240,14 +240,38 @@ jobs:
         if: steps.should_run.outputs.should_run == 'true'
         uses: actions/checkout@v4
 
+      - name: Configure AWS credentials
+        if: steps.should_run.outputs.should_run == 'true' && needs.deploy-insurance-ui.result == 'skipped'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Get stack outputs (deployment skipped)
+        if: steps.should_run.outputs.should_run == 'true' && needs.deploy-insurance-ui.result == 'skipped'
+        id: fetch_urls
+        run: |
+          STACK_NAME="${{ needs.detect-changes.outputs.base_stack_name }}-insurance"
+
+          OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].Outputs' \
+            --output json)
+
+          API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceApiUrl") | .OutputValue')
+          WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="InsuranceUiBucketWebsiteURL") | .OutputValue')
+
+          echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
+          echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
+
       - name: Run insurance ${{ matrix.category }} tests
         if: steps.should_run.outputs.should_run == 'true'
         uses: ./.github/actions/run-e2e-tests
         with:
           vertical: insurance
           category: ${{ matrix.category }}
-          web-url: ${{ needs.deploy-insurance-ui.outputs.web_url }}
-          api-url: ${{ needs.deploy-insurance-ui.outputs.api_url }}
+          web-url: ${{ needs.deploy-insurance-ui.result == 'success' && needs.deploy-insurance-ui.outputs.web_url || steps.fetch_urls.outputs.web_url }}
+          api-url: ${{ needs.deploy-insurance-ui.result == 'success' && needs.deploy-insurance-ui.outputs.api_url || steps.fetch_urls.outputs.api_url }}
           aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
 
   retail-e2e-tests:
@@ -280,14 +304,38 @@ jobs:
         if: steps.should_run.outputs.should_run == 'true'
         uses: actions/checkout@v4
 
+      - name: Configure AWS credentials
+        if: steps.should_run.outputs.should_run == 'true' && needs.deploy-retail-ui.result == 'skipped'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Get stack outputs (deployment skipped)
+        if: steps.should_run.outputs.should_run == 'true' && needs.deploy-retail-ui.result == 'skipped'
+        id: fetch_urls
+        run: |
+          STACK_NAME="${{ needs.detect-changes.outputs.base_stack_name }}-retail"
+
+          OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].Outputs' \
+            --output json)
+
+          API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailApiUrl") | .OutputValue')
+          WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="RetailUiBucketWebsiteURL") | .OutputValue')
+
+          echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
+          echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
+
       - name: Run retail ${{ matrix.category }} tests
         if: steps.should_run.outputs.should_run == 'true'
         uses: ./.github/actions/run-e2e-tests
         with:
           vertical: retail
           category: ${{ matrix.category }}
-          web-url: ${{ needs.deploy-retail-ui.outputs.web_url }}
-          api-url: ${{ needs.deploy-retail-ui.outputs.api_url }}
+          web-url: ${{ needs.deploy-retail-ui.result == 'success' && needs.deploy-retail-ui.outputs.web_url || steps.fetch_urls.outputs.web_url }}
+          api-url: ${{ needs.deploy-retail-ui.result == 'success' && needs.deploy-retail-ui.outputs.api_url || steps.fetch_urls.outputs.api_url }}
           aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
 
   healthcare-e2e-tests:
@@ -320,14 +368,38 @@ jobs:
         if: steps.should_run.outputs.should_run == 'true'
         uses: actions/checkout@v4
 
+      - name: Configure AWS credentials
+        if: steps.should_run.outputs.should_run == 'true' && needs.deploy-healthcare-ui.result == 'skipped'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Get stack outputs (deployment skipped)
+        if: steps.should_run.outputs.should_run == 'true' && needs.deploy-healthcare-ui.result == 'skipped'
+        id: fetch_urls
+        run: |
+          STACK_NAME="${{ needs.detect-changes.outputs.base_stack_name }}-healthcare"
+
+          OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].Outputs' \
+            --output json)
+
+          API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="HealthcareApiUrl") | .OutputValue')
+          WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="HealthcareUiBucketWebsiteURL") | .OutputValue')
+
+          echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
+          echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
+
       - name: Run healthcare ${{ matrix.category }} tests
         if: steps.should_run.outputs.should_run == 'true'
         uses: ./.github/actions/run-e2e-tests
         with:
           vertical: healthcare
           category: ${{ matrix.category }}
-          web-url: ${{ needs.deploy-healthcare-ui.outputs.web_url }}
-          api-url: ${{ needs.deploy-healthcare-ui.outputs.api_url }}
+          web-url: ${{ needs.deploy-healthcare-ui.result == 'success' && needs.deploy-healthcare-ui.outputs.web_url || steps.fetch_urls.outputs.web_url }}
+          api-url: ${{ needs.deploy-healthcare-ui.result == 'success' && needs.deploy-healthcare-ui.outputs.api_url || steps.fetch_urls.outputs.api_url }}
           aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
 
   landing-e2e-tests:
@@ -360,13 +432,35 @@ jobs:
         if: steps.should_run.outputs.should_run == 'true'
         uses: actions/checkout@v4
 
+      - name: Configure AWS credentials
+        if: steps.should_run.outputs.should_run == 'true' && needs.deploy-landing-ui.result == 'skipped'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Get stack outputs (deployment skipped)
+        if: steps.should_run.outputs.should_run == 'true' && needs.deploy-landing-ui.result == 'skipped'
+        id: fetch_urls
+        run: |
+          STACK_NAME="${{ needs.detect-changes.outputs.base_stack_name }}-landing"
+
+          OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].Outputs' \
+            --output json)
+
+          WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="LandingUiBucketWebsiteURL") | .OutputValue')
+
+          echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
+
       - name: Run landing ${{ matrix.category }} tests
         if: steps.should_run.outputs.should_run == 'true'
         uses: ./.github/actions/run-e2e-tests
         with:
           vertical: landing
           category: ${{ matrix.category }}
-          web-url: ${{ needs.deploy-landing-ui.outputs.web_url }}
+          web-url: ${{ needs.deploy-landing-ui.result == 'success' && needs.deploy-landing-ui.outputs.web_url || steps.fetch_urls.outputs.web_url }}
           api-url: ''
           aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
 
