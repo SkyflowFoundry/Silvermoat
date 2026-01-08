@@ -106,6 +106,14 @@ jobs:
     outputs:
       infrastructure_changed: ${{ steps.check.outputs.infrastructure_changed }}
       ui_changed: ${{ steps.check.outputs.ui_changed }}
+      insurance_lambda_changed: ${{ steps.check.outputs.insurance_lambda_changed }}
+      retail_lambda_changed: ${{ steps.check.outputs.retail_lambda_changed }}
+      healthcare_lambda_changed: ${{ steps.check.outputs.healthcare_lambda_changed }}
+      landing_lambda_changed: ${{ steps.check.outputs.landing_lambda_changed }}
+      insurance_ui_changed: ${{ steps.check.outputs.insurance_ui_changed }}
+      retail_ui_changed: ${{ steps.check.outputs.retail_ui_changed }}
+      healthcare_ui_changed: ${{ steps.check.outputs.healthcare_ui_changed }}
+      landing_ui_changed: ${{ steps.check.outputs.landing_ui_changed }}
       insurance_stack_exists: ${{ steps.check-stacks.outputs.insurance_exists }}
       retail_stack_exists: ${{ steps.check-stacks.outputs.retail_exists }}
       healthcare_stack_exists: ${{ steps.check-stacks.outputs.healthcare_exists }}
