@@ -670,19 +670,16 @@ jobs:
       detect-changes,
       deploy-insurance-infra,
       deploy-insurance-ui,
-      insurance-tests,
       seed-insurance-data,
       deploy-retail-infra,
       deploy-retail-ui,
-      retail-tests,
       seed-retail-data,
       deploy-healthcare-infra,
       deploy-healthcare-ui,
-      healthcare-tests,
       seed-healthcare-data,
       deploy-landing-infra,
       deploy-landing-ui,
-      landing-tests
+      e2e-tests
     ]
     if: always() && github.event.pull_request.number
     runs-on: ubuntu-latest
