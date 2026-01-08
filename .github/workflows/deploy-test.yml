@@ -135,6 +135,7 @@ jobs:
     needs: [detect-changes]
     if: |
       needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+      needs.detect-changes.outputs.landing_lambda_changed == 'true' ||
       needs.detect-changes.outputs.landing_stack_exists == 'false' ||
       inputs.force_deploy == 'true'
     runs-on: ubuntu-latest
@@ -166,7 +167,7 @@ jobs:
     needs: [detect-changes, deploy-landing-infra, deploy-insurance-infra, deploy-retail-infra, deploy-healthcare-infra]
     if: |
       always() &&
-      (needs.detect-changes.outputs.ui_changed == 'true' || needs.deploy-landing-infra.result == 'success' || inputs.force_deploy == 'true') &&
+      (needs.detect-changes.outputs.ui_changed == 'true' || needs.detect-changes.outputs.landing_ui_changed == 'true' || needs.deploy-landing-infra.result == 'success' || inputs.force_deploy == 'true') &&
       (needs.deploy-landing-infra.result == 'success' || needs.deploy-landing-infra.result == 'skipped') &&
       (needs.deploy-insurance-ui.result == 'success' || needs.deploy-insurance-ui.result == 'skipped') &&
       (needs.deploy-retail-ui.result == 'success' || needs.deploy-retail-ui.result == 'skipped')
@@ -231,6 +232,7 @@ jobs:
     needs: [detect-changes]
     if: |
       needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+      needs.detect-changes.outputs.insurance_lambda_changed == 'true' ||
       needs.detect-changes.outputs.insurance_stack_exists == 'false' ||
       inputs.force_deploy == 'true'
     runs-on: ubuntu-latest
@@ -262,7 +264,7 @@ jobs:
     needs: [detect-changes, deploy-insurance-infra]
     if: |
       always() &&
-      (needs.detect-changes.outputs.ui_changed == 'true' || needs.deploy-insurance-infra.result == 'success' || inputs.force_deploy == 'true') &&
+      (needs.detect-changes.outputs.ui_changed == 'true' || needs.detect-changes.outputs.insurance_ui_changed == 'true' || needs.deploy-insurance-infra.result == 'success' || inputs.force_deploy == 'true') &&
       (needs.deploy-insurance-infra.result == 'success' || needs.deploy-insurance-infra.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -355,6 +357,7 @@ jobs:
     needs: [detect-changes]
     if: |
       needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+      needs.detect-changes.outputs.retail_lambda_changed == 'true' ||
       needs.detect-changes.outputs.retail_stack_exists == 'false' ||
       inputs.force_deploy == 'true'
     runs-on: ubuntu-latest
@@ -386,6 +389,7 @@ jobs:
     needs: [detect-changes]
     if: |
       needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+      needs.detect-changes.outputs.healthcare_lambda_changed == 'true' ||
       needs.detect-changes.outputs.healthcare_stack_exists == 'false' ||
       inputs.force_deploy == 'true'
     runs-on: ubuntu-latest
@@ -417,7 +421,7 @@ jobs:
     needs: [detect-changes, deploy-retail-infra]
     if: |
       always() &&
-      (needs.detect-changes.outputs.ui_changed == 'true' || needs.deploy-retail-infra.result == 'success' || inputs.force_deploy == 'true') &&
+      (needs.detect-changes.outputs.ui_changed == 'true' || needs.detect-changes.outputs.retail_ui_changed == 'true' || needs.deploy-retail-infra.result == 'success' || inputs.force_deploy == 'true') &&
       (needs.deploy-retail-infra.result == 'success' || needs.deploy-retail-infra.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -469,7 +473,7 @@ jobs:
     needs: [detect-changes, deploy-healthcare-infra]
     if: |
       always() &&
-      (needs.detect-changes.outputs.ui_changed == 'true' || needs.deploy-healthcare-infra.result == 'success' || inputs.force_deploy == 'true') &&
+      (needs.detect-changes.outputs.ui_changed == 'true' || needs.detect-changes.outputs.healthcare_ui_changed == 'true' || needs.deploy-healthcare-infra.result == 'success' || inputs.force_deploy == 'true') &&
       (needs.deploy-healthcare-infra.result == 'success' || needs.deploy-healthcare-infra.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
