@@ -20,7 +20,7 @@ import { seedRetailData, clearRetailData } from '../utils/seedData';
 import { useCustomers } from '../hooks/queries/useCustomers';
 import { useAccounts } from '../hooks/queries/useAccounts';
 import { useLoans } from '../hooks/queries/useLoans';
-import { usePayments } from '../hooks/queries/usePayments';
+import { useCards } from '../hooks/queries/useCards';
 import { useCases } from '../hooks/queries/useCases';
 
 const { Title, Paragraph, Text } = Typography;
@@ -39,10 +39,10 @@ const Dashboard = () => {
   const { data: customersData, isLoading: customersLoading } = useCustomers();
   const { data: accountsData, isLoading: accountsLoading } = useAccounts();
   const { data: loansData, isLoading: loansLoading } = useLoans();
-  const { data: paymentsData, isLoading: paymentsLoading } = usePayments();
+  const { data: cardsData, isLoading: cardsLoading } = useCards();
   const { data: casesData, isLoading: casesLoading } = useCases();
 
-  const isLoadingStats = customersLoading || accountsLoading || loansLoading || paymentsLoading || casesLoading;
+  const isLoadingStats = customersLoading || accountsLoading || loansLoading || cardsLoading || casesLoading;
 
   const handleSeedData = async () => {
     setSeeding(true);
@@ -125,12 +125,12 @@ const Dashboard = () => {
       description: 'Manage loans',
     },
     {
-      title: 'Card',
-      path: '/card',
+      title: 'Cards',
+      path: '/cards',
       icon: DollarOutlined,
       color: '#faad14',
       background: '#fffbe6',
-      count: paymentsData?.items?.length || 0,
+      count: cardsData?.items?.length || 0,
       description: 'View card records',
     },
     {
