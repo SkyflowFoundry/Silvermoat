@@ -1,13 +1,13 @@
 /**
- * Customer Appointments Page
- * Patient view of their appointments
+ * Customer Accounts Page
+ * Patient view of their accounts
  */
 
 import { useState, useEffect } from 'react';
 import { Card, Table, Tag, Typography, Button, Space, Spin, Alert } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeftOutlined, CalendarOutlined } from '@ant-design/icons';
-import { useAppointments } from '../../hooks/queries/useAppointments';
+import { useAccounts } from '../../hooks/queries/useAccounts';
 import { formatTimestamp } from '../../utils/formatters';
 
 const { Title, Paragraph } = Typography;
@@ -20,14 +20,14 @@ const STATUS_COLORS = {
   NO_SHOW: 'orange',
 };
 
-const CustomerAppointments = () => {
+const CustomerAccounts = () => {
   const navigate = useNavigate();
-  const { data, isLoading, error } = useAppointments();
-  const appointments = data?.items || [];
+  const { data, isLoading, error } = useAccounts();
+  const accounts = data?.items || [];
 
   // In a real app, filter by logged-in patient email
-  // For now, show all appointments
-  const myAppointments = appointments;
+  // For now, show all accounts
+  const myAccounts = accounts;
 
   const columns = [
     {
@@ -70,7 +70,7 @@ const CustomerAppointments = () => {
     return (
       <Alert
         message="Error"
-        description="Failed to load appointments"
+        description="Failed to load accounts"
         type="error"
         showIcon
       />
@@ -90,10 +90,10 @@ const CustomerAppointments = () => {
               Back to Dashboard
             </Button>
             <Title level={2}>
-              <CalendarOutlined /> My Appointments
+              <CalendarOutlined /> My Accounts
             </Title>
             <Paragraph type="secondary">
-              View all your scheduled and past appointments.
+              View all your scheduled and past accounts.
             </Paragraph>
           </div>
 
@@ -104,7 +104,7 @@ const CustomerAppointments = () => {
           ) : (
             <Table
               columns={columns}
-              dataSource={myAppointments}
+              dataSource={myAccounts}
               rowKey="id"
               pagination={{ pageSize: 10 }}
               scroll={{ x: 800 }}
@@ -116,4 +116,4 @@ const CustomerAppointments = () => {
   );
 };
 
-export default CustomerAppointments;
+export default CustomerAccounts;

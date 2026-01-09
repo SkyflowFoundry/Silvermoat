@@ -1,6 +1,6 @@
 /**
  * Customer (Patient) Dashboard Page
- * Patient portal showing appointments, prescriptions, and medical transactions
+ * Patient portal showing accounts, prescriptions, and medical transactions
  */
 
 import { Card, Row, Col, Typography, Space, Button } from 'antd';
@@ -26,24 +26,24 @@ const CustomerDashboard = () => {
               <UserOutlined /> Patient Portal
             </Title>
             <Paragraph type="secondary">
-              Welcome to Silvermoat Healthcare. Access your health information and manage appointments.
+              Welcome to Silvermoat Healthcare. Access your health information and manage accounts.
             </Paragraph>
           </div>
 
           <Row gutter={[16, 16]}>
-            {/* Appointments Card */}
+            {/* Accounts Card */}
             <Col xs={24} md={8}>
               <Card
                 hoverable
                 style={{ height: '100%', cursor: 'pointer' }}
-                onClick={() => navigate('/customer/appointments')}
+                onClick={() => navigate('/customer/accounts')}
               >
                 <Space direction="vertical" align="center" style={{ width: '100%' }}>
                   <CalendarOutlined style={{ fontSize: 48, color: '#52c41a' }} />
-                  <Title level={4}>My Appointments</Title>
-                  <Text type="secondary">View and manage your appointments</Text>
+                  <Title level={4}>My Accounts</Title>
+                  <Text type="secondary">View and manage your accounts</Text>
                   <Button type="primary" icon={<CalendarOutlined />}>
-                    View Appointments
+                    View Accounts
                   </Button>
                 </Space>
               </Card>
@@ -85,8 +85,8 @@ const CustomerDashboard = () => {
           {/* Quick Links */}
           <Card title="Quick Links" size="small">
             <Space direction="vertical">
-              <Button type="link" onClick={() => navigate('/customer/appointments')}>
-                Schedule New Appointment
+              <Button type="link" onClick={() => navigate('/customer/accounts')}>
+                Schedule New Account
               </Button>
               <Button type="link" onClick={() => navigate('/customer/transactions')}>
                 View Test Results
