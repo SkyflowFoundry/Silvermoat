@@ -1,17 +1,17 @@
 /**
- * usePayments Hook
- * React Query hook for fetching payments list
+ * useCards Hook
+ * React Query hook for fetching cards list
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { listPayments } from '../../services/payments';
+import { listCards } from '../../services/cards';
 
-export const usePayments = (options = {}) => {
+export const useCards = (options = {}) => {
   return useQuery({
-    queryKey: ['payments'],
-    queryFn: listPayments,
+    queryKey: ['cards'],
+    queryFn: listCards,
     ...options,
   });
 };
 
-export default usePayments;
+export default useCards;
