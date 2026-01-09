@@ -628,7 +628,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate Silvermoat architecture diagrams")
     parser.add_argument(
         "--vertical",
-        choices=["insurance", "retail", "healthcare", "all"],
+        choices=["insurance", "retail", "healthcare", "fintech", "all"],
         default="all",
         help="Which vertical to generate diagrams for (default: all)"
     )
@@ -663,6 +663,11 @@ if __name__ == "__main__":
         generate_healthcare_only_data_flow_diagram()
         print("    ✓ docs/data-flow-healthcare.png")
         print("\n✓ Healthcare diagrams generated successfully!")
+
+    elif args.vertical == "fintech":
+        print("Generating Fintech vertical documentation diagrams...\n")
+        print("⚠️  Fintech diagram generation not yet implemented - skipping")
+        print("    (Fintech can use multi-vertical diagrams from --vertical all)")
 
     else:  # all
         print("Generating Silvermoat multi-vertical documentation diagrams...\n")

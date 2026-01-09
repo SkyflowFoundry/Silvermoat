@@ -1,6 +1,6 @@
 /**
- * Payments Statistics Component
- * Mini-dashboard showing payment-specific metrics
+ * Cards Statistics Component
+ * Mini-dashboard showing card-specific metrics
  */
 
 import { Row, Col, Card, Statistic, Space, Typography, Spin } from 'antd';
@@ -10,14 +10,14 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
 } from '@ant-design/icons';
-import { usePayments } from '../../hooks/queries/usePayments';
+import { useCards } from '../../hooks/queries/useCards';
 import { formatCurrency } from '../../utils/formatters';
 
 const { Text } = Typography;
 
-const PaymentsStats = () => {
-  const { data: paymentsData, isLoading } = usePayments();
-  const payments = paymentsData?.items || [];
+const CardsStats = () => {
+  const { data: cardsData, isLoading } = useCards();
+  const cards = cardsData?.items || [];
 
   if (isLoading) {
     return (
@@ -28,16 +28,16 @@ const PaymentsStats = () => {
   }
 
   // Calculate statistics
-  const totalPayments = payments.length;
-  const totalAmount = payments.reduce((sum, payment) => sum + (payment.data?.amount || 0), 0);
-  const completedPayments = payments.filter(p => p.data?.status === 'COMPLETED');
-  const completedAmount = completedPayments.reduce((sum, p) => sum + (p.data?.amount || 0), 0);
-  const failedPayments = payments.filter(p => p.data?.status === 'FAILED').length;
-  const pendingPayments = payments.filter(p => p.data?.status === 'PENDING').length;
+  const totalCards = cards.length;
+  const totalAmount = cards.reduce((sum, card) => sum + (card.data?.amount || 0), 0);
+  const completedCards = cards.filter(p => p.data?.status === 'COMPLETED');
+  const completedAmount = completedCards.reduce((sum, p) => sum + (p.data?.amount || 0), 0);
+  const failedCards = cards.filter(p => p.data?.status === 'FAILED').length;
+  const pendingCards = cards.filter(p => p.data?.status === 'PENDING').length;
 
-  // Payment method distribution
+  // Card method distribution
   const methods = {};
-  payments.forEach(p => {
+  cards.forEach(p => {
     const method = p.data?.method || 'Unknown';
     methods[method] = (methods[method] || 0) + 1;
   });
@@ -46,12 +46,12 @@ const PaymentsStats = () => {
   return (
     <div>
       <Row gutter={[16, 16]}>
-        {/* Total Payments */}
+        {/* Total Cards */}
         <Col xs={24} sm={12} lg={6}>
           <Card size="small" bordered={false} style={{ background: '#f0f5ff' }}>
             <Statistic
-              title={<Text strong>Total Payments</Text>}
-              value={totalPayments}
+              title={<Text strong>Total Cards</Text>}
+              value={totalCards}
               prefix={<CreditCardOutlined style={{ color: '#531dab' }} />}
               valueStyle={{ color: '#531dab' }}
             />
@@ -80,26 +80,26 @@ const PaymentsStats = () => {
               prefix={<CheckCircleOutlined style={{ color: '#13c2c2' }} />}
               valueStyle={{ color: '#13c2c2' }}
               precision={2}
-              suffix={`(${completedPayments.length})`}
+              suffix={`(${completedCards.length})`}
             />
           </Card>
         </Col>
 
-        {/* Failed Payments */}
+        {/* Failed Cards */}
         <Col xs={24} sm={12} lg={6}>
-          <Card size="small" bordered={false} style={{ background: failedPayments > 0 ? '#fff1f0' : '#f6ffed' }}>
+          <Card size="small" bordered={false} style={{ background: failedCards > 0 ? '#fff1f0' : '#f6ffed' }}>
             <Statistic
               title={<Text strong>Failed</Text>}
-              value={failedPayments}
-              prefix={failedPayments > 0 ? <CloseCircleOutlined style={{ color: '#ff4d4f' }} /> : null}
-              valueStyle={{ color: failedPayments > 0 ? '#ff4d4f' : '#13c2c2' }}
-              suffix={`/ ${totalPayments}`}
+              value={failedCards}
+              prefix={failedCards > 0 ? <CloseCircleOutlined style={{ color: '#ff4d4f' }} /> : null}
+              valueStyle={{ color: failedCards > 0 ? '#ff4d4f' : '#13c2c2' }}
+              suffix={`/ ${totalCards}`}
             />
           </Card>
         </Col>
       </Row>
 
-      {/* Payment Methods */}
+      {/* Card Methods */}
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24}>
           <Card size="small" bordered={false}>
@@ -108,7 +108,7 @@ const PaymentsStats = () => {
                 <Text type="secondary">Pending</Text>
                 <div>
                   <Text strong style={{ fontSize: 16, color: '#faad14' }}>
-                    {pendingPayments}
+                    {pendingCards}
                   </Text>
                 </div>
               </div>
@@ -130,4 +130,4 @@ const PaymentsStats = () => {
   );
 };
 
-export default PaymentsStats;
+export default CardsStats;

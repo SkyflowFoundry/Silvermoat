@@ -1,26 +1,26 @@
 /**
- * Payment List Page
- * Main page for payment management with creation modal
+ * Card List Page
+ * Main page for card management with creation modal
  */
 
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Space, Button, Typography, Modal, Card } from 'antd';
 import { PlusOutlined, ReloadOutlined, DollarOutlined } from '@ant-design/icons';
-import { usePayments } from '../../hooks/queries/usePayments';
-import PaymentTable from './PaymentTable';
-import PaymentsStats from './PaymentsStats';
-import PaymentForm from './PaymentForm';
+import { useCards } from '../../hooks/queries/useCards';
+import CardTable from './CardTable';
+import CardsStats from './CardsStats';
+import CardForm from './CardForm';
 
 const { Title } = Typography;
 
-const PaymentList = () => {
+const CardList = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [modalOpen, setModalOpen] = useState(false);
 
-  const { data, isLoading, refetch } = usePayments();
-  const payments = data?.items || [];
+  const { data, isLoading, refetch } = useCards();
+  const cards = data?.items || [];
 
   // Check if we're on the /new route
   const isNewRoute = location.pathname.endsWith('/new');
@@ -32,17 +32,17 @@ const PaymentList = () => {
   }, [isNewRoute]);
 
   const handleModalOpen = () => {
-    navigate('/payments/new');
+    navigate('/cards/new');
   };
 
   const handleModalClose = () => {
     setModalOpen(false);
     if (isNewRoute) {
-      navigate('/payments');
+      navigate('/cards');
     }
   };
 
-  const handlePaymentCreated = () => {
+  const handleCardCreated = () => {
     handleModalClose();
     refetch();
   };
@@ -64,7 +64,7 @@ const PaymentList = () => {
         <Space>
           <DollarOutlined style={{ fontSize: 24, color: '#531dab' }} />
           <Title level={2} style={{ margin: 0 }}>
-            Payments
+            Cards
           </Title>
         </Space>
         <Space>
@@ -80,32 +80,32 @@ const PaymentList = () => {
             icon={<PlusOutlined />}
             onClick={handleModalOpen}
           >
-            New Payment
+            New Card
           </Button>
         </Space>
       </Space>
 
       {/* Statistics */}
       <Card style={{ marginBottom: 24 }}>
-        <PaymentsStats />
+        <CardsStats />
       </Card>
 
       {/* Table */}
-      <PaymentTable payments={payments} loading={isLoading} />
+      <CardTable cards={cards} loading={isLoading} />
 
       {/* Create Modal */}
       <Modal
-        title="Create New Payment"
+        title="Create New Card"
         open={modalOpen}
         onCancel={handleModalClose}
         footer={null}
         width={600}
         destroyOnClose
       >
-        <PaymentForm onSuccess={handlePaymentCreated} />
+        <CardForm onSuccess={handleCardCreated} />
       </Modal>
     </div>
   );
 };
 
-export default PaymentList;
+export default CardList;

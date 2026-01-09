@@ -1,25 +1,25 @@
 /**
- * Payment Detail Page
- * Displays detailed information about a specific payment
+ * Card Detail Page
+ * Displays detailed information about a specific card
  */
 
 import { Card, Descriptions, Button, Space, Typography, Spin, Alert, Tag } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
-import { usePayment } from '../../hooks/queries/usePayment';
+import { useCard } from '../../hooks/queries/useCard';
 import { formatTimestamp, formatCurrency } from '../../utils/formatters';
 
 const { Title, Paragraph } = Typography;
 
-const PaymentDetail = () => {
+const CardDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data: payment, isLoading, error } = usePayment(id);
+  const { data: card, isLoading, error } = useCard(id);
 
   if (isLoading) {
     return (
       <div style={{ textAlign: 'center', padding: '50px' }}>
-        <Spin size="large" tip="Loading payment details..." />
+        <Spin size="large" tip="Loading card details..." />
       </div>
     );
   }
@@ -27,27 +27,27 @@ const PaymentDetail = () => {
   if (error) {
     return (
       <Alert
-        message="Error Loading Payment"
-        description={error.message || 'Failed to load payment details'}
+        message="Error Loading Card"
+        description={error.message || 'Failed to load card details'}
         type="error"
         showIcon
       />
     );
   }
 
-  if (!payment) {
+  if (!card) {
     return (
       <Alert
-        message="Payment Not Found"
-        description="The requested payment could not be found."
+        message="Card Not Found"
+        description="The requested card could not be found."
         type="warning"
         showIcon
       />
     );
   }
 
-  const statusColor = payment.data?.status === 'COMPLETED' ? 'green'
-    : payment.data?.status === 'FAILED' ? 'red'
+  const statusColor = card.data?.status === 'COMPLETED' ? 'green'
+    : card.data?.status === 'FAILED' ? 'red'
     : 'orange';
 
   return (
@@ -55,9 +55,9 @@ const PaymentDetail = () => {
       <Space style={{ marginBottom: 24 }}>
         <Button
           icon={<ArrowLeftOutlined />}
-          onClick={() => navigate('/payments')}
+          onClick={() => navigate('/cards')}
         >
-          Back to Payments
+          Back to Cards
         </Button>
       </Space>
 
@@ -65,7 +65,7 @@ const PaymentDetail = () => {
         title={
           <Space>
             <Title level={3} style={{ margin: 0 }}>
-              Payment Details
+              Card Details
             </Title>
           </Space>
         }
@@ -75,40 +75,40 @@ const PaymentDetail = () => {
           column={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}
           size="middle"
         >
-          <Descriptions.Item label="Payment ID" span={2}>
-            {payment.id}
+          <Descriptions.Item label="Card ID" span={2}>
+            {card.id}
           </Descriptions.Item>
           <Descriptions.Item label="Order ID" span={2}>
-            {payment.data?.orderId || '-'}
+            {card.data?.orderId || '-'}
           </Descriptions.Item>
           <Descriptions.Item label="Amount">
             <strong>
-              {payment.data?.amount !== undefined
-                ? formatCurrency(payment.data.amount * 100)
+              {card.data?.amount !== undefined
+                ? formatCurrency(card.data.amount * 100)
                 : '-'}
             </strong>
           </Descriptions.Item>
           <Descriptions.Item label="Method">
-            <Tag color="blue">{payment.data?.method || '-'}</Tag>
+            <Tag color="blue">{card.data?.method || '-'}</Tag>
           </Descriptions.Item>
           <Descriptions.Item label="Status">
-            <Tag color={statusColor}>{payment.data?.status || 'PENDING'}</Tag>
+            <Tag color={statusColor}>{card.data?.status || 'PENDING'}</Tag>
           </Descriptions.Item>
           <Descriptions.Item label="Transaction ID">
-            {payment.data?.transactionId || '-'}
+            {card.data?.transactionId || '-'}
           </Descriptions.Item>
           <Descriptions.Item label="Notes" span={2}>
-            {payment.data?.notes ? (
+            {card.data?.notes ? (
               <Paragraph style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
-                {payment.data.notes}
+                {card.data.notes}
               </Paragraph>
             ) : '-'}
           </Descriptions.Item>
           <Descriptions.Item label="Created">
-            {formatTimestamp(payment.createdAt)}
+            {formatTimestamp(card.createdAt)}
           </Descriptions.Item>
           <Descriptions.Item label="Status">
-            {payment.status || 'ACTIVE'}
+            {card.status || 'ACTIVE'}
           </Descriptions.Item>
         </Descriptions>
       </Card>
@@ -116,11 +116,11 @@ const PaymentDetail = () => {
       {/* Raw Data (for debugging) */}
       <Card title="Raw Data" style={{ marginTop: 24 }} size="small">
         <pre style={{ maxHeight: '400px', overflow: 'auto', fontSize: '12px' }}>
-          {JSON.stringify(payment, null, 2)}
+          {JSON.stringify(card, null, 2)}
         </pre>
       </Card>
     </div>
   );
 };
 
-export default PaymentDetail;
+export default CardDetail;

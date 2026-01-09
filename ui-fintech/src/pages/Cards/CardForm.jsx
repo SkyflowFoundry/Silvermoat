@@ -1,23 +1,23 @@
 /**
- * Payment Form Component
- * Wrapper for EntityForm with payment-specific configuration
+ * Card Form Component
+ * Wrapper for EntityForm with card-specific configuration
  */
 
 import EntityForm from '../../components/shared/EntityForm';
-import { paymentFormConfig } from '../../config/entities/payments.config';
-import { useCreatePayment } from '../../hooks/mutations/useCreatePayment';
+import { cardFormConfig } from '../../config/entities/cards.config';
+import { useCreateCard } from '../../hooks/mutations/useCreateCard';
 import { useOrders } from '../../hooks/queries/useOrders';
-import { generatePaymentSampleData } from '../../utils/formSampleData';
+import { generateCardSampleData } from '../../utils/formSampleData';
 
-const PaymentForm = ({ onSuccess }) => {
-  const createMutation = useCreatePayment();
+const CardForm = ({ onSuccess }) => {
+  const createMutation = useCreateCard();
   const { data: ordersData } = useOrders();
   const orders = ordersData?.items || [];
 
   // Enhance form config with order options
   const enhancedConfig = {
-    ...paymentFormConfig,
-    fields: paymentFormConfig.fields.map(field => {
+    ...cardFormConfig,
+    fields: cardFormConfig.fields.map(field => {
       if (field.name === 'orderId') {
         return {
           ...field,
@@ -36,15 +36,15 @@ const PaymentForm = ({ onSuccess }) => {
 
   return (
     <EntityForm
-      title="Create Payment"
+      title="Create Card"
       fields={enhancedConfig.fields}
       createMutation={createMutation}
       onSuccess={onSuccess}
-      onFillSampleData={generatePaymentSampleData}
-      submitButtonText="Create Payment"
+      onFillSampleData={generateCardSampleData}
+      submitButtonText="Create Card"
       submitButtonLoadingText="Creating..."
     />
   );
 };
 
-export default PaymentForm;
+export default CardForm;
