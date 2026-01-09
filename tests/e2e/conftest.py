@@ -82,8 +82,8 @@ def insurance_base_url():
         except Exception as e:
             print(f"Warning: Could not fetch stack outputs: {e}")
 
-    # Fallback to base_url
-    return os.environ.get('BASE_URL', 'http://localhost:5173').rstrip('/')
+    # No fallback - skip insurance tests if not configured
+    pytest.skip("INSURANCE_URL not configured")
 
 
 @pytest.fixture(scope="session")
@@ -242,8 +242,8 @@ def insurance_api_url():
         except Exception as e:
             print(f"Warning: Could not fetch API URL: {e}")
 
-    # Fallback to api_base_url
-    return os.environ.get('API_BASE_URL', 'http://localhost:3000').rstrip('/')
+    # No fallback - skip insurance tests if not configured
+    pytest.skip("INSURANCE_API_URL not configured")
 
 
 @pytest.fixture(scope="session")
