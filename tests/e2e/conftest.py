@@ -141,6 +141,33 @@ def healthcare_base_url():
 
 
 @pytest.fixture(scope="session")
+def fintech_base_url():
+    """Get fintech vertical base URL"""
+    # Check environment variable first
+    app_url = os.environ.get('FINTECH_URL')
+    if app_url:
+        return app_url.rstrip('/')
+
+    # Try to fetch from CloudFormation stack
+    stack_name = os.environ.get('STACK_NAME', os.environ.get('TEST_STACK_NAME'))
+    if stack_name:
+        try:
+            import boto3
+            cfn = boto3.client('cloudformation')
+            response = cfn.describe_stacks(StackName=stack_name)
+            outputs = {o['OutputKey']: o['OutputValue'] for o in response['Stacks'][0].get('Outputs', [])}
+            if 'FintechDomainUrl' in outputs:
+                return outputs['FintechDomainUrl'].rstrip('/')
+            if 'FintechUiBucketWebsiteURL' in outputs:
+                return outputs['FintechUiBucketWebsiteURL'].rstrip('/')
+        except Exception as e:
+            print(f"Warning: Could not fetch stack outputs: {e}")
+
+    # No fallback - skip fintech tests if not configured
+    pytest.skip("FINTECH_URL not configured")
+
+
+@pytest.fixture(scope="session")
 def landing_base_url():
     """Get landing page base URL"""
     # Check environment variable first
@@ -267,6 +294,31 @@ def healthcare_api_url():
 
     # No fallback - skip healthcare tests if not configured
     pytest.skip("HEALTHCARE_API_URL not configured")
+
+
+@pytest.fixture(scope="session")
+def fintech_api_url():
+    """Get fintech vertical API URL"""
+    # Check environment variable first
+    api_url = os.environ.get('FINTECH_API_URL')
+    if api_url:
+        return api_url.rstrip('/')
+
+    # Try to fetch from CloudFormation stack
+    stack_name = os.environ.get('STACK_NAME', os.environ.get('TEST_STACK_NAME'))
+    if stack_name:
+        try:
+            import boto3
+            cfn = boto3.client('cloudformation')
+            response = cfn.describe_stacks(StackName=stack_name)
+            outputs = {o['OutputKey']: o['OutputValue'] for o in response['Stacks'][0].get('Outputs', [])}
+            if 'FintechApiUrl' in outputs:
+                return outputs['FintechApiUrl'].rstrip('/')
+        except Exception as e:
+            print(f"Warning: Could not fetch API URL: {e}")
+
+    # No fallback - skip fintech tests if not configured
+    pytest.skip("FINTECH_API_URL not configured")
 
 
 @pytest.fixture
