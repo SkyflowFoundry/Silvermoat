@@ -10,7 +10,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/check-aws.sh"
 
 BASE_STACK_NAME="${STACK_NAME:-silvermoat}"
-VERTICAL="${VERTICAL:-all}"  # Can be: all, insurance, retail, landing
+VERTICAL="${VERTICAL:-all}"  # Can be: all, insurance, retail, healthcare, fintech, landing
 
 # Check AWS CLI and credentials
 check_aws_configured
@@ -98,6 +98,27 @@ if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "healthcare" ]; then
 
   echo "Healthcare UI Bucket: $HEALTHCARE_BUCKET"
   echo "Healthcare API URL: $HEALTHCARE_API_URL"
+  echo ""
+fi
+
+# Get Fintech outputs
+FINTECH_BUCKET=""
+FINTECH_API_URL=""
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "fintech" ]; then
+  echo "Fetching fintech stack outputs..."
+  FINTECH_OUTPUTS=$(get_stack_outputs "${BASE_STACK_NAME}-fintech")
+
+  if [ "$FINTECH_OUTPUTS" = "null" ] || [ -z "$FINTECH_OUTPUTS" ]; then
+    echo "Error: Could not get outputs from ${BASE_STACK_NAME}-fintech"
+    echo "Make sure the fintech stack is deployed."
+    exit 1
+  fi
+
+  FINTECH_BUCKET=$(echo "$FINTECH_OUTPUTS" | jq -r '.[] | select(.OutputKey=="FintechUiBucketName") | .OutputValue')
+  FINTECH_API_URL=$(echo "$FINTECH_OUTPUTS" | jq -r '.[] | select(.OutputKey=="FintechApiUrl") | .OutputValue')
+
+  echo "Fintech UI Bucket: $FINTECH_BUCKET"
+  echo "Fintech API URL: $FINTECH_API_URL"
   echo ""
 fi
 
@@ -236,12 +257,26 @@ if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "healthcare" ]; then
   fi
 fi
 
+# Deploy Fintech UI
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "fintech" ]; then
+  deploy_vertical_ui "Fintech" "$PROJECT_ROOT/ui-fintech" "$FINTECH_BUCKET" "$FINTECH_API_URL"
+
+  # Copy fintech-specific architecture diagrams to fintech UI bucket
+  if [ -f "$PROJECT_ROOT/docs/architecture-fintech.png" ]; then
+    echo "Copying fintech architecture diagrams to fintech UI..."
+    $AWS_CMD s3 cp "$PROJECT_ROOT/docs/architecture-fintech.png" "s3://$FINTECH_BUCKET/architecture-fintech.png"
+    $AWS_CMD s3 cp "$PROJECT_ROOT/docs/data-flow-fintech.png" "s3://$FINTECH_BUCKET/data-flow-fintech.png"
+    echo ""
+  fi
+fi
+
 # Deploy Landing UI
 if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "landing" ]; then
-  # Get insurance, retail, and healthcare WebUrls for landing page links
+  # Get insurance, retail, healthcare, and fintech WebUrls for landing page links
   INSURANCE_WEB_URL=""
   RETAIL_WEB_URL=""
   HEALTHCARE_WEB_URL=""
+  FINTECH_WEB_URL=""
 
   # Fetch insurance URL if stack exists (prefer CustomDomainUrl over WebUrl)
   if aws cloudformation describe-stacks --stack-name "${BASE_STACK_NAME}-insurance" &>/dev/null; then
@@ -294,10 +329,28 @@ if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "landing" ]; then
     fi
   fi
 
+  # Fetch fintech URL if stack exists (prefer CustomDomainUrl over WebUrl)
+  if aws cloudformation describe-stacks --stack-name "${BASE_STACK_NAME}-fintech" &>/dev/null; then
+    # Try CustomDomainUrl first (DNS name like fintech.silvermoat.net)
+    FINTECH_WEB_URL=$(aws cloudformation describe-stacks \
+      --stack-name "${BASE_STACK_NAME}-fintech" \
+      --query 'Stacks[0].Outputs[?OutputKey==`CustomDomainUrl`].OutputValue' \
+      --output text 2>/dev/null || echo "")
+
+    # Fallback to WebUrl if CustomDomainUrl not available (CloudFront or S3 URL)
+    if [ -z "$FINTECH_WEB_URL" ]; then
+      FINTECH_WEB_URL=$(aws cloudformation describe-stacks \
+        --stack-name "${BASE_STACK_NAME}-fintech" \
+        --query 'Stacks[0].Outputs[?OutputKey==`WebUrl`].OutputValue' \
+        --output text 2>/dev/null || echo "")
+    fi
+  fi
+
   # Export as environment variables for Vite build
   export VITE_INSURANCE_URL="$INSURANCE_WEB_URL"
   export VITE_RETAIL_URL="$RETAIL_WEB_URL"
   export VITE_HEALTHCARE_URL="$HEALTHCARE_WEB_URL"
+  export VITE_FINTECH_URL="$FINTECH_WEB_URL"
 
   deploy_vertical_ui "Landing" "$PROJECT_ROOT/ui-landing" "$LANDING_BUCKET" ""
 
@@ -319,6 +372,12 @@ if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "insurance" ]; then
 fi
 if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "retail" ]; then
   echo "Retail UI: http://$RETAIL_BUCKET.s3-website-us-east-1.amazonaws.com"
+fi
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "healthcare" ]; then
+  echo "Healthcare UI: http://$HEALTHCARE_BUCKET.s3-website-us-east-1.amazonaws.com"
+fi
+if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "fintech" ]; then
+  echo "Fintech UI: http://$FINTECH_BUCKET.s3-website-us-east-1.amazonaws.com"
 fi
 if [ "$VERTICAL" = "all" ] || [ "$VERTICAL" = "landing" ]; then
   echo "Landing UI: http://$LANDING_BUCKET.s3-website-us-east-1.amazonaws.com"

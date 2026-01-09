@@ -9,6 +9,7 @@ import {
   SafetyOutlined,
   ShoppingOutlined,
   MedicineBoxOutlined,
+  BankOutlined,
   ArrowRightOutlined,
   CheckCircleOutlined,
   InfoCircleOutlined,
@@ -26,9 +27,10 @@ const getVerticalUrls = () => {
   const insuranceUrl = import.meta.env.VITE_INSURANCE_URL;
   const retailUrl = import.meta.env.VITE_RETAIL_URL;
   const healthcareUrl = import.meta.env.VITE_HEALTHCARE_URL;
+  const fintechUrl = import.meta.env.VITE_FINTECH_URL;
 
   // In production builds, insurance and retail URLs must be explicitly provided
-  // Healthcare is optional (may not have infrastructure deployed yet)
+  // Healthcare and fintech are optional (may not have infrastructure deployed yet)
   if (import.meta.env.PROD && (!insuranceUrl || !retailUrl)) {
     throw new Error(
       'VITE_INSURANCE_URL and VITE_RETAIL_URL must be set for production builds. ' +
@@ -41,6 +43,7 @@ const getVerticalUrls = () => {
     insurance: insuranceUrl || 'http://localhost:5173',
     retail: retailUrl || 'http://localhost:5174',
     healthcare: healthcareUrl || 'http://localhost:5175',
+    fintech: fintechUrl || 'http://localhost:5176',
   };
 };
 
@@ -48,7 +51,7 @@ const Landing = () => {
   const [architectureVisible, setArchitectureVisible] = useState(false);
 
   // Get vertical URLs dynamically (no hardcoded production URLs)
-  const { insurance: insuranceUrl, retail: retailUrl, healthcare: healthcareUrl } = getVerticalUrls();
+  const { insurance: insuranceUrl, retail: retailUrl, healthcare: healthcareUrl, fintech: fintechUrl } = getVerticalUrls();
 
   const verticals = [
     {
@@ -71,6 +74,13 @@ const Landing = () => {
       description: 'Healthcare management platform with patient records, appointments, and care coordination.',
       url: healthcareUrl,
       color: '#52c41a',
+    },
+    {
+      name: 'Financial Services',
+      icon: <BankOutlined style={{ fontSize: 56, color: '#13c2c2' }} />,
+      description: 'Comprehensive fintech platform for accounts, transactions, loans, and cards.',
+      url: fintechUrl,
+      color: '#13c2c2',
     },
   ];
 

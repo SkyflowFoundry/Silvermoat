@@ -9,6 +9,7 @@ on:
       - 'ui-insurance/**'
       - 'ui-retail/**'
       - 'ui-healthcare/**'
+      - 'ui-fintech/**'
       - 'tests/e2e/**'
       - 'scripts/**'
       - '.github/workflows/**'
@@ -43,6 +44,7 @@ jobs:
       insurance_stack_exists: ${{ steps.check-stacks.outputs.insurance_exists }}
       retail_stack_exists: ${{ steps.check-stacks.outputs.retail_exists }}
       healthcare_stack_exists: ${{ steps.check-stacks.outputs.healthcare_exists }}
+      fintech_stack_exists: ${{ steps.check-stacks.outputs.fintech_exists }}
       landing_stack_exists: ${{ steps.check-stacks.outputs.landing_exists }}
     steps:
       - name: Post workflow start comment
@@ -117,6 +119,15 @@ jobs:
             echo "Healthcare stack does not exist: ${BASE_STACK_NAME}-healthcare"
           fi
 
+          # Check fintech stack
+          if aws cloudformation describe-stacks --stack-name "${BASE_STACK_NAME}-fintech" >/dev/null 2>&1; then
+            echo "fintech_exists=true" >> $GITHUB_OUTPUT
+            echo "Fintech stack exists: ${BASE_STACK_NAME}-fintech"
+          else
+            echo "fintech_exists=false" >> $GITHUB_OUTPUT
+            echo "Fintech stack does not exist: ${BASE_STACK_NAME}-fintech"
+          fi
+
           # Check landing stack
           if aws cloudformation describe-stacks --stack-name "${BASE_STACK_NAME}-landing" >/dev/null 2>&1; then
             echo "landing_exists=true" >> $GITHUB_OUTPUT
@@ -164,13 +175,14 @@ jobs:
 
   deploy-landing-ui:
     name: Deploy Landing UI
-    needs: [detect-changes, deploy-landing-infra, deploy-insurance-infra, deploy-retail-infra, deploy-healthcare-infra]
+    needs: [detect-changes, deploy-landing-infra, deploy-insurance-infra, deploy-retail-infra, deploy-healthcare-infra, deploy-fintech-infra]
     if: |
       always() &&
       (needs.detect-changes.outputs.ui_changed == 'true' || needs.detect-changes.outputs.landing_ui_changed == 'true' || needs.deploy-landing-infra.result == 'success' || inputs.force_deploy == 'true') &&
       (needs.deploy-landing-infra.result == 'success' || needs.deploy-landing-infra.result == 'skipped') &&
       (needs.deploy-insurance-ui.result == 'success' || needs.deploy-insurance-ui.result == 'skipped') &&
-      (needs.deploy-retail-ui.result == 'success' || needs.deploy-retail-ui.result == 'skipped')
+      (needs.deploy-retail-ui.result == 'success' || needs.deploy-retail-ui.result == 'skipped') &&
+      (needs.deploy-fintech-ui.result == 'success' || needs.deploy-fintech-ui.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -607,6 +619,134 @@ jobs:
           vertical: retail
 
   # ========================================
+  # Fintech Vertical Pipeline
+  # ========================================
+
+  deploy-fintech-infra:
+    name: Deploy Fintech Infra
+    needs: [detect-changes]
+    if: |
+      needs.detect-changes.outputs.infrastructure_changed == 'true' ||
+      needs.detect-changes.outputs.fintech_lambda_changed == 'true' ||
+      needs.detect-changes.outputs.fintech_stack_exists == 'false' ||
+      inputs.force_deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      stack_name: ${{ steps.deploy.outputs.stack_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup infrastructure deployment
+        uses: ./.github/actions/setup-infra-deploy
+        with:
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
+      - name: Deploy fintech stack
+        id: deploy
+        env:
+          STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
+          VERTICAL: fintech
+        run: |
+          echo "Deploying fintech stack: ${STACK_NAME}-fintech"
+          chmod +x scripts/deploy-stack.sh
+          ./scripts/deploy-stack.sh
+          echo "stack_name=${STACK_NAME}-fintech" >> $GITHUB_OUTPUT
+
+  deploy-fintech-ui:
+    name: Deploy Fintech UI
+    needs: [detect-changes, deploy-fintech-infra]
+    if: |
+      always() &&
+      (needs.detect-changes.outputs.ui_changed == 'true' || needs.detect-changes.outputs.fintech_ui_changed == 'true' || needs.deploy-fintech-infra.result == 'success' || inputs.force_deploy == 'true') &&
+      (needs.deploy-fintech-infra.result == 'success' || needs.deploy-fintech-infra.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      api_url: ${{ steps.outputs.outputs.api_url }}
+      web_url: ${{ steps.outputs.outputs.web_url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-deps
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Build and deploy fintech UI
+        env:
+          STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
+          VERTICAL: fintech
+        run: |
+          chmod +x scripts/deploy-ui.sh
+          ./scripts/deploy-ui.sh
+
+      - name: Get stack outputs
+        id: outputs
+        run: |
+          STACK_NAME="${{ needs.detect-changes.outputs.base_stack_name }}-fintech"
+
+          OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].Outputs' \
+            --output json)
+
+          API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="FintechApiUrl") | .OutputValue')
+          WEB_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="FintechUiBucketWebsiteURL") | .OutputValue')
+
+          echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
+          echo "web_url=${WEB_URL}" >> $GITHUB_OUTPUT
+
+  fintech-tests:
+    name: Fintech E2E Tests
+    needs: [detect-changes, deploy-fintech-infra, deploy-fintech-ui]
+    if: |
+      always() &&
+      (needs.deploy-fintech-ui.result == 'success' ||
+       needs.detect-changes.outputs.fintech_stack_exists == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run fintech E2E tests
+        uses: ./.github/actions/run-e2e-tests
+        with:
+          vertical: fintech
+          web-url: ${{ needs.deploy-fintech-ui.outputs.web_url }}
+          api-url: ${{ needs.deploy-fintech-ui.outputs.api_url }}
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
+  seed-fintech-data:
+    name: Seed Fintech Data
+    needs: [deploy-fintech-ui, fintech-tests]
+    if: |
+      always() &&
+      needs.deploy-fintech-ui.result == 'success' &&
+      (needs.fintech-tests.result == 'success' || needs.fintech-tests.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Seed fintech demo data
+        uses: ./.github/actions/clear-and-seed-data
+        with:
+          api-base-url: ${{ needs.deploy-fintech-ui.outputs.api_url }}
+          vertical: fintech
+
+  # ========================================
   # Landing Page Pipeline
   # ========================================
 
@@ -626,6 +766,10 @@ jobs:
       deploy-healthcare-ui,
       healthcare-tests,
       seed-healthcare-data,
+      deploy-fintech-infra,
+      deploy-fintech-ui,
+      fintech-tests,
+      seed-fintech-data,
       deploy-landing-infra,
       deploy-landing-ui,
       landing-tests
