@@ -3,7 +3,7 @@
  * API calls for customer management
  */
 
-import { createEntity, getEntity, listEntities } from './api';
+import { createEntity, deleteEntity, getEntity, listEntities } from './api';
 
 const DOMAIN = 'customer';
 
@@ -33,8 +33,18 @@ export const createCustomer = async (data) => {
   return createEntity(DOMAIN, data);
 };
 
+/**
+ * Delete a customer
+ * @param {string} id - Customer ID
+ * @returns {Promise<void>}
+ */
+export const deleteCustomer = async (id) => {
+  return deleteEntity(DOMAIN, id);
+};
+
 export default {
   listCustomers,
   getCustomer,
   createCustomer,
+  deleteCustomer,
 };
