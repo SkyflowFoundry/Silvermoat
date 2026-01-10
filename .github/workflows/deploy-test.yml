@@ -167,6 +167,7 @@ jobs:
         env:
           STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
           VERTICAL: landing
+          STAGE_NAME: test-${{ github.run_id }}
         run: |
           echo "Deploying landing stack: ${STACK_NAME}-landing"
           chmod +x scripts/deploy-stack.sh
@@ -268,6 +269,7 @@ jobs:
         env:
           STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
           VERTICAL: insurance
+          STAGE_NAME: test-${{ github.run_id }}
         run: |
           echo "Deploying insurance stack: ${STACK_NAME}-insurance"
           chmod +x scripts/deploy-stack.sh
@@ -396,6 +398,7 @@ jobs:
         env:
           STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
           VERTICAL: retail
+          STAGE_NAME: test-${{ github.run_id }}
         run: |
           echo "Deploying retail stack: ${STACK_NAME}-retail"
           chmod +x scripts/deploy-stack.sh
@@ -428,6 +431,7 @@ jobs:
         env:
           STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
           VERTICAL: healthcare
+          STAGE_NAME: test-${{ github.run_id }}
         run: |
           echo "Deploying healthcare stack: ${STACK_NAME}-healthcare"
           chmod +x scripts/deploy-stack.sh
@@ -648,6 +652,7 @@ jobs:
         env:
           STACK_NAME: ${{ needs.detect-changes.outputs.base_stack_name }}
           VERTICAL: fintech
+          STAGE_NAME: test-${{ github.run_id }}
         run: |
           echo "Deploying fintech stack: ${STACK_NAME}-fintech"
           chmod +x scripts/deploy-stack.sh
