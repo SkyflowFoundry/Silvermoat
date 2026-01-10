@@ -336,3 +336,6 @@ export const cardFormConfig = {
     },
   ],
 };
+
+// Export fields array for form component compatibility
+export const cardFormFields = cardFormConfig.fields;

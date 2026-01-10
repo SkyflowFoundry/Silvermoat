@@ -239,6 +239,9 @@ export const caseFormConfig = {
   requiredMark: true,
 };
 
+// Export fields array for form component compatibility
+export const caseFormFields = caseFormConfig.fields;
+
 export default {
   caseTableConfig,
   caseMobileFields,

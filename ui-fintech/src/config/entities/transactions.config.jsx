@@ -208,6 +208,9 @@ export const transactionFormConfig = {
   ],
 };
 
+// Export fields array for form component compatibility
+export const transactionFormFields = transactionFormConfig.fields;
+
 // Entity metadata
 export const transactionEntityConfig = {
   name: 'transaction',
