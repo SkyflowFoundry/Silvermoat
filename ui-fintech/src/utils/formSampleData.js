@@ -1,26 +1,13 @@
 /**
- * Form Sample Data Generators - Retail Vertical
+ * Form Sample Data Generators - Fintech Vertical
  * Provides sample data for form auto-fill functionality
  */
 
 // Helper data for realistic sample generation
-const PRODUCT_NAMES = [
-  'Wireless Headphones',
-  'Smart Watch',
-  'Laptop Stand',
-  'USB-C Cable',
-  'Mechanical Keyboard',
-  'Gaming Mouse',
-  'Webcam HD',
-  'Phone Case',
-  'Portable Charger',
-  'Bluetooth Speaker',
-];
-
-const PRODUCT_PREFIXES = ['Premium', 'Pro', 'Ultra', 'Max', 'Elite', 'Basic', 'Standard', 'Advanced'];
-const CATEGORIES = ['Electronics', 'Clothing', 'Home & Garden', 'Sports & Outdoors', 'Books', 'Toys & Games', 'Other'];
-const WAREHOUSES = ['Warehouse A', 'Warehouse B', 'Warehouse C', 'Distribution Center 1', 'Regional Hub'];
-const PAYMENT_METHODS = ['CREDIT_CARD', 'ACH', 'CHECK'];
+const FIRST_NAMES = ['John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily', 'Robert', 'Lisa', 'James', 'Maria'];
+const LAST_NAMES = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
+const CARD_TYPES = ['CREDIT', 'DEBIT', 'PREPAID'];
+const CARD_STATUSES = ['ACTIVE', 'SUSPENDED', 'CLOSED', 'EXPIRED'];
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 const ASSIGNEES = ['Alice Johnson', 'Bob Smith', 'Charlie Brown', 'Diana Prince', 'Eve Adams', 'Frank Miller'];
 
@@ -30,80 +17,31 @@ const randomNumber = (min, max) => Math.floor(Math.random() * (max - min + 1)) +
 const randomPrice = (min, max) => (Math.random() * (max - min) + min).toFixed(2);
 
 /**
- * Generate sample data for Product form
- * @returns {Object} Sample product data matching ProductForm fields
+ * Generate sample data for Card form
+ * @returns {Object} Sample card data
  */
-export const generateProductSampleData = () => {
-  const baseName = randomItem(PRODUCT_NAMES);
-  const prefix = Math.random() > 0.5 ? randomItem(PRODUCT_PREFIXES) : '';
-  const name = prefix ? `${prefix} ${baseName}` : baseName;
-  const sku = `${name.substring(0, 3).toUpperCase()}-${randomNumber(1000, 9999)}`;
-
-  return {
-    name,
-    sku,
-    price: parseFloat(randomPrice(9.99, 999.99)),
-    category: randomItem(CATEGORIES),
-    description: `High-quality ${name.toLowerCase()} perfect for everyday use. Features modern design and excellent performance. Sample product for testing purposes.`,
-    stockLevel: randomNumber(0, 500),
-  };
-};
-
-/**
- * Generate sample data for Inventory form
- * @returns {Object} Sample inventory data
- */
-export const generateInventorySampleData = () => {
-  return {
-    productId: 'sample-product-id', // Will be replaced by actual product selection
-    warehouse: randomItem(WAREHOUSES),
-    quantity: randomNumber(0, 1000),
-    reorderLevel: randomNumber(10, 100),
-    lastRestocked: new Date().toISOString().split('T')[0],
-  };
-};
-
-/**
- * Generate sample data for Order form
- * @returns {Object} Sample order data
- */
-export const generateOrderSampleData = () => {
-  const firstName = randomItem(['John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily']);
-  const lastName = randomItem(['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia']);
+export const generateCardSampleData = () => {
+  const firstName = randomItem(FIRST_NAMES);
+  const lastName = randomItem(LAST_NAMES);
   const customerName = `${firstName} ${lastName}`;
   const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`;
 
-  return {
-    customerEmail: email,
-    customerName,
-    customerPhone: `(${randomNumber(200, 999)}) ${randomNumber(200, 999)}-${randomNumber(1000, 9999)}`,
-    shippingAddress: `${randomNumber(100, 9999)} Main St, Apt ${randomNumber(1, 99)}, Springfield, ${randomItem(['FL', 'GA', 'NC', 'NY', 'CA'])} ${randomNumber(10000, 99999)}`,
-    items: [
-      {
-        productId: 'sample-product-id-1',
-        quantity: randomNumber(1, 5),
-        price: parseFloat(randomPrice(10, 200)),
-      },
-      {
-        productId: 'sample-product-id-2',
-        quantity: randomNumber(1, 3),
-        price: parseFloat(randomPrice(15, 150)),
-      },
-    ],
-  };
-};
+  // Generate realistic card number (starting with 4 for Visa)
+  const cardNumber = `4${randomNumber(100, 999)}${randomNumber(1000, 9999)}${randomNumber(1000, 9999)}${randomNumber(1000, 9999)}`;
 
-/**
- * Generate sample data for Payment form
- * @returns {Object} Sample payment data
- */
-export const generatePaymentSampleData = () => {
+  // Generate expiry date (future date)
+  const month = String(randomNumber(1, 12)).padStart(2, '0');
+  const year = String(randomNumber(25, 30));
+  const expiryDate = `${month}/${year}`;
+
   return {
-    orderId: 'sample-order-id', // Will be replaced by actual order selection
-    amount: parseFloat(randomPrice(10, 1000)),
-    method: randomItem(PAYMENT_METHODS),
-    transactionId: `TXN-${randomNumber(100000, 999999)}`,
-    notes: 'Sample payment for testing purposes',
+    customerName,
+    customerEmail: email,
+    cardNumber,
+    cardType: randomItem(CARD_TYPES),
+    creditLimit: randomNumber(1000, 50000),
+    expiryDate,
+    status: 'ACTIVE',
   };
 };
 
@@ -112,23 +50,14 @@ export const generatePaymentSampleData = () => {
  * @returns {Object} Sample case data
  */
 export const generateCaseSampleData = () => {
-  const issueTypes = ['Product Defect', 'Shipping Issue', 'Card Question', 'Returns', 'General Inquiry'];
+  const issueTypes = ['Account Access', 'Card Issue', 'Transaction Dispute', 'Loan Question', 'General Inquiry'];
   const issue = randomItem(issueTypes);
 
   return {
     subject: `${issue} - Customer Support Request`,
     description: `Customer reported ${issue.toLowerCase()}. This is a sample case for testing purposes. Need to investigate and respond promptly.`,
     priority: randomItem(PRIORITIES),
-    status: 'OPEN',
-    assignee: randomItem(ASSIGNEES),
-    customerEmail: `customer${randomNumber(1, 999)}@example.com`,
+    assignedTo: randomItem(ASSIGNEES),
+    customerEmail: `${randomItem(FIRST_NAMES).toLowerCase()}.${randomItem(LAST_NAMES).toLowerCase()}@example.com`,
   };
-};
-
-export default {
-  generateProductSampleData,
-  generateInventorySampleData,
-  generateOrderSampleData,
-  generatePaymentSampleData,
-  generateCaseSampleData,
 };
