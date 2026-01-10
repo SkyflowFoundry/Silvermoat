@@ -89,6 +89,31 @@ export const caseTableConfig = {
   ],
   rowKey: 'id',
   scroll: { x: 1100 },
+
+  mobileFields: [
+    {
+      layout: 'row',
+      items: [
+        {
+          label: 'Subject',
+          getValue: (caseItem) => caseItem.data?.subject || '-',
+          flex: 1,
+        },
+        {
+          label: 'Priority',
+          getValue: (caseItem) => caseItem.data?.priority || 'MEDIUM',
+        },
+      ],
+    },
+    {
+      label: 'Customer',
+      getValue: (caseItem) => caseItem.data?.customerEmail || '-',
+    },
+    {
+      label: 'Assigned To',
+      getValue: (caseItem) => caseItem.data?.assignedTo || 'Unassigned',
+    },
+  ],
 };
 
 // Mobile fields for responsive table

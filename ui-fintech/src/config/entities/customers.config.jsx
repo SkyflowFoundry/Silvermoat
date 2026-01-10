@@ -68,15 +68,32 @@ export const customerTableConfig = {
   ],
   rowKey: 'id',
   scroll: { x: 1000 },
-};
 
-// Mobile fields for responsive table
-export const customerMobileFields = [
-  { label: 'Name', key: ['data', 'name'] },
-  { label: 'Email', key: ['data', 'email'] },
-  { label: 'Phone', key: ['data', 'phone'] },
-  { label: 'Status', key: 'status' },
-];
+  mobileFields: [
+    {
+      label: 'Name',
+      getValue: (customer) => customer.data?.name || '-',
+    },
+    {
+      layout: 'row',
+      items: [
+        {
+          label: 'Email',
+          getValue: (customer) => customer.data?.email || '-',
+          flex: 1,
+        },
+        {
+          label: 'Status',
+          getValue: (customer) => customer.status || 'ACTIVE',
+        },
+      ],
+    },
+    {
+      label: 'Phone',
+      getValue: (customer) => customer.data?.phone || '-',
+    },
+  ],
+};
 
 // Form fields configuration
 export const customerFormFields = [

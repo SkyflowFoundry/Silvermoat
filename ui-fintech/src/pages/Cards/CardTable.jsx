@@ -4,7 +4,7 @@
  */
 
 import EntityTable from '../../components/shared/EntityTable';
-import { cardTableConfig, cardMobileFields } from '../../config/entities/cards.config';
+import { cardTableConfig } from '../../config/entities/cards.config';
 
 const CardTable = ({ cards = [], loading = false }) => {
   return (
@@ -12,10 +12,9 @@ const CardTable = ({ cards = [], loading = false }) => {
       data={cards}
       loading={loading}
       columns={cardTableConfig.columns}
-      mobileFields={cardMobileFields}
+      mobileFields={cardTableConfig.mobileFields}
       entityName="card"
       basePath="/cards"
-      scrollX={cardTableConfig.scroll.x}
     />
   );
 };

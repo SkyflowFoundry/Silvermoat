@@ -93,6 +93,51 @@ export const cardTableConfig = {
       render: (timestamp) => formatTimestamp(timestamp),
     },
   ],
+
+  mobileFields: [
+    {
+      layout: 'row',
+      items: [
+        {
+          label: 'Customer',
+          getValue: (card) => card.data?.customerName || '-',
+          flex: 1,
+        },
+        {
+          label: 'Status',
+          getValue: (card) => card.data?.status || 'ACTIVE',
+        },
+      ],
+    },
+    {
+      layout: 'row',
+      items: [
+        {
+          label: 'Card Number',
+          getValue: (card) => card.data?.cardNumber ? `****${card.data.cardNumber.slice(-4)}` : '-',
+          flex: 1,
+        },
+        {
+          label: 'Type',
+          getValue: (card) => card.data?.cardType || 'CREDIT',
+        },
+      ],
+    },
+    {
+      layout: 'row',
+      items: [
+        {
+          label: 'Credit Limit',
+          getValue: (card) => card.data?.creditLimit ? formatCurrency(card.data.creditLimit * 100) : '-',
+          flex: 1,
+        },
+        {
+          label: 'Balance',
+          getValue: (card) => card.data?.currentBalance ? formatCurrency(card.data.currentBalance * 100) : '-',
+        },
+      ],
+    },
+  ],
 };
 
 // Detail view configuration

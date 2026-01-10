@@ -4,7 +4,7 @@
  */
 
 import EntityTable from '../../components/shared/EntityTable';
-import { caseTableConfig, caseMobileFields } from '../../config/entities/cases.config';
+import { caseTableConfig } from '../../config/entities/cases.config';
 
 const CaseTable = ({ cases = [], loading = false }) => {
   return (
@@ -12,10 +12,10 @@ const CaseTable = ({ cases = [], loading = false }) => {
       data={cases}
       loading={loading}
       columns={caseTableConfig.columns}
-      mobileFields={caseMobileFields}
+      mobileFields={caseTableConfig.mobileFields}
       entityName="case"
       basePath="/cases"
-      scrollX={caseTableConfig.scroll.x}
+      scrollX={caseTableConfig.scroll?.x}
     />
   );
 };

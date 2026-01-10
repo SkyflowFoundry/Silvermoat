@@ -4,7 +4,7 @@
  */
 
 import EntityTable from '../../components/shared/EntityTable';
-import { accountTableConfig, accountMobileFields } from '../../config/entities/accounts.config';
+import { accountTableConfig } from '../../config/entities/accounts.config';
 
 const AccountTable = ({ accounts = [], loading = false }) => {
   return (
@@ -12,10 +12,10 @@ const AccountTable = ({ accounts = [], loading = false }) => {
       data={accounts}
       loading={loading}
       columns={accountTableConfig.columns}
-      mobileFields={accountMobileFields}
+      mobileFields={accountTableConfig.mobileFields}
       entityName="account"
       basePath="/accounts"
-      scrollX={accountTableConfig.scroll.x}
+      scrollX={accountTableConfig.scroll?.x}
     />
   );
 };

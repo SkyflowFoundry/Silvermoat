@@ -4,7 +4,7 @@
  */
 
 import EntityTable from '../../components/shared/EntityTable';
-import { customerTableConfig, customerMobileFields } from '../../config/entities/customers.config';
+import { customerTableConfig } from '../../config/entities/customers.config';
 
 const CustomerTable = ({ customers = [], loading = false }) => {
   return (
@@ -12,10 +12,10 @@ const CustomerTable = ({ customers = [], loading = false }) => {
       data={customers}
       loading={loading}
       columns={customerTableConfig.columns}
-      mobileFields={customerMobileFields}
+      mobileFields={customerTableConfig.mobileFields}
       entityName="customer"
       basePath="/customers"
-      scrollX={customerTableConfig.scroll.x}
+      scrollX={customerTableConfig.scroll?.x}
     />
   );
 };

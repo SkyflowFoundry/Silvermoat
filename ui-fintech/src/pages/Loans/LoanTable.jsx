@@ -4,7 +4,7 @@
  */
 
 import EntityTable from '../../components/shared/EntityTable';
-import { loanTableConfig, loanMobileFields } from '../../config/entities/loans.config';
+import { loanTableConfig } from '../../config/entities/loans.config';
 
 const LoanTable = ({ loans = [], loading = false }) => {
   return (
@@ -12,10 +12,10 @@ const LoanTable = ({ loans = [], loading = false }) => {
       data={loans}
       loading={loading}
       columns={loanTableConfig.columns}
-      mobileFields={loanMobileFields}
+      mobileFields={loanTableConfig.mobileFields}
       entityName="loan"
       basePath="/loans"
-      scrollX={loanTableConfig.scroll.x}
+      scrollX={loanTableConfig.scroll?.x}
     />
   );
 };

@@ -80,6 +80,41 @@ export const accountTableConfig = {
   ],
   rowKey: 'id',
   scroll: { x: 1200 },
+
+  mobileFields: [
+    {
+      layout: 'row',
+      items: [
+        {
+          label: 'Account Number',
+          getValue: (account) => account.data?.accountNumber || '-',
+          flex: 1,
+        },
+        {
+          label: 'Type',
+          getValue: (account) => account.data?.accountType || 'CHECKING',
+        },
+      ],
+    },
+    {
+      layout: 'row',
+      items: [
+        {
+          label: 'Customer',
+          getValue: (account) => account.data?.customerName || '-',
+          flex: 1,
+        },
+        {
+          label: 'Status',
+          getValue: (account) => account.status || 'ACTIVE',
+        },
+      ],
+    },
+    {
+      label: 'Balance',
+      getValue: (account) => account.data?.balance ? `$${parseFloat(account.data.balance).toFixed(2)}` : '-',
+    },
+  ],
 };
 
 // Mobile fields for responsive table

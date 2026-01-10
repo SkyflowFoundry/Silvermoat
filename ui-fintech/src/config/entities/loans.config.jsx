@@ -79,6 +79,41 @@ export const loanTableConfig = {
   ],
   rowKey: 'id',
   scroll: { x: 1200 },
+
+  mobileFields: [
+    {
+      layout: 'row',
+      items: [
+        {
+          label: 'Customer',
+          getValue: (loan) => loan.data?.customerName || '-',
+          flex: 1,
+        },
+        {
+          label: 'Status',
+          getValue: (loan) => loan.data?.status || 'ACTIVE',
+        },
+      ],
+    },
+    {
+      layout: 'row',
+      items: [
+        {
+          label: 'Amount',
+          getValue: (loan) => loan.data?.loanAmount ? `$${parseFloat(loan.data.loanAmount).toFixed(2)}` : '-',
+          flex: 1,
+        },
+        {
+          label: 'Balance',
+          getValue: (loan) => loan.data?.remainingBalance ? `$${parseFloat(loan.data.remainingBalance).toFixed(2)}` : '-',
+        },
+      ],
+    },
+    {
+      label: 'Interest Rate',
+      getValue: (loan) => loan.data?.interestRate ? `${loan.data.interestRate}%` : '-',
+    },
+  ],
 };
 
 // Mobile fields for responsive table

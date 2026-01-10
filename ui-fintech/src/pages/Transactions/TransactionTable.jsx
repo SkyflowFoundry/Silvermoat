@@ -4,7 +4,7 @@
  */
 
 import EntityTable from '../../components/shared/EntityTable';
-import { transactionTableConfig, transactionMobileFields } from '../../config/entities/transactions.config';
+import { transactionTableConfig } from '../../config/entities/transactions.config';
 
 const TransactionTable = ({ transactions = [], loading = false }) => {
   return (
@@ -12,10 +12,9 @@ const TransactionTable = ({ transactions = [], loading = false }) => {
       data={transactions}
       loading={loading}
       columns={transactionTableConfig.columns}
-      mobileFields={transactionMobileFields}
+      mobileFields={transactionTableConfig.mobileFields}
       entityName="transaction"
       basePath="/transactions"
-      scrollX={transactionTableConfig.scroll.x}
     />
   );
 };

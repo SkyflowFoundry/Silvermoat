@@ -92,6 +92,45 @@ export const transactionTableConfig = {
   rowKey: 'id',
   defaultSortField: 'createdAt',
   defaultSortOrder: 'descend',
+
+  mobileFields: [
+    {
+      layout: 'row',
+      items: [
+        {
+          label: 'Customer',
+          getValue: (transaction) => transaction.data?.customerName || '-',
+          flex: 1,
+        },
+        {
+          label: '',
+          getValue: (transaction) => (
+            transaction.status === 'COMPLETED' ? 'Completed' :
+            transaction.status === 'PENDING' ? 'Pending' :
+            transaction.status === 'FAILED' ? 'Failed' : 'Processing'
+          ),
+        },
+      ],
+    },
+    {
+      layout: 'row',
+      items: [
+        {
+          label: 'Amount',
+          getValue: (transaction) => transaction.data?.amount ? `$${parseFloat(transaction.data.amount).toFixed(2)}` : '-',
+          flex: 1,
+        },
+        {
+          label: 'Type',
+          getValue: (transaction) => transaction.data?.type || 'PAYMENT',
+        },
+      ],
+    },
+    {
+      label: 'Description',
+      getValue: (transaction) => transaction.data?.description || '-',
+    },
+  ],
 };
 
 // Form configuration
