@@ -3,17 +3,38 @@
  * API calls for customer management
  */
 
-import { get } from './api';
+import { createEntity, getEntity, listEntities } from './api';
+
+const DOMAIN = 'customer';
 
 /**
- * Get customer orders by email
- * @param {string} email - Customer email
- * @returns {Promise<Object>} { orders: [] }
+ * List all customers
+ * @returns {Promise<Object>} { items: [], count: number }
  */
-export const getCustomerOrders = async (email) => {
-  return get(`/customer/orders?email=${encodeURIComponent(email)}`);
+export const listCustomers = async () => {
+  return listEntities(DOMAIN);
+};
+
+/**
+ * Get a single customer by ID
+ * @param {string} id - Customer ID
+ * @returns {Promise<Object>} Customer data
+ */
+export const getCustomer = async (id) => {
+  return getEntity(DOMAIN, id);
+};
+
+/**
+ * Create a new customer
+ * @param {Object} data - Customer data
+ * @returns {Promise<Object>} Created customer
+ */
+export const createCustomer = async (data) => {
+  return createEntity(DOMAIN, data);
 };
 
 export default {
-  getCustomerOrders,
+  listCustomers,
+  getCustomer,
+  createCustomer,
 };
